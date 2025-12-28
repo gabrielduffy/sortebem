@@ -177,6 +177,13 @@ const Checkout = () => {
   const unitPrice = drawType === 'regular'
     ? (selectedRoundData?.card_price || parseFloat(settings?.card_price_regular) || 5)
     : (parseFloat(settings?.card_price_special) || 10);
+
+  console.log('Checkout - selectedRounds:', selectedRounds);
+  console.log('Checkout - selectedRounds.length:', selectedRounds.length);
+  console.log('Checkout - drawType:', drawType);
+  console.log('Checkout - unitPrice:', unitPrice);
+  console.log('Checkout - quantity:', quantity);
+
   const totalPrice = quantity * unitPrice * (drawType === 'regular' ? selectedRounds.length : 1);
 
   const toggleRoundSelection = (roundId: number) => {
@@ -217,9 +224,9 @@ const Checkout = () => {
       }
 
       const purchaseData = {
-        round_id: roundId,
+        round_id: parseInt(roundId.toString(), 10),
         quantity,
-        customer_whatsapp: whatsappNumber || undefined
+        payment_method: 'pix'
       };
       console.log('Dados para compra:', purchaseData);
 

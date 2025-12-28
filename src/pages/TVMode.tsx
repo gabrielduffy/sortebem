@@ -25,8 +25,9 @@ const TVMode = () => {
       try {
         // Load establishment data
         const tvData = await apiService.getTVData(slugEstabelecimento);
-        if (tvData.ok) {
-          setData(tvData);
+        console.log('TV Mode - TV data response:', tvData);
+        if (tvData.ok && tvData.data) {
+          setData(tvData.data);
         }
 
         // Load live round
