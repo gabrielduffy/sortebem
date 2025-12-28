@@ -38,6 +38,7 @@ import AdminEstablishments from "./pages/admin/AdminEstablishments";
 import AdminWhatsApp from "./pages/admin/AdminWhatsApp";
 import AdminPOS from "./pages/admin/AdminPOS";
 import AdminLogs from "./pages/admin/AdminLogs";
+import AdminIntegrations from "./pages/admin/AdminIntegrations";
 
 const queryClient = new QueryClient();
 
@@ -171,6 +172,11 @@ const App = () => (
             <Route path="/admin/logs" element={
               <ProtectedRoute allowedRoles={['admin']}>
                 <AdminLogs />
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/integracoes" element={
+              <ProtectedRoute allowedRoles={['admin']}>
+                <AdminIntegrations />
               </ProtectedRoute>
             } />
 

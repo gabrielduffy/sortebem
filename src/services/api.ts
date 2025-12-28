@@ -320,6 +320,250 @@ class ApiService {
     const response = await this.fetch('/stats/manager');
     return await response.json();
   }
+
+  // ============ INTEGRATIONS ============
+
+  /**
+   * Update gateway settings (admin only)
+   */
+  async updateGatewaySettings(data: any) {
+    const response = await this.fetch('/settings/gateway', {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+    return await response.json();
+  }
+
+  /**
+   * Update WhatsApp settings (admin only)
+   */
+  async updateWhatsAppSettings(data: any) {
+    const response = await this.fetch('/settings/whatsapp', {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+    return await response.json();
+  }
+
+  /**
+   * Test WhatsApp connection
+   */
+  async testWhatsApp() {
+    const response = await this.fetch('/settings/whatsapp/test', {
+      method: 'POST',
+    });
+    return await response.json();
+  }
+
+  /**
+   * Get WhatsApp logs
+   */
+  async getWhatsAppLogs() {
+    const response = await this.fetch('/whatsapp/logs');
+    return await response.json();
+  }
+
+  // ============ MANAGERS ============
+
+  /**
+   * Get all managers (admin only)
+   */
+  async getManagers() {
+    const response = await this.fetch('/managers');
+    return await response.json();
+  }
+
+  /**
+   * Get manager by ID
+   */
+  async getManager(id: number) {
+    const response = await this.fetch(`/managers/${id}`);
+    return await response.json();
+  }
+
+  /**
+   * Create manager (admin only)
+   */
+  async createManager(data: { name: string; cpf: string; whatsapp: string; email: string; password: string }) {
+    const response = await this.fetch('/managers', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+    return await response.json();
+  }
+
+  /**
+   * Update manager (admin only)
+   */
+  async updateManager(id: number, data: any) {
+    const response = await this.fetch(`/managers/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+    return await response.json();
+  }
+
+  /**
+   * Delete manager (admin only)
+   */
+  async deleteManager(id: number) {
+    const response = await this.fetch(`/managers/${id}`, {
+      method: 'DELETE',
+    });
+    return await response.json();
+  }
+
+  /**
+   * Update manager KYC status (admin only)
+   */
+  async updateManagerKYC(id: number, status: 'approved' | 'rejected') {
+    const response = await this.fetch(`/managers/${id}/kyc`, {
+      method: 'PUT',
+      body: JSON.stringify({ status }),
+    });
+    return await response.json();
+  }
+
+  // ============ ESTABLISHMENTS ============
+
+  /**
+   * Get all establishments (admin/manager)
+   */
+  async getEstablishments() {
+    const response = await this.fetch('/establishments');
+    return await response.json();
+  }
+
+  /**
+   * Get establishment by ID
+   */
+  async getEstablishment(id: number) {
+    const response = await this.fetch(`/establishments/${id}`);
+    return await response.json();
+  }
+
+  /**
+   * Create establishment (admin/manager)
+   */
+  async createEstablishment(data: {
+    name: string;
+    cnpj: string;
+    phone: string;
+    email: string;
+    password: string;
+    manager_id: number;
+    address: string;
+    city: string;
+    state: string;
+  }) {
+    const response = await this.fetch('/establishments', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+    return await response.json();
+  }
+
+  /**
+   * Update establishment (admin/manager)
+   */
+  async updateEstablishment(id: number, data: any) {
+    const response = await this.fetch(`/establishments/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+    return await response.json();
+  }
+
+  /**
+   * Delete establishment (admin only)
+   */
+  async deleteEstablishment(id: number) {
+    const response = await this.fetch(`/establishments/${id}`, {
+      method: 'DELETE',
+    });
+    return await response.json();
+  }
+
+  /**
+   * Update establishment KYC status (admin only)
+   */
+  async updateEstablishmentKYC(id: number, status: 'approved' | 'rejected') {
+    const response = await this.fetch(`/establishments/${id}/kyc`, {
+      method: 'PUT',
+      body: JSON.stringify({ status }),
+    });
+    return await response.json();
+  }
+
+  /**
+   * Toggle establishment active status (admin only)
+   */
+  async toggleEstablishmentActive(id: number, active: boolean) {
+    const response = await this.fetch(`/establishments/${id}/active`, {
+      method: 'PUT',
+      body: JSON.stringify({ active }),
+    });
+    return await response.json();
+  }
+
+  // ============ CHARITIES ============
+
+  /**
+   * Get all charities
+   */
+  async getCharities() {
+    const response = await this.fetch('/charities');
+    return await response.json();
+  }
+
+  /**
+   * Create charity (admin only)
+   */
+  async createCharity(data: {
+    name: string;
+    description: string;
+    pix_key: string;
+    website?: string;
+    instagram?: string;
+    logo_url?: string;
+  }) {
+    const response = await this.fetch('/charities', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+    return await response.json();
+  }
+
+  /**
+   * Update charity (admin only)
+   */
+  async updateCharity(id: number, data: any) {
+    const response = await this.fetch(`/charities/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+    return await response.json();
+  }
+
+  /**
+   * Delete charity (admin only)
+   */
+  async deleteCharity(id: number) {
+    const response = await this.fetch(`/charities/${id}`, {
+      method: 'DELETE',
+    });
+    return await response.json();
+  }
+
+  /**
+   * Set charity as active (admin only)
+   */
+  async setActiveCharity(id: number) {
+    const response = await this.fetch(`/charities/${id}/set-active`, {
+      method: 'PUT',
+    });
+    return await response.json();
+  }
 }
 
 export const apiService = new ApiService();
