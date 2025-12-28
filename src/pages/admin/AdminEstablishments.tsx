@@ -292,16 +292,62 @@ export default function AdminEstablishments() {
         <Dialog open={!!viewingEstablishment} onOpenChange={() => setViewingEstablishment(null)}>
           <DialogContent className="max-w-2xl"><DialogHeader><DialogTitle>Detalhes do Estabelecimento</DialogTitle></DialogHeader>
           {viewingEstablishment && (
-            <div className="grid md:grid-cols-2 gap-4 py-4">
-              <div><Label className="text-muted-foreground">Nome Fantasia</Label><p className="font-medium">{viewingEstablishment.trade_name || 'Sem nome'}</p></div>
-              <div><Label className="text-muted-foreground">CNPJ</Label><p className="font-medium">{viewingEstablishment.cnpj || '-'}</p></div>
-              <div><Label className="text-muted-foreground">WhatsApp</Label><p className="font-medium">{viewingEstablishment.whatsapp || '-'}</p></div>
-              <div><Label className="text-muted-foreground">E-mail</Label><p className="font-medium">{viewingEstablishment.email || '-'}</p></div>
-              <div><Label className="text-muted-foreground">Gerente</Label><p className="font-medium">{viewingEstablishment.manager_name || '-'}</p></div>
-              <div><Label className="text-muted-foreground">Vendas</Label><p className="font-medium text-primary">{formatCurrency(viewingEstablishment.total_sales || 0)}</p></div>
-              <div><Label className="text-muted-foreground">Comissão</Label><p className="font-medium text-primary">{formatCurrency(viewingEstablishment.total_commission || 0)}</p></div>
-              <div><Label className="text-muted-foreground">Status KYC</Label><Badge variant={viewingEstablishment.kyc_status === 'approved' ? 'default' : viewingEstablishment.kyc_status === 'pending' ? 'secondary' : 'destructive'}>{viewingEstablishment.kyc_status === 'approved' ? 'Aprovado' : viewingEstablishment.kyc_status === 'pending' ? 'Pendente' : 'Reprovado'}</Badge></div>
-              <div><Label className="text-muted-foreground">Ativo</Label><Badge variant={viewingEstablishment.is_active ? 'default' : 'outline'}>{viewingEstablishment.is_active ? 'Sim' : 'Não'}</Badge></div>
+            <div className="space-y-6 py-4">
+              <div className="grid md:grid-cols-2 gap-4">
+                <div><Label className="text-muted-foreground">Nome Fantasia</Label><p className="font-medium">{viewingEstablishment.trade_name || 'Sem nome'}</p></div>
+                <div><Label className="text-muted-foreground">CNPJ</Label><p className="font-medium">{viewingEstablishment.cnpj || '-'}</p></div>
+                <div><Label className="text-muted-foreground">WhatsApp</Label><p className="font-medium">{viewingEstablishment.whatsapp || '-'}</p></div>
+                <div><Label className="text-muted-foreground">E-mail</Label><p className="font-medium">{viewingEstablishment.email || '-'}</p></div>
+                <div><Label className="text-muted-foreground">Gerente</Label><p className="font-medium">{viewingEstablishment.manager_name || '-'}</p></div>
+                <div><Label className="text-muted-foreground">Vendas</Label><p className="font-medium text-primary">{formatCurrency(viewingEstablishment.total_sales || 0)}</p></div>
+                <div><Label className="text-muted-foreground">Comissão</Label><p className="font-medium text-primary">{formatCurrency(viewingEstablishment.total_commission || 0)}</p></div>
+                <div><Label className="text-muted-foreground">Status KYC</Label><Badge variant={viewingEstablishment.kyc_status === 'approved' ? 'default' : viewingEstablishment.kyc_status === 'pending' ? 'secondary' : 'destructive'}>{viewingEstablishment.kyc_status === 'approved' ? 'Aprovado' : viewingEstablishment.kyc_status === 'pending' ? 'Pendente' : 'Reprovado'}</Badge></div>
+                <div><Label className="text-muted-foreground">Ativo</Label><Badge variant={viewingEstablishment.is_active ? 'default' : 'outline'}>{viewingEstablishment.is_active ? 'Sim' : 'Não'}</Badge></div>
+              </div>
+
+              <div className="border-t pt-4 space-y-3">
+                <h3 className="font-semibold text-foreground">Links Únicos</h3>
+                <div className="space-y-2">
+                  <Label className="text-muted-foreground">Link da TV</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      readOnly
+                      value={`${window.location.origin}/tv/${viewingEstablishment.slug || viewingEstablishment.code || viewingEstablishment.id}`}
+                      className="font-mono text-sm"
+                    />
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        navigator.clipboard.writeText(`${window.location.origin}/tv/${viewingEstablishment.slug || viewingEstablishment.code || viewingEstablishment.id}`);
+                        toast({ title: 'Link da TV copiado!' });
+                      }}
+                    >
+                      Copiar
+                    </Button>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-muted-foreground">Link de Vendas</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      readOnly
+                      value={`${window.location.origin}/comprar?ref=${viewingEstablishment.code || viewingEstablishment.id}`}
+                      className="font-mono text-sm"
+                    />
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        navigator.clipboard.writeText(`${window.location.origin}/comprar?ref=${viewingEstablishment.code || viewingEstablishment.id}`);
+                        toast({ title: 'Link de vendas copiado!' });
+                      }}
+                    >
+                      Copiar
+                    </Button>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
           <DialogFooter><Button variant="outline" onClick={() => setViewingEstablishment(null)}>Fechar</Button>
