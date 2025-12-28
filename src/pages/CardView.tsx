@@ -31,8 +31,8 @@ const CardView = () => {
 
       try {
         const response = await apiService.getCard(codigo);
-        if (response.ok && response.card) {
-          setCard(response.card);
+        if (response.ok && response.data) {
+          setCard(response.data);
         } else {
           setCard(null);
         }
@@ -54,15 +54,15 @@ const CardView = () => {
     const loadLiveRound = async () => {
       try {
         const response = await apiService.getLiveRound();
-        if (response.ok && response.round) {
-          setLiveRound(response.round);
-          setRoundStatus(response.round.status === 'drawing' ? 'live' : 'waiting');
+        if (response.ok && response.data) {
+          setLiveRound(response.data);
+          setRoundStatus(response.data.status === 'drawing' ? 'live' : 'waiting');
 
           // Load drawn numbers if round is live
-          if (response.round.status === 'drawing') {
-            const numbersResponse = await apiService.getDrawnNumbers(response.round.id);
-            if (numbersResponse.ok && numbersResponse.numbers) {
-              setDrawnNumbers(numbersResponse.numbers);
+          if (response.data.status === 'drawing') {
+            const numbersResponse = await apiService.getDrawnNumbers(response.data.id);
+            if (numbersResponse.ok && numbersResponse.data) {
+              setDrawnNumbers(numbersResponse.data);
             }
           }
         }

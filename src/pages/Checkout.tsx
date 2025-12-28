@@ -209,15 +209,15 @@ const Checkout = () => {
         customer_whatsapp: whatsappNumber || undefined
       });
 
-      if (response.ok && response.pix) {
+      if (response.ok && response.data?.pix) {
         setPixData({
-          purchaseId: response.purchase_id,
-          pixCode: response.pix.code,
-          pixQrCode: response.pix.qrcode,
+          purchaseId: response.data.purchase_id || response.data.id,
+          pixCode: response.data.pix.code,
+          pixQrCode: response.data.pix.qrcode,
           amount: totalPrice
         });
         setStep('payment');
-        pollForPayment(response.purchase_id);
+        pollForPayment(response.data.purchase_id || response.data.id);
       } else {
         toast({
           title: 'Erro',
@@ -241,12 +241,12 @@ const Checkout = () => {
       try {
         const response = await apiService.checkPurchaseStatus(purchaseId);
 
-        if (response.ok && response.status === 'paid') {
+        if (response.ok && response.data?.status === 'paid') {
           // Get purchase details with cards
           const purchaseData = await apiService.getPurchase(purchaseId);
 
-          if (purchaseData.ok && purchaseData.cards) {
-            setGeneratedCards(purchaseData.cards);
+          if (purchaseData.ok && purchaseData.data?.cards) {
+            setGeneratedCards(purchaseData.data.cards);
             setStep('confirmed');
             toast({ title: '✅ Pagamento confirmado!', description: 'Suas cartelas foram geradas com sucesso.' });
             return;

@@ -224,20 +224,24 @@ export default function AdminCharity() {
                   <div className="flex items-start justify-between">
                     <div className="flex items-center gap-3">
                       <div className="w-12 h-12 rounded-xl bg-muted flex items-center justify-center overflow-hidden">
-                        <img src={charity.logo} alt={charity.name} className="w-full h-full object-cover" />
+                        {charity.logo_url ? (
+                          <img src={charity.logo_url} alt={charity.name || 'Logo'} className="w-full h-full object-cover" />
+                        ) : (
+                          <Heart className="w-6 h-6 text-muted-foreground" />
+                        )}
                       </div>
                       <div>
-                        <CardTitle className="text-base">{charity.name}</CardTitle>
+                        <CardTitle className="text-base">{charity.name || 'Sem nome'}</CardTitle>
                         {charity.is_active && <Badge className="mt-1">Ativa</Badge>}
                       </div>
                     </div>
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <p className="text-sm text-muted-foreground">{charity.description}</p>
+                  <p className="text-sm text-muted-foreground">{charity.description || 'Sem descrição'}</p>
                   <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">{charity.month}/{charity.year}</span>
-                    <span className="font-semibold text-primary">{formatCurrency(charity.total_raised || 0)}</span>
+                    <span className="text-muted-foreground">Total Arrecadado</span>
+                    <span className="font-semibold text-primary">{formatCurrency(charity.total_received || 0)}</span>
                   </div>
                   <div className="flex gap-2">
                     {!charity.is_active && (

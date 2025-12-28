@@ -97,7 +97,7 @@ const TVMode = () => {
               </div>
               <div>
                 <h1 className="text-2xl md:text-3xl font-bold text-primary">SORTEBEM</h1>
-                <p className="text-background/70 text-sm">{data.establishment.tradeName}</p>
+                <p className="text-background/70 text-sm">{data?.establishment?.trade_name || data?.establishment?.tradeName || 'Estabelecimento'}</p>
               </div>
             </div>
 
@@ -153,7 +153,7 @@ const TVMode = () => {
               <Trophy className="w-12 h-12 mx-auto mb-4 text-primary-foreground" />
               <p className="text-xl text-primary-foreground/80 mb-2">Prêmio Atual</p>
               <p className="text-5xl md:text-6xl font-bold text-primary-foreground">
-                {formatCurrency(data.currentRound.prizePool)}
+                {formatCurrency(data?.currentRound?.prize_pool || data?.currentRound?.prizePool || 0)}
               </p>
             </motion.div>
           </div>
@@ -237,9 +237,9 @@ const TVMode = () => {
                 <span className="text-xl text-background/70">Últimos Ganhadores</span>
               </div>
               <div className="grid md:grid-cols-3 gap-4">
-                {data.recentWinners.slice(0, 3).map((winner: any, index: number) => (
+                {(data?.recentWinners || []).slice(0, 3).map((winner: any, index: number) => (
                   <motion.div
-                    key={winner.id}
+                    key={winner.id || index}
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: index * 0.1 }}
@@ -248,15 +248,15 @@ const TVMode = () => {
                     <div className="flex items-center justify-center gap-2 mb-2">
                       <Store className="w-5 h-5 text-primary" />
                       <span className="font-semibold text-background line-clamp-1">
-                        {winner.establishmentName}
+                        {winner.establishment_name || winner.establishmentName || 'Estabelecimento'}
                       </span>
                     </div>
                     <p className="text-2xl font-bold text-primary">
-                      {formatCurrency(winner.prizeAmount)}
+                      {formatCurrency(winner.prize_amount || winner.prizeAmount || 0)}
                     </p>
-                    {winner.tieBreakNumber && (
+                    {(winner.tie_break_number || winner.tieBreakNumber) && (
                       <span className="text-xs bg-warning/20 text-warning px-2 py-1 rounded mt-2 inline-block">
-                        Pedra: {winner.tieBreakNumber}
+                        Pedra: {winner.tie_break_number || winner.tieBreakNumber}
                       </span>
                     )}
                   </motion.div>
