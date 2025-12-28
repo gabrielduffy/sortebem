@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,48 +9,112 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { toast } from '@/hooks/use-toast';
 import { Plus, Edit, Trash2, Star, Heart, TrendingUp } from 'lucide-react';
-
-const mockCharities = [
-  { id: '1', name: 'Instituto Criança Feliz', logo: '/placeholder.svg', description: 'Ajudando crianças em situação de vulnerabilidade', isActive: true, month: 12, year: 2024, totalRaised: 127845.50 },
-  { id: '2', name: 'Casa dos Idosos', logo: '/placeholder.svg', description: 'Cuidando de nossos idosos com carinho', isActive: false, month: 11, year: 2024, totalRaised: 98234.00 },
-  { id: '3', name: 'ONG Animais Felizes', logo: '/placeholder.svg', description: 'Resgatando e cuidando de animais abandonados', isActive: false, month: 10, year: 2024, totalRaised: 76543.25 },
-];
+import { apiService } from '@/services/api';
 
 export default function AdminCharity() {
-  const [charities, setCharities] = useState(mockCharities);
+  const [charities, setCharities] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingCharity, setEditingCharity] = useState<any>(null);
   const [form, setForm] = useState({ name: '', description: '', logo: '' });
 
-  const handleSave = () => {
-    if (editingCharity) {
-      setCharities(prev => prev.map(c => c.id === editingCharity.id ? { ...c, ...form } : c));
-      toast({ title: 'Instituição atualizada!' });
-    } else {
-      const newCharity = { 
-        id: Date.now().toString(), 
-        ...form, 
-        isActive: false, 
-        month: new Date().getMonth() + 1, 
-        year: new Date().getFullYear(),
-        totalRaised: 0 
-      };
-      setCharities(prev => [...prev, newCharity]);
-      toast({ title: 'Instituição cadastrada!' });
+  useEffect(() => {
+    fetchCharities();
+  }, []);
+
+  const fetchCharities = async () => {
+    try {
+      setLoading(true);
+      const response = await apiService.getCharities();
+      if (response.ok && response.charities) {
+        setCharities(response.charities);
+      }
+    } catch (error) {
+      console.error('Error loading charities:', error);
+      toast({
+        title: 'Erro',
+        description: 'Não foi possível carregar as instituições.',
+        variant: 'destructive'
+      });
+    } finally {
+      setLoading(false);
     }
-    setIsDialogOpen(false);
-    setEditingCharity(null);
-    setForm({ name: '', description: '', logo: '' });
   };
 
-  const handleSetActive = (id: string) => {
-    setCharities(prev => prev.map(c => ({ ...c, isActive: c.id === id })));
-    toast({ title: 'Instituição do mês atualizada!' });
+  const handleSave = async () => {
+    if (!form.name || !form.description) {
+      toast({ title: 'Campos obrigatórios', description: 'Preencha todos os campos.', variant: 'destructive' });
+      return;
+    }
+
+    try {
+      setSaving(true);
+      if (editingCharity) {
+        const response = await apiService.updateCharity(editingCharity.id, {
+          name: form.name,
+          description: form.description,
+          logo: form.logo
+        });
+
+        if (response.ok) {
+          toast({ title: 'Instituição atualizada!', description: 'Os dados foram atualizados com sucesso.' });
+          setIsDialogOpen(false);
+          setEditingCharity(null);
+          setForm({ name: '', description: '', logo: '' });
+          fetchCharities();
+        } else {
+          toast({ title: 'Erro', description: response.error || 'Erro ao atualizar instituição.', variant: 'destructive' });
+        }
+      } else {
+        const response = await apiService.createCharity({
+          name: form.name,
+          description: form.description,
+          logo: form.logo
+        });
+
+        if (response.ok) {
+          toast({ title: 'Instituição cadastrada!', description: 'A nova instituição foi cadastrada com sucesso.' });
+          setIsDialogOpen(false);
+          setForm({ name: '', description: '', logo: '' });
+          fetchCharities();
+        } else {
+          toast({ title: 'Erro', description: response.error || 'Erro ao criar instituição.', variant: 'destructive' });
+        }
+      }
+    } catch (error) {
+      toast({ title: 'Erro', description: 'Não foi possível salvar a instituição.', variant: 'destructive' });
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const handleDelete = (id: string) => {
-    setCharities(prev => prev.filter(c => c.id !== id));
-    toast({ title: 'Instituição removida' });
+  const handleSetActive = async (id: number) => {
+    try {
+      const response = await apiService.setActiveCharity(id);
+      if (response.ok) {
+        toast({ title: 'Instituição do mês atualizada!', description: 'A instituição foi definida como ativa.' });
+        fetchCharities();
+      } else {
+        toast({ title: 'Erro', description: response.error || 'Erro ao definir instituição ativa.', variant: 'destructive' });
+      }
+    } catch (error) {
+      toast({ title: 'Erro', description: 'Não foi possível atualizar a instituição.', variant: 'destructive' });
+    }
+  };
+
+  const handleDelete = async (id: number) => {
+    try {
+      const response = await apiService.deleteCharity(id);
+      if (response.ok) {
+        toast({ title: 'Instituição removida', description: 'A instituição foi removida do sistema.' });
+        fetchCharities();
+      } else {
+        toast({ title: 'Erro', description: response.error || 'Erro ao excluir instituição.', variant: 'destructive' });
+      }
+    } catch (error) {
+      toast({ title: 'Erro', description: 'Não foi possível excluir a instituição.', variant: 'destructive' });
+    }
   };
 
   const openEdit = (charity: any) => {
@@ -97,7 +161,7 @@ export default function AdminCharity() {
               </div>
               <DialogFooter>
                 <Button variant="outline" onClick={() => setIsDialogOpen(false)}>Cancelar</Button>
-                <Button variant="hero" onClick={handleSave}>Salvar</Button>
+                <Button variant="hero" onClick={handleSave} disabled={saving}>{saving ? 'Salvando...' : 'Salvar'}</Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>
@@ -113,7 +177,7 @@ export default function AdminCharity() {
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Total Arrecadado (Mês)</p>
-                  <p className="text-2xl font-bold text-foreground">{formatCurrency(charities.find(c => c.isActive)?.totalRaised || 0)}</p>
+                  <p className="text-2xl font-bold text-foreground">{formatCurrency(charities.find(c => c.is_active)?.total_raised || 0)}</p>
                 </div>
               </div>
             </CardContent>
@@ -126,7 +190,7 @@ export default function AdminCharity() {
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Total Histórico</p>
-                  <p className="text-2xl font-bold text-foreground">{formatCurrency(charities.reduce((acc, c) => acc + c.totalRaised, 0))}</p>
+                  <p className="text-2xl font-bold text-foreground">{formatCurrency(charities.reduce((acc, c) => acc + (c.total_raised || 0), 0))}</p>
                 </div>
               </div>
             </CardContent>
@@ -147,46 +211,52 @@ export default function AdminCharity() {
         </div>
 
         {/* List */}
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {charities.map(charity => (
-            <Card key={charity.id} className={charity.isActive ? 'border-primary ring-2 ring-primary/20' : ''}>
-              <CardHeader className="pb-3">
-                <div className="flex items-start justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 rounded-xl bg-muted flex items-center justify-center overflow-hidden">
-                      <img src={charity.logo} alt={charity.name} className="w-full h-full object-cover" />
-                    </div>
-                    <div>
-                      <CardTitle className="text-base">{charity.name}</CardTitle>
-                      {charity.isActive && <Badge className="mt-1">Ativa</Badge>}
+        {loading ? (
+          <div className="flex items-center justify-center min-h-[400px]">
+            <div className="animate-spin w-12 h-12 border-4 border-primary border-t-transparent rounded-full" />
+          </div>
+        ) : (
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {charities.map(charity => (
+              <Card key={charity.id} className={charity.is_active ? 'border-primary ring-2 ring-primary/20' : ''}>
+                <CardHeader className="pb-3">
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-12 h-12 rounded-xl bg-muted flex items-center justify-center overflow-hidden">
+                        <img src={charity.logo} alt={charity.name} className="w-full h-full object-cover" />
+                      </div>
+                      <div>
+                        <CardTitle className="text-base">{charity.name}</CardTitle>
+                        {charity.is_active && <Badge className="mt-1">Ativa</Badge>}
+                      </div>
                     </div>
                   </div>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <p className="text-sm text-muted-foreground">{charity.description}</p>
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">{charity.month}/{charity.year}</span>
-                  <span className="font-semibold text-primary">{formatCurrency(charity.totalRaised)}</span>
-                </div>
-                <div className="flex gap-2">
-                  {!charity.isActive && (
-                    <Button variant="outline" size="sm" className="flex-1" onClick={() => handleSetActive(charity.id)}>
-                      <Star className="w-4 h-4" />
-                      Definir Ativa
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <p className="text-sm text-muted-foreground">{charity.description}</p>
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-muted-foreground">{charity.month}/{charity.year}</span>
+                    <span className="font-semibold text-primary">{formatCurrency(charity.total_raised || 0)}</span>
+                  </div>
+                  <div className="flex gap-2">
+                    {!charity.is_active && (
+                      <Button variant="outline" size="sm" className="flex-1" onClick={() => handleSetActive(charity.id)}>
+                        <Star className="w-4 h-4" />
+                        Definir Ativa
+                      </Button>
+                    )}
+                    <Button variant="ghost" size="sm" onClick={() => openEdit(charity)}>
+                      <Edit className="w-4 h-4" />
                     </Button>
-                  )}
-                  <Button variant="ghost" size="sm" onClick={() => openEdit(charity)}>
-                    <Edit className="w-4 h-4" />
-                  </Button>
-                  <Button variant="ghost" size="sm" className="text-destructive" onClick={() => handleDelete(charity.id)}>
-                    <Trash2 className="w-4 h-4" />
+                    <Button variant="ghost" size="sm" className="text-destructive" onClick={() => handleDelete(charity.id)}>
+                      <Trash2 className="w-4 h-4" />
                   </Button>
                 </div>
               </CardContent>
             </Card>
           ))}
-        </div>
+          </div>
+        )}
       </div>
     </DashboardLayout>
   );

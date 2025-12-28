@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,52 +9,145 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { DataTable } from '@/components/dashboard/DataTable';
 import { toast } from '@/hooks/use-toast';
 import { Plus, Eye, Check, X, Users, Building2, Wallet, Pencil, Trash2 } from 'lucide-react';
+import { apiService } from '@/services/api';
 
-const initialManagers = [
-  { id: '1', fullName: 'Carlos Gerente', cpf: '123.456.789-00', whatsapp: '11999999999', email: 'carlos@email.com', kycStatus: 'approved', establishments: 12, commission: 7289, referralCode: 'MGR001' },
-  { id: '2', fullName: 'Maria Silva', cpf: '987.654.321-00', whatsapp: '11988888888', email: 'maria@email.com', kycStatus: 'pending', establishments: 5, commission: 3450, referralCode: 'MGR002' },
-  { id: '3', fullName: 'João Santos', cpf: '456.789.123-00', whatsapp: '11977777777', email: 'joao@email.com', kycStatus: 'rejected', establishments: 0, commission: 0, referralCode: 'MGR003' },
-];
-
-const emptyManager = { id: '', fullName: '', cpf: '', whatsapp: '', email: '', kycStatus: 'pending', establishments: 0, commission: 0, referralCode: '' };
+const emptyManager = { id: 0, name: '', cpf: '', whatsapp: '', email: '', password: '', kyc_status: 'pending', establishments_count: 0, total_commission: 0 };
 
 export default function AdminManagers() {
-  const [managers, setManagers] = useState(initialManagers);
+  const [managers, setManagers] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [viewingManager, setViewingManager] = useState<any>(null);
   const [editingManager, setEditingManager] = useState<any>(null);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
-  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);
   const [formData, setFormData] = useState(emptyManager);
 
-  const handleApproveKYC = (id: string) => {
-    setManagers(prev => prev.map(m => m.id === id ? { ...m, kycStatus: 'approved' } : m));
-    toast({ title: 'KYC aprovado!', description: 'O gerente foi aprovado com sucesso.' });
+  useEffect(() => {
+    fetchManagers();
+  }, []);
+
+  const fetchManagers = async () => {
+    try {
+      setLoading(true);
+      const response = await apiService.getManagers();
+      if (response.ok && response.managers) {
+        setManagers(response.managers);
+      }
+    } catch (error) {
+      console.error('Error loading managers:', error);
+      toast({
+        title: 'Erro',
+        description: 'Não foi possível carregar os gerentes.',
+        variant: 'destructive'
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleRejectKYC = (id: string) => {
-    setManagers(prev => prev.map(m => m.id === id ? { ...m, kycStatus: 'rejected' } : m));
-    toast({ title: 'KYC reprovado', description: 'O gerente foi reprovado.' });
+  const handleApproveKYC = async (id: number) => {
+    try {
+      const response = await apiService.updateManagerKYC(id, 'approved');
+      if (response.ok) {
+        toast({ title: 'KYC aprovado!', description: 'O gerente foi aprovado com sucesso.' });
+        fetchManagers();
+      } else {
+        toast({ title: 'Erro', description: response.error || 'Erro ao aprovar KYC.', variant: 'destructive' });
+      }
+    } catch (error) {
+      toast({ title: 'Erro', description: 'Não foi possível aprovar KYC.', variant: 'destructive' });
+    }
   };
 
-  const handleCreate = () => {
-    const newManager = { ...formData, id: `${Date.now()}`, referralCode: `MGR${Date.now().toString().slice(-4)}` };
-    setManagers(prev => [...prev, newManager]);
-    setIsCreateOpen(false);
-    setFormData(emptyManager);
-    toast({ title: 'Gerente criado!', description: 'O novo gerente foi cadastrado com sucesso.' });
+  const handleRejectKYC = async (id: number) => {
+    try {
+      const response = await apiService.updateManagerKYC(id, 'rejected');
+      if (response.ok) {
+        toast({ title: 'KYC reprovado', description: 'O gerente foi reprovado.' });
+        fetchManagers();
+      } else {
+        toast({ title: 'Erro', description: response.error || 'Erro ao reprovar KYC.', variant: 'destructive' });
+      }
+    } catch (error) {
+      toast({ title: 'Erro', description: 'Não foi possível reprovar KYC.', variant: 'destructive' });
+    }
   };
 
-  const handleEdit = () => {
-    setManagers(prev => prev.map(m => m.id === editingManager.id ? { ...editingManager, ...formData } : m));
-    setEditingManager(null);
-    setFormData(emptyManager);
-    toast({ title: 'Gerente atualizado!', description: 'Os dados foram atualizados com sucesso.' });
+  const handleCreate = async () => {
+    if (!formData.name || !formData.email || !formData.password) {
+      toast({ title: 'Campos obrigatórios', description: 'Preencha todos os campos.', variant: 'destructive' });
+      return;
+    }
+
+    try {
+      setSaving(true);
+      const response = await apiService.createManager({
+        name: formData.name,
+        cpf: formData.cpf,
+        whatsapp: formData.whatsapp,
+        email: formData.email,
+        password: formData.password
+      });
+
+      if (response.ok) {
+        toast({ title: 'Gerente criado!', description: 'O novo gerente foi cadastrado com sucesso.' });
+        setIsCreateOpen(false);
+        setFormData(emptyManager);
+        fetchManagers();
+      } else {
+        toast({ title: 'Erro', description: response.error || 'Erro ao criar gerente.', variant: 'destructive' });
+      }
+    } catch (error) {
+      toast({ title: 'Erro', description: 'Não foi possível criar o gerente.', variant: 'destructive' });
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const handleDelete = (id: string) => {
-    setManagers(prev => prev.filter(m => m.id !== id));
-    setDeleteConfirm(null);
-    toast({ title: 'Gerente excluído', description: 'O gerente foi removido do sistema.' });
+  const handleEdit = async () => {
+    if (!formData.name || !formData.email) {
+      toast({ title: 'Campos obrigatórios', description: 'Preencha todos os campos.', variant: 'destructive' });
+      return;
+    }
+
+    try {
+      setSaving(true);
+      const response = await apiService.updateManager(editingManager.id, {
+        name: formData.name,
+        cpf: formData.cpf,
+        whatsapp: formData.whatsapp,
+        email: formData.email
+      });
+
+      if (response.ok) {
+        toast({ title: 'Gerente atualizado!', description: 'Os dados foram atualizados com sucesso.' });
+        setEditingManager(null);
+        setFormData(emptyManager);
+        fetchManagers();
+      } else {
+        toast({ title: 'Erro', description: response.error || 'Erro ao atualizar gerente.', variant: 'destructive' });
+      }
+    } catch (error) {
+      toast({ title: 'Erro', description: 'Não foi possível atualizar o gerente.', variant: 'destructive' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async (id: number) => {
+    try {
+      const response = await apiService.deleteManager(id);
+      if (response.ok) {
+        toast({ title: 'Gerente excluído', description: 'O gerente foi removido do sistema.' });
+        setDeleteConfirm(null);
+        fetchManagers();
+      } else {
+        toast({ title: 'Erro', description: response.error || 'Erro ao excluir gerente.', variant: 'destructive' });
+      }
+    } catch (error) {
+      toast({ title: 'Erro', description: 'Não foi possível excluir o gerente.', variant: 'destructive' });
+    }
   };
 
   const openEdit = (manager: any) => {
@@ -65,14 +158,14 @@ export default function AdminManagers() {
   const formatCurrency = (value: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 
   const columns = [
-    { key: 'fullName', label: 'Nome Completo' },
+    { key: 'name', label: 'Nome Completo' },
     { key: 'cpf', label: 'CPF' },
     { key: 'whatsapp', label: 'WhatsApp' },
-    { key: 'establishments', label: 'Estabelecimentos' },
-    { key: 'commission', label: 'Comissão Total', render: (m: any) => formatCurrency(m.commission) },
-    { key: 'kycStatus', label: 'KYC', render: (m: any) => (
-      <Badge variant={m.kycStatus === 'approved' ? 'default' : m.kycStatus === 'pending' ? 'secondary' : 'destructive'}>
-        {m.kycStatus === 'approved' ? 'Aprovado' : m.kycStatus === 'pending' ? 'Pendente' : 'Reprovado'}
+    { key: 'establishments_count', label: 'Estabelecimentos' },
+    { key: 'total_commission', label: 'Comissão Total', render: (m: any) => formatCurrency(m.total_commission || 0) },
+    { key: 'kyc_status', label: 'KYC', render: (m: any) => (
+      <Badge variant={m.kyc_status === 'approved' ? 'default' : m.kyc_status === 'pending' ? 'secondary' : 'destructive'}>
+        {m.kyc_status === 'approved' ? 'Aprovado' : m.kyc_status === 'pending' ? 'Pendente' : 'Reprovado'}
       </Badge>
     )},
     { key: 'actions', label: 'Ações', render: (m: any) => (
@@ -80,7 +173,7 @@ export default function AdminManagers() {
         <Button variant="ghost" size="sm" onClick={() => setViewingManager(m)}><Eye className="w-4 h-4" /></Button>
         <Button variant="ghost" size="sm" onClick={() => openEdit(m)}><Pencil className="w-4 h-4" /></Button>
         <Button variant="ghost" size="sm" className="text-destructive" onClick={() => setDeleteConfirm(m.id)}><Trash2 className="w-4 h-4" /></Button>
-        {m.kycStatus === 'pending' && (
+        {m.kyc_status === 'pending' && (
           <>
             <Button variant="ghost" size="sm" className="text-success" onClick={() => handleApproveKYC(m.id)}><Check className="w-4 h-4" /></Button>
             <Button variant="ghost" size="sm" className="text-destructive" onClick={() => handleRejectKYC(m.id)}><X className="w-4 h-4" /></Button>
@@ -90,11 +183,11 @@ export default function AdminManagers() {
     )}
   ];
 
-  const ManagerForm = ({ onSubmit, submitLabel }: { onSubmit: () => void; submitLabel: string }) => (
+  const ManagerForm = ({ onSubmit, submitLabel, showPassword = false }: { onSubmit: () => void; submitLabel: string; showPassword?: boolean }) => (
     <div className="grid md:grid-cols-2 gap-4 py-4">
       <div className="space-y-2">
         <Label>Nome Completo</Label>
-        <Input value={formData.fullName} onChange={e => setFormData(p => ({ ...p, fullName: e.target.value }))} />
+        <Input value={formData.name} onChange={e => setFormData(p => ({ ...p, name: e.target.value }))} />
       </div>
       <div className="space-y-2">
         <Label>CPF</Label>
@@ -108,6 +201,12 @@ export default function AdminManagers() {
         <Label>E-mail</Label>
         <Input value={formData.email} onChange={e => setFormData(p => ({ ...p, email: e.target.value }))} />
       </div>
+      {showPassword && (
+        <div className="space-y-2 md:col-span-2">
+          <Label>Senha</Label>
+          <Input type="password" value={formData.password} onChange={e => setFormData(p => ({ ...p, password: e.target.value }))} />
+        </div>
+      )}
     </div>
   );
 
@@ -124,24 +223,30 @@ export default function AdminManagers() {
 
         <div className="grid md:grid-cols-3 gap-4">
           <Card><CardContent className="pt-6"><div className="flex items-center gap-4"><div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center"><Users className="w-6 h-6 text-primary" /></div><div><p className="text-sm text-muted-foreground">Total de Gerentes</p><p className="text-2xl font-bold text-foreground">{managers.length}</p></div></div></CardContent></Card>
-          <Card><CardContent className="pt-6"><div className="flex items-center gap-4"><div className="w-12 h-12 rounded-xl bg-success/10 flex items-center justify-center"><Building2 className="w-6 h-6 text-success" /></div><div><p className="text-sm text-muted-foreground">Estabelecimentos na Rede</p><p className="text-2xl font-bold text-foreground">{managers.reduce((acc, m) => acc + m.establishments, 0)}</p></div></div></CardContent></Card>
-          <Card><CardContent className="pt-6"><div className="flex items-center gap-4"><div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center"><Wallet className="w-6 h-6 text-primary" /></div><div><p className="text-sm text-muted-foreground">Comissões Pagas</p><p className="text-2xl font-bold text-foreground">{formatCurrency(managers.reduce((acc, m) => acc + m.commission, 0))}</p></div></div></CardContent></Card>
+          <Card><CardContent className="pt-6"><div className="flex items-center gap-4"><div className="w-12 h-12 rounded-xl bg-success/10 flex items-center justify-center"><Building2 className="w-6 h-6 text-success" /></div><div><p className="text-sm text-muted-foreground">Estabelecimentos na Rede</p><p className="text-2xl font-bold text-foreground">{managers.reduce((acc, m) => acc + (m.establishments_count || 0), 0)}</p></div></div></CardContent></Card>
+          <Card><CardContent className="pt-6"><div className="flex items-center gap-4"><div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center"><Wallet className="w-6 h-6 text-primary" /></div><div><p className="text-sm text-muted-foreground">Comissões Pagas</p><p className="text-2xl font-bold text-foreground">{formatCurrency(managers.reduce((acc, m) => acc + (m.total_commission || 0), 0))}</p></div></div></CardContent></Card>
         </div>
 
-        <Card><CardHeader><CardTitle>Lista de Gerentes</CardTitle></CardHeader><CardContent><DataTable data={managers} columns={columns} /></CardContent></Card>
+        {loading ? (
+          <div className="flex items-center justify-center min-h-[400px]">
+            <div className="animate-spin w-12 h-12 border-4 border-primary border-t-transparent rounded-full" />
+          </div>
+        ) : (
+          <Card><CardHeader><CardTitle>Lista de Gerentes</CardTitle></CardHeader><CardContent><DataTable data={managers} columns={columns} /></CardContent></Card>
+        )}
 
         {/* Create Dialog */}
         <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
           <DialogContent><DialogHeader><DialogTitle>Novo Gerente</DialogTitle><DialogDescription>Preencha os dados para cadastrar um novo gerente.</DialogDescription></DialogHeader>
-          <ManagerForm onSubmit={handleCreate} submitLabel="Criar" />
-          <DialogFooter><Button variant="outline" onClick={() => setIsCreateOpen(false)}>Cancelar</Button><Button onClick={handleCreate}>Criar Gerente</Button></DialogFooter></DialogContent>
+          <ManagerForm onSubmit={handleCreate} submitLabel="Criar" showPassword />
+          <DialogFooter><Button variant="outline" onClick={() => setIsCreateOpen(false)}>Cancelar</Button><Button onClick={handleCreate} disabled={saving}>{saving ? 'Criando...' : 'Criar Gerente'}</Button></DialogFooter></DialogContent>
         </Dialog>
 
         {/* Edit Dialog */}
         <Dialog open={!!editingManager} onOpenChange={() => setEditingManager(null)}>
           <DialogContent><DialogHeader><DialogTitle>Editar Gerente</DialogTitle></DialogHeader>
           <ManagerForm onSubmit={handleEdit} submitLabel="Salvar" />
-          <DialogFooter><Button variant="outline" onClick={() => setEditingManager(null)}>Cancelar</Button><Button onClick={handleEdit}>Salvar Alterações</Button></DialogFooter></DialogContent>
+          <DialogFooter><Button variant="outline" onClick={() => setEditingManager(null)}>Cancelar</Button><Button onClick={handleEdit} disabled={saving}>{saving ? 'Salvando...' : 'Salvar Alterações'}</Button></DialogFooter></DialogContent>
         </Dialog>
 
         {/* View Dialog */}
@@ -149,18 +254,18 @@ export default function AdminManagers() {
           <DialogContent className="max-w-2xl"><DialogHeader><DialogTitle>Detalhes do Gerente</DialogTitle></DialogHeader>
           {viewingManager && (
             <div className="grid md:grid-cols-2 gap-4 py-4">
-              <div><Label className="text-muted-foreground">Nome Completo</Label><p className="font-medium">{viewingManager.fullName}</p></div>
+              <div><Label className="text-muted-foreground">Nome Completo</Label><p className="font-medium">{viewingManager.name}</p></div>
               <div><Label className="text-muted-foreground">CPF</Label><p className="font-medium">{viewingManager.cpf}</p></div>
               <div><Label className="text-muted-foreground">WhatsApp</Label><p className="font-medium">{viewingManager.whatsapp}</p></div>
               <div><Label className="text-muted-foreground">E-mail</Label><p className="font-medium">{viewingManager.email}</p></div>
-              <div><Label className="text-muted-foreground">Código de Indicação</Label><p className="font-medium text-primary">{viewingManager.referralCode}</p></div>
-              <div><Label className="text-muted-foreground">Status KYC</Label><Badge variant={viewingManager.kycStatus === 'approved' ? 'default' : viewingManager.kycStatus === 'pending' ? 'secondary' : 'destructive'}>{viewingManager.kycStatus === 'approved' ? 'Aprovado' : viewingManager.kycStatus === 'pending' ? 'Pendente' : 'Reprovado'}</Badge></div>
-              <div><Label className="text-muted-foreground">Estabelecimentos</Label><p className="font-medium">{viewingManager.establishments}</p></div>
-              <div><Label className="text-muted-foreground">Comissão Total</Label><p className="font-medium text-primary">{formatCurrency(viewingManager.commission)}</p></div>
+              <div><Label className="text-muted-foreground">Código de Indicação</Label><p className="font-medium text-primary">{viewingManager.referral_code || 'N/A'}</p></div>
+              <div><Label className="text-muted-foreground">Status KYC</Label><Badge variant={viewingManager.kyc_status === 'approved' ? 'default' : viewingManager.kyc_status === 'pending' ? 'secondary' : 'destructive'}>{viewingManager.kyc_status === 'approved' ? 'Aprovado' : viewingManager.kyc_status === 'pending' ? 'Pendente' : 'Reprovado'}</Badge></div>
+              <div><Label className="text-muted-foreground">Estabelecimentos</Label><p className="font-medium">{viewingManager.establishments_count || 0}</p></div>
+              <div><Label className="text-muted-foreground">Comissão Total</Label><p className="font-medium text-primary">{formatCurrency(viewingManager.total_commission || 0)}</p></div>
             </div>
           )}
           <DialogFooter><Button variant="outline" onClick={() => setViewingManager(null)}>Fechar</Button>
-          {viewingManager?.kycStatus === 'pending' && (<><Button variant="destructive" onClick={() => { handleRejectKYC(viewingManager.id); setViewingManager(null); }}>Reprovar</Button><Button onClick={() => { handleApproveKYC(viewingManager.id); setViewingManager(null); }}>Aprovar KYC</Button></>)}</DialogFooter></DialogContent>
+          {viewingManager?.kyc_status === 'pending' && (<><Button variant="destructive" onClick={() => { handleRejectKYC(viewingManager.id); setViewingManager(null); }}>Reprovar</Button><Button onClick={() => { handleApproveKYC(viewingManager.id); setViewingManager(null); }}>Aprovar KYC</Button></>)}</DialogFooter></DialogContent>
         </Dialog>
 
         {/* Delete Confirm */}

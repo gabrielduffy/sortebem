@@ -35,7 +35,6 @@ import AdminCharity from "./pages/admin/AdminCharity";
 import AdminRounds from "./pages/admin/AdminRounds";
 import AdminManagers from "./pages/admin/AdminManagers";
 import AdminEstablishments from "./pages/admin/AdminEstablishments";
-import AdminWhatsApp from "./pages/admin/AdminWhatsApp";
 import AdminPOS from "./pages/admin/AdminPOS";
 import AdminLogs from "./pages/admin/AdminLogs";
 import AdminIntegrations from "./pages/admin/AdminIntegrations";
@@ -158,11 +157,6 @@ const App = () => (
             <Route path="/admin/estabelecimentos" element={
               <ProtectedRoute allowedRoles={['admin']}>
                 <AdminEstablishments />
-              </ProtectedRoute>
-            } />
-            <Route path="/admin/whatsapp" element={
-              <ProtectedRoute allowedRoles={['admin']}>
-                <AdminWhatsApp />
               </ProtectedRoute>
             } />
             <Route path="/admin/pos" element={

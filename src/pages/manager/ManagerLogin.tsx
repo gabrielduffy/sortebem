@@ -62,7 +62,7 @@ export default function ManagerLogin() {
             <div className="w-12 h-12 rounded-xl bg-primary flex items-center justify-center">
               <span className="text-primary-foreground font-bold text-xl">SB</span>
             </div>
-            <span className="font-display font-bold text-2xl text-foreground">SORTBEM</span>
+            <span className="font-display font-bold text-2xl text-foreground">SORTEBEM</span>
           </Link>
         </div>
         <div className="bg-card rounded-2xl border border-border p-8 shadow-lg">
