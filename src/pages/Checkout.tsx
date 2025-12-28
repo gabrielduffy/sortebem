@@ -77,6 +77,20 @@ const CountdownTimer = ({ targetTime, variant = 'default' }: { targetTime: Date;
   );
 };
 
+// Generate future rounds
+const generateFutureRounds = () => {
+  const rounds = [];
+  const now = Date.now();
+  for (let i = 0; i < 6; i++) {
+    rounds.push({
+      id: `round-${parseInt(mockCurrentRound.id.replace('round-', '')) + i}`,
+      time: new Date(now + (i * 10 * 60 * 1000)), // Every 10 minutes
+      number: parseInt(mockCurrentRound.id.replace('round-', '')) + i
+    });
+  }
+  return rounds;
+};
+
 const Checkout = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -85,6 +99,7 @@ const Checkout = () => {
   const [step, setStep] = useState<CheckoutStep>('quantity');
   const [drawType, setDrawType] = useState<DrawType>('regular');
   const [quantity, setQuantity] = useState(1);
+  const [selectedRounds, setSelectedRounds] = useState<string[]>([]);
   const [pixData, setPixData] = useState<{
     purchaseId: string;
     pixCode: string;
@@ -98,18 +113,41 @@ const Checkout = () => {
   const [copiedCard, setCopiedCard] = useState<string | null>(null);
   const [whatsappSent, setWhatsappSent] = useState(false);
 
+  const futureRounds = generateFutureRounds();
+
+  // Initialize with first round selected
+  useEffect(() => {
+    if (selectedRounds.length === 0 && futureRounds.length > 0) {
+      setSelectedRounds([futureRounds[0].id]);
+    }
+  }, []);
+
   // Round info
   const roundNumber = mockCurrentRound.id.replace('round-', '');
   const purchaseDate = new Date();
-  const nextRoundTime = new Date(Date.now() + 8 * 60 * 1000);
+  const nextRoundTime = selectedRounds.length > 0 
+    ? futureRounds.find(r => r.id === selectedRounds[0])?.time || new Date(Date.now() + 8 * 60 * 1000)
+    : new Date(Date.now() + 8 * 60 * 1000);
   const specialRoundTime = new Date(Date.now() + 2 * 60 * 60 * 1000); // 2 hours from now
 
   // Prize values (mock - would come from API)
-  const estimatedPrize = drawType === 'regular' ? 150 : 5000;
+  const estimatedPrize = drawType === 'regular' ? 150 * selectedRounds.length : 5000;
   const accumulatedPrize = 12500;
 
   const unitPrice = drawType === 'regular' ? mockSettings.cardPriceRegular : mockSettings.cardPriceSpecial;
-  const totalPrice = quantity * unitPrice;
+  const totalPrice = quantity * unitPrice * (drawType === 'regular' ? selectedRounds.length : 1);
+
+  const toggleRoundSelection = (roundId: string) => {
+    setSelectedRounds(prev => {
+      if (prev.includes(roundId)) {
+        // Don't allow deselecting the last one
+        if (prev.length === 1) return prev;
+        return prev.filter(id => id !== roundId);
+      } else {
+        return [...prev, roundId].sort();
+      }
+    });
+  };
 
   const handleQuantityChange = (delta: number) => {
     const newQuantity = quantity + delta;
@@ -267,7 +305,7 @@ const Checkout = () => {
                   </TabsTrigger>
                 </TabsList>
 
-                <TabsContent value="regular" className="mt-4">
+                <TabsContent value="regular" className="mt-4 space-y-4">
                   {/* Countdown Hero - Regular */}
                   <div className="bg-card border-2 border-primary/30 rounded-2xl p-6 text-center">
                     <div className="flex items-center justify-center gap-2 text-primary mb-3">
@@ -276,6 +314,68 @@ const Checkout = () => {
                     </div>
                     <CountdownTimer targetTime={nextRoundTime} variant="hero" />
                     <p className="text-muted-foreground text-sm mt-3">Rodada #{roundNumber} • {formatDate(purchaseDate)}</p>
+                  </div>
+
+                  {/* Multiple Rounds Selector */}
+                  <div className="bg-card border border-border rounded-2xl p-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <Label className="text-base font-semibold">Selecione as rodadas</Label>
+                      <span className="text-sm text-muted-foreground">
+                        {selectedRounds.length} selecionada{selectedRounds.length > 1 ? 's' : ''}
+                      </span>
+                    </div>
+                    <p className="text-sm text-muted-foreground mb-4">
+                      Compre cartelas para várias rodadas de uma vez e aumente suas chances!
+                    </p>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                      {futureRounds.map((round, index) => {
+                        const isSelected = selectedRounds.includes(round.id);
+                        const isFirst = index === 0;
+                        return (
+                          <motion.button
+                            key={round.id}
+                            onClick={() => toggleRoundSelection(round.id)}
+                            whileTap={{ scale: 0.97 }}
+                            className={`relative p-3 rounded-xl border-2 transition-all text-left ${
+                              isSelected 
+                                ? 'border-primary bg-primary/10' 
+                                : 'border-border bg-secondary/50 hover:border-primary/50'
+                            }`}
+                          >
+                            {isFirst && (
+                              <span className="absolute -top-2 -right-2 bg-primary text-primary-foreground text-[10px] px-2 py-0.5 rounded-full font-semibold">
+                                Próxima
+                              </span>
+                            )}
+                            <div className="flex items-center gap-2 mb-1">
+                              <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                                isSelected ? 'border-primary bg-primary' : 'border-muted-foreground'
+                              }`}>
+                                {isSelected && <Check className="w-3 h-3 text-primary-foreground" />}
+                              </div>
+                              <span className="font-bold text-foreground">#{round.number}</span>
+                            </div>
+                            <p className="text-xs text-muted-foreground pl-6">
+                              {formatTime(round.time)}
+                            </p>
+                          </motion.button>
+                        );
+                      })}
+                    </div>
+                    {selectedRounds.length > 1 && (
+                      <motion.div 
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        className="mt-4 p-3 bg-success/10 border border-success/20 rounded-xl"
+                      >
+                        <div className="flex items-center gap-2 text-success">
+                          <Sparkles className="w-4 h-4" />
+                          <span className="text-sm font-medium">
+                            {selectedRounds.length}x mais chances de ganhar!
+                          </span>
+                        </div>
+                      </motion.div>
+                    )}
                   </div>
                 </TabsContent>
 
@@ -319,8 +419,24 @@ const Checkout = () => {
                     <span>Valor por cartela ({drawType === 'regular' ? 'Regular' : 'Especial'})</span>
                     <span>{formatCurrency(unitPrice)}</span>
                   </div>
-                  <div className="flex justify-between text-lg font-bold text-foreground">
-                    <span>Total</span>
+                  {drawType === 'regular' && selectedRounds.length > 1 && (
+                    <div className="flex justify-between text-muted-foreground">
+                      <span>Rodadas selecionadas</span>
+                      <span>{selectedRounds.length}x</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between text-muted-foreground">
+                    <span>Cartelas por rodada</span>
+                    <span>{quantity}</span>
+                  </div>
+                  {drawType === 'regular' && selectedRounds.length > 1 && (
+                    <div className="flex justify-between text-muted-foreground">
+                      <span>Total de cartelas</span>
+                      <span>{quantity * selectedRounds.length}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between text-xl font-bold text-foreground pt-2 border-t border-border">
+                    <span>Total a pagar</span>
                     <span className="text-primary">{formatCurrency(totalPrice)}</span>
                   </div>
                 </div>
