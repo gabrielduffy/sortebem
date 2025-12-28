@@ -1,5 +1,6 @@
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { StatCard } from '@/components/dashboard/StatCard';
+import { SalesChart } from '@/components/dashboard/SalesChart';
 import { QRCodeCard } from '@/components/dashboard/QRCodeCard';
 import { DataTable } from '@/components/dashboard/DataTable';
 import { Building2, Wallet, Trophy, TrendingUp } from 'lucide-react';
@@ -10,6 +11,15 @@ const mockEstablishments = [
   { id: '1', tradeName: 'Padaria do João', sales: 2847, commission: 426, status: 'approved', isActive: true },
   { id: '2', tradeName: 'Mercado Central', sales: 1923, commission: 288, status: 'approved', isActive: true },
   { id: '3', tradeName: 'Bar do Zé', sales: 892, commission: 133, status: 'pending', isActive: false },
+];
+
+const chartData = [
+  { name: 'Jan', vendas: 8500, comissoes: 425 },
+  { name: 'Fev', vendas: 9200, comissoes: 460 },
+  { name: 'Mar', vendas: 10500, comissoes: 525 },
+  { name: 'Abr', vendas: 11800, comissoes: 590 },
+  { name: 'Mai', vendas: 13200, comissoes: 660 },
+  { name: 'Jun', vendas: 14500, comissoes: 725 },
 ];
 
 export default function ManagerDashboard() {
@@ -29,6 +39,20 @@ export default function ManagerDashboard() {
         <StatCard title="Suas Comissões" value={`R$ ${mockManagerData.commission.toLocaleString('pt-BR')}`} icon={Wallet} />
         <StatCard title="Vitórias na Rede" value={mockManagerData.wins} icon={Trophy} />
       </div>
+
+      {/* Chart */}
+      <div className="mb-6">
+        <SalesChart
+          title="Evolução de Vendas e Comissões da Rede"
+          data={chartData}
+          type="line"
+          dataKeys={[
+            { key: 'vendas', label: 'Vendas', color: 'hsl(var(--primary))' },
+            { key: 'comissoes', label: 'Comissões', color: 'hsl(var(--success))' },
+          ]}
+        />
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2">
           <h3 className="font-semibold text-foreground mb-4">Seus Estabelecimentos</h3>
