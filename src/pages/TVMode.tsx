@@ -2,13 +2,12 @@ import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Trophy, Clock, Store, Volume2, VolumeX, Zap, Heart } from 'lucide-react';
-import { getTVData } from '@/services/mockApi';
-import { mockCurrentRound } from '@/services/mockData';
+import { apiService } from '@/services/api';
 
 const TVMode = () => {
   const { slugEstabelecimento } = useParams<{ slugEstabelecimento: string }>();
   const [data, setData] = useState<any>(null);
-  const [drawnNumbers, setDrawnNumbers] = useState<number[]>(mockCurrentRound.drawnNumbers);
+  const [drawnNumbers, setDrawnNumbers] = useState<number[]>([]);
   const [lastNumber, setLastNumber] = useState<number | null>(null);
   const [isMuted, setIsMuted] = useState(true);
   const [tieBreak, setTieBreak] = useState<{
@@ -16,46 +15,50 @@ const TVMode = () => {
     stoneNumber?: number;
     winnerEstablishment?: string;
   } | null>(null);
+  const [liveRound, setLiveRound] = useState<any>(null);
 
+  // Load TV data and poll for updates
   useEffect(() => {
+    if (!slugEstabelecimento) return;
+
     const loadData = async () => {
-      if (!slugEstabelecimento) return;
-      const tvData = await getTVData(slugEstabelecimento);
-      setData(tvData);
-    };
-    loadData();
-  }, [slugEstabelecimento]);
-
-  // Simulate live draw
-  useEffect(() => {
-    const allNumbers = [5, 23, 47, 12, 68, 31, 9, 56, 73, 2, 44, 18, 65, 7, 33, 51, 29, 70, 14, 60, 42, 88, 15, 39, 61];
-    let currentIndex = drawnNumbers.length;
-
-    const interval = setInterval(() => {
-      if (currentIndex < allNumbers.length) {
-        const newNumbers = allNumbers.slice(0, currentIndex + 1);
-        setDrawnNumbers(newNumbers);
-        setLastNumber(allNumbers[currentIndex]);
-        currentIndex++;
-
-        // Simulate tie break occasionally
-        if (currentIndex === 20 && Math.random() > 0.5) {
-          setTieBreak({
-            active: true,
-            stoneNumber: Math.floor(Math.random() * 75) + 1,
-            winnerEstablishment: 'Mercado Central',
-          });
+      try {
+        // Load establishment data
+        const tvData = await apiService.getTVData(slugEstabelecimento);
+        if (tvData.ok) {
+          setData(tvData);
         }
-      } else {
-        // Reset for demo
-        currentIndex = 0;
-        setDrawnNumbers([]);
-        setTieBreak(null);
+
+        // Load live round
+        const liveRoundData = await apiService.getLiveRound();
+        if (liveRoundData.ok && liveRoundData.round) {
+          setLiveRound(liveRoundData.round);
+
+          // Load drawn numbers if round is live
+          if (liveRoundData.round.status === 'drawing') {
+            const numbersData = await apiService.getDrawnNumbers(liveRoundData.round.id);
+            if (numbersData.ok && numbersData.numbers) {
+              setDrawnNumbers(numbersData.numbers);
+
+              // Set last number
+              if (numbersData.numbers.length > 0) {
+                setLastNumber(numbersData.numbers[numbersData.numbers.length - 1]);
+              }
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Error loading TV data:', error);
       }
-    }, 4000);
+    };
+
+    loadData();
+
+    // Poll for updates every 3 seconds
+    const interval = setInterval(loadData, 3000);
 
     return () => clearInterval(interval);
-  }, []);
+  }, [slugEstabelecimento]);
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', {

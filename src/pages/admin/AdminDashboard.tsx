@@ -1,44 +1,63 @@
+import { useState, useEffect } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { StatCard } from '@/components/dashboard/StatCard';
 import { SalesChart } from '@/components/dashboard/SalesChart';
 import { LayoutDashboard, Users, Building2, Gift, Trophy, Wallet, TrendingUp, Clock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Link } from 'react-router-dom';
-
-const mockAdminData = {
-  totalRevenue: 1457800, charityRaised: 291560, prizePool: 583120, platformRevenue: 145780,
-  totalManagers: 45, totalEstablishments: 312, totalCards: 284700, activeRounds: 1
-};
-
-const chartData = [
-  { name: 'Jan', vendas: 85000, comissoes: 12750, arrecadacao: 17000 },
-  { name: 'Fev', vendas: 92000, comissoes: 13800, arrecadacao: 18400 },
-  { name: 'Mar', vendas: 105000, comissoes: 15750, arrecadacao: 21000 },
-  { name: 'Abr', vendas: 118000, comissoes: 17700, arrecadacao: 23600 },
-  { name: 'Mai', vendas: 132000, comissoes: 19800, arrecadacao: 26400 },
-  { name: 'Jun', vendas: 145000, comissoes: 21750, arrecadacao: 29000 },
-  { name: 'Jul', vendas: 158000, comissoes: 23700, arrecadacao: 31600 },
-  { name: 'Ago', vendas: 172000, comissoes: 25800, arrecadacao: 34400 },
-  { name: 'Set', vendas: 185000, comissoes: 27750, arrecadacao: 37000 },
-  { name: 'Out', vendas: 198000, comissoes: 29700, arrecadacao: 39600 },
-  { name: 'Nov', vendas: 210000, comissoes: 31500, arrecadacao: 42000 },
-  { name: 'Dez', vendas: 245000, comissoes: 36750, arrecadacao: 49000 },
-];
+import { apiService } from '@/services/api';
 
 export default function AdminDashboard() {
+  const [stats, setStats] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const loadStats = async () => {
+      try {
+        const response = await apiService.getAdminStats();
+        if (response.ok && response.stats) {
+          setStats(response.stats);
+        }
+      } catch (error) {
+        console.error('Error loading admin stats:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadStats();
+  }, []);
+
+  if (loading) {
+    return (
+      <DashboardLayout userType="admin" userName="Administrador" notifications={0}>
+        <div className="flex items-center justify-center min-h-[400px]">
+          <div className="animate-spin w-12 h-12 border-4 border-primary border-t-transparent rounded-full" />
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  const adminData = stats || {
+    totalRevenue: 0, charityRaised: 0, prizePool: 0, platformRevenue: 0,
+    totalManagers: 0, totalEstablishments: 0, totalCards: 0, activeRounds: 0
+  };
+
+  const chartData = stats?.chartData || [];
+
   return (
-    <DashboardLayout userType="admin" userName="Administrador" notifications={5}>
+    <DashboardLayout userType="admin" userName="Administrador" notifications={0}>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <StatCard title="Faturamento Total" value={`R$ ${(mockAdminData.totalRevenue / 1000).toFixed(0)}k`} icon={TrendingUp} trend={{ value: 23, isPositive: true }} />
-        <StatCard title="Arrecadado Caridade" value={`R$ ${(mockAdminData.charityRaised / 1000).toFixed(0)}k`} icon={Gift} />
-        <StatCard title="Pool de Prêmios" value={`R$ ${(mockAdminData.prizePool / 1000).toFixed(0)}k`} icon={Trophy} />
-        <StatCard title="Receita Plataforma" value={`R$ ${(mockAdminData.platformRevenue / 1000).toFixed(0)}k`} icon={Wallet} />
+        <StatCard title="Faturamento Total" value={`R$ ${(adminData.totalRevenue / 1000).toFixed(0)}k`} icon={TrendingUp} trend={{ value: 23, isPositive: true }} />
+        <StatCard title="Arrecadado Caridade" value={`R$ ${(adminData.charityRaised / 1000).toFixed(0)}k`} icon={Gift} />
+        <StatCard title="Pool de Prêmios" value={`R$ ${(adminData.prizePool / 1000).toFixed(0)}k`} icon={Trophy} />
+        <StatCard title="Receita Plataforma" value={`R$ ${(adminData.platformRevenue / 1000).toFixed(0)}k`} icon={Wallet} />
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <StatCard title="Gerentes" value={mockAdminData.totalManagers} icon={Users} />
-        <StatCard title="Estabelecimentos" value={mockAdminData.totalEstablishments} icon={Building2} />
-        <StatCard title="Cartelas Emitidas" value={`${(mockAdminData.totalCards / 1000).toFixed(0)}k`} icon={LayoutDashboard} />
-        <StatCard title="Rodadas Ativas" value={mockAdminData.activeRounds} icon={Clock} />
+        <StatCard title="Gerentes" value={adminData.totalManagers} icon={Users} />
+        <StatCard title="Estabelecimentos" value={adminData.totalEstablishments} icon={Building2} />
+        <StatCard title="Cartelas Emitidas" value={`${(adminData.totalCards / 1000).toFixed(0)}k`} icon={LayoutDashboard} />
+        <StatCard title="Rodadas Ativas" value={adminData.activeRounds} icon={Clock} />
       </div>
 
       {/* Charts */}

@@ -171,6 +171,155 @@ class ApiService {
       return { ok: false };
     }
   }
+
+  // ============ ROUNDS ============
+
+  /**
+   * Get available rounds for selling
+   */
+  async getRounds() {
+    const response = await this.fetch('/rounds');
+    return await response.json();
+  }
+
+  /**
+   * Get live round
+   */
+  async getLiveRound() {
+    const response = await this.fetch('/rounds/live');
+    return await response.json();
+  }
+
+  /**
+   * Get round by ID
+   */
+  async getRound(id: number) {
+    const response = await this.fetch(`/rounds/${id}`);
+    return await response.json();
+  }
+
+  /**
+   * Get drawn numbers for a round
+   */
+  async getDrawnNumbers(roundId: number) {
+    const response = await this.fetch(`/rounds/${roundId}/numbers`);
+    return await response.json();
+  }
+
+  /**
+   * Create new round (admin only)
+   */
+  async createRound(data: any) {
+    const response = await this.fetch('/rounds', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+    return await response.json();
+  }
+
+  // ============ PURCHASES ============
+
+  /**
+   * Create purchase
+   */
+  async createPurchase(data: { round_id: number; quantity: number; customer_whatsapp?: string }) {
+    const response = await this.fetch('/purchases', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+    return await response.json();
+  }
+
+  /**
+   * Check purchase status
+   */
+  async checkPurchaseStatus(purchaseId: string) {
+    const response = await this.fetch(`/purchases/${purchaseId}/check-status`, {
+      method: 'POST',
+    });
+    return await response.json();
+  }
+
+  /**
+   * Get purchase details
+   */
+  async getPurchase(purchaseId: string) {
+    const response = await this.fetch(`/purchases/${purchaseId}`);
+    return await response.json();
+  }
+
+  // ============ CARDS ============
+
+  /**
+   * Get card by code
+   */
+  async getCard(code: string) {
+    const response = await this.fetch(`/cards/${code}`);
+    return await response.json();
+  }
+
+  // ============ SETTINGS ============
+
+  /**
+   * Get public settings
+   */
+  async getPublicSettings() {
+    const response = await fetch(`${API_BASE_URL}/settings/public`);
+    return await response.json();
+  }
+
+  /**
+   * Get all settings (admin only)
+   */
+  async getSettings() {
+    const response = await this.fetch('/settings');
+    return await response.json();
+  }
+
+  /**
+   * Update setting (admin only)
+   */
+  async updateSetting(key: string, value: any) {
+    const response = await this.fetch('/settings', {
+      method: 'PUT',
+      body: JSON.stringify({ key, value }),
+    });
+    return await response.json();
+  }
+
+  // ============ STATS ============
+
+  /**
+   * Get admin statistics
+   */
+  async getAdminStats() {
+    const response = await this.fetch('/stats/admin');
+    return await response.json();
+  }
+
+  /**
+   * Get TV mode data
+   */
+  async getTVData(slug: string) {
+    const response = await fetch(`${API_BASE_URL}/stats/tv/${slug}`);
+    return await response.json();
+  }
+
+  /**
+   * Get establishment stats
+   */
+  async getEstablishmentStats() {
+    const response = await this.fetch('/stats/establishment');
+    return await response.json();
+  }
+
+  /**
+   * Get manager stats
+   */
+  async getManagerStats() {
+    const response = await this.fetch('/stats/manager');
+    return await response.json();
+  }
 }
 
 export const apiService = new ApiService();
