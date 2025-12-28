@@ -44,8 +44,9 @@ export default function AdminEstablishments() {
     try {
       setLoading(true);
       const response = await apiService.getEstablishments();
-      if (response.ok && response.establishments) {
-        setEstablishments(response.establishments);
+      console.log('Establishments response:', response);
+      if (response.ok && response.data) {
+        setEstablishments(response.data);
       }
     } catch (error) {
       console.error('Error loading establishments:', error);
@@ -172,8 +173,8 @@ export default function AdminEstablishments() {
   const formatCurrency = (value: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 
   const columns = [
-    { key: 'trade_name', label: 'Nome Fantasia' },
-    { key: 'cnpj', label: 'CNPJ' },
+    { key: 'trade_name', label: 'Nome Fantasia', render: (e: any) => e.trade_name || 'Sem nome' },
+    { key: 'cnpj', label: 'CNPJ', render: (e: any) => e.cnpj || '-' },
     { key: 'manager_name', label: 'Gerente', render: (e: any) => e.manager_name || '-' },
     { key: 'total_sales', label: 'Vendas', render: (e: any) => formatCurrency(e.total_sales || 0) },
     { key: 'total_commission', label: 'Comissão', render: (e: any) => formatCurrency(e.total_commission || 0) },
@@ -292,10 +293,10 @@ export default function AdminEstablishments() {
           <DialogContent className="max-w-2xl"><DialogHeader><DialogTitle>Detalhes do Estabelecimento</DialogTitle></DialogHeader>
           {viewingEstablishment && (
             <div className="grid md:grid-cols-2 gap-4 py-4">
-              <div><Label className="text-muted-foreground">Nome Fantasia</Label><p className="font-medium">{viewingEstablishment.trade_name}</p></div>
-              <div><Label className="text-muted-foreground">CNPJ</Label><p className="font-medium">{viewingEstablishment.cnpj}</p></div>
-              <div><Label className="text-muted-foreground">WhatsApp</Label><p className="font-medium">{viewingEstablishment.whatsapp}</p></div>
-              <div><Label className="text-muted-foreground">E-mail</Label><p className="font-medium">{viewingEstablishment.email}</p></div>
+              <div><Label className="text-muted-foreground">Nome Fantasia</Label><p className="font-medium">{viewingEstablishment.trade_name || 'Sem nome'}</p></div>
+              <div><Label className="text-muted-foreground">CNPJ</Label><p className="font-medium">{viewingEstablishment.cnpj || '-'}</p></div>
+              <div><Label className="text-muted-foreground">WhatsApp</Label><p className="font-medium">{viewingEstablishment.whatsapp || '-'}</p></div>
+              <div><Label className="text-muted-foreground">E-mail</Label><p className="font-medium">{viewingEstablishment.email || '-'}</p></div>
               <div><Label className="text-muted-foreground">Gerente</Label><p className="font-medium">{viewingEstablishment.manager_name || '-'}</p></div>
               <div><Label className="text-muted-foreground">Vendas</Label><p className="font-medium text-primary">{formatCurrency(viewingEstablishment.total_sales || 0)}</p></div>
               <div><Label className="text-muted-foreground">Comissão</Label><p className="font-medium text-primary">{formatCurrency(viewingEstablishment.total_commission || 0)}</p></div>

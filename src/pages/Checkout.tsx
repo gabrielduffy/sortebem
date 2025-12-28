@@ -112,9 +112,12 @@ const Checkout = () => {
           apiService.getPublicSettings()
         ]);
 
-        if (roundsData.ok && roundsData.rounds) {
+        console.log('Checkout - Rounds response:', roundsData);
+        console.log('Checkout - Settings response:', settingsData);
+
+        if (roundsData.ok && roundsData.data) {
           // Filter selling or scheduled rounds
-          const futureRounds = roundsData.rounds.filter(
+          const futureRounds = roundsData.data.filter(
             (r: any) => r.status === 'selling' || r.status === 'scheduled'
           ).slice(0, 6);
           setAvailableRounds(futureRounds);
@@ -125,8 +128,8 @@ const Checkout = () => {
           }
         }
 
-        if (settingsData.ok && settingsData.settings) {
-          setSettings(settingsData.settings);
+        if (settingsData.ok && settingsData.data) {
+          setSettings(settingsData.data);
         }
       } catch (error) {
         console.error('Error loading data:', error);
