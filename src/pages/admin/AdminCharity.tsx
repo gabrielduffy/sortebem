@@ -148,15 +148,15 @@ export default function AdminCharity() {
               <div className="space-y-4 py-4">
                 <div>
                   <Label>Nome da Instituição</Label>
-                  <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Instituto..." />
+                  <Input value={form.name} onChange={(e) => setForm(p => ({ ...p, name: e.target.value }))} placeholder="Instituto..." />
                 </div>
                 <div>
                   <Label>Descrição</Label>
-                  <Textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="Descrição da causa..." />
+                  <Textarea value={form.description} onChange={(e) => setForm(p => ({ ...p, description: e.target.value }))} placeholder="Descrição da causa..." />
                 </div>
                 <div>
                   <Label>URL do Logo</Label>
-                  <Input value={form.logo} onChange={(e) => setForm({ ...form, logo: e.target.value })} placeholder="https://..." />
+                  <Input value={form.logo} onChange={(e) => setForm(p => ({ ...p, logo: e.target.value }))} placeholder="https://..." />
                 </div>
               </div>
               <DialogFooter>
