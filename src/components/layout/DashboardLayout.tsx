@@ -17,7 +17,8 @@ import {
   MessageSquare,
   FileText,
   ChevronDown,
-  UserPlus
+  UserPlus,
+  Dices
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -47,6 +48,7 @@ interface DashboardLayoutProps {
 const adminNavItems: NavItem[] = [
   { label: 'Dashboard', href: '/admin', icon: LayoutDashboard },
   { label: 'Configurações', href: '/admin/configuracoes', icon: Settings },
+  { label: 'Sorteio', href: '/admin/sorteio', icon: Dices },
   { label: 'Instituição do Mês', href: '/admin/instituicao', icon: Gift },
   { label: 'Rodadas', href: '/admin/rodadas', icon: Trophy },
   { label: 'Gerentes', href: '/admin/gerentes', icon: Users },
