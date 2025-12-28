@@ -62,11 +62,8 @@ export default function EstablishmentLogin() {
       <div className="w-full max-w-md">
         {/* Logo */}
         <div className="text-center mb-8">
-          <Link to="/" className="inline-flex items-center gap-2">
-            <div className="w-12 h-12 rounded-xl bg-primary flex items-center justify-center">
-              <span className="text-primary-foreground font-bold text-xl">SB</span>
-            </div>
-            <span className="font-display font-bold text-2xl text-foreground">SORTEBEM</span>
+          <Link to="/" className="inline-flex items-center justify-center">
+            <img src="/logo.png" alt="SORTEBEM" className="h-12" />
           </Link>
         </div>
 

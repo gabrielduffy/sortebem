@@ -125,10 +125,7 @@ export const DashboardLayout = ({ children, userType, userName }: DashboardLayou
           <Menu className="h-6 w-6 text-foreground" />
         </button>
         <Link to="/" className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
-            <span className="text-primary-foreground font-bold text-sm">SB</span>
-          </div>
-          <span className="font-display font-bold text-lg text-foreground">SORTEBEM</span>
+          <img src="/logo.png" alt="SORTEBEM" className="h-8" />
         </Link>
         <NotificationCenter
           notifications={notifications}
@@ -155,10 +152,7 @@ export const DashboardLayout = ({ children, userType, userName }: DashboardLayou
           {/* Sidebar Header */}
           <div className="h-16 flex items-center justify-between px-4 border-b border-border">
             <Link to="/" className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
-                <span className="text-primary-foreground font-bold text-sm">SB</span>
-              </div>
-              <span className="font-display font-bold text-lg text-foreground">SORTEBEM</span>
+              <img src="/logo.png" alt="SORTEBEM" className="h-8" />
             </Link>
             <button onClick={() => setSidebarOpen(false)} className="lg:hidden p-2">
               <X className="h-5 w-5 text-muted-foreground" />
