@@ -1,0 +1,289 @@
+import { useState } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { 
+  LayoutDashboard, 
+  ShoppingCart, 
+  Wallet, 
+  Monitor, 
+  User, 
+  Settings, 
+  Bell, 
+  LogOut,
+  Menu,
+  X,
+  Building2,
+  Users,
+  Gift,
+  Trophy,
+  MessageSquare,
+  FileText,
+  ChevronDown,
+  QrCode
+} from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { cn } from '@/lib/utils';
+
+interface NavItem {
+  label: string;
+  href: string;
+  icon: React.ComponentType<{ className?: string }>;
+  badge?: number;
+}
+
+interface DashboardLayoutProps {
+  children: React.ReactNode;
+  userType: 'admin' | 'manager' | 'establishment';
+  userName: string;
+  notifications?: number;
+}
+
+const adminNavItems: NavItem[] = [
+  { label: 'Dashboard', href: '/admin', icon: LayoutDashboard },
+  { label: 'Configurações', href: '/admin/configuracoes', icon: Settings },
+  { label: 'Instituição do Mês', href: '/admin/instituicao', icon: Gift },
+  { label: 'Rodadas', href: '/admin/rodadas', icon: Trophy },
+  { label: 'Gerentes', href: '/admin/gerentes', icon: Users },
+  { label: 'Estabelecimentos', href: '/admin/estabelecimentos', icon: Building2 },
+  { label: 'Integração WhatsApp', href: '/admin/whatsapp', icon: MessageSquare },
+  { label: 'Configurações POS', href: '/admin/pos', icon: Monitor },
+  { label: 'Logs/Auditoria', href: '/admin/logs', icon: FileText },
+];
+
+const managerNavItems: NavItem[] = [
+  { label: 'Dashboard', href: '/gerente', icon: LayoutDashboard },
+  { label: 'Minha Rede', href: '/gerente/rede', icon: Building2 },
+  { label: 'Comissões', href: '/gerente/comissoes', icon: Wallet },
+  { label: 'Cadastrar Estabelecimento', href: '/gerente/cadastrar', icon: Users },
+  { label: 'Meu Perfil', href: '/gerente/perfil', icon: User },
+];
+
+const establishmentNavItems: NavItem[] = [
+  { label: 'Dashboard', href: '/estabelecimento', icon: LayoutDashboard },
+  { label: 'Vendas', href: '/estabelecimento/vendas', icon: ShoppingCart },
+  { label: 'Financeiro', href: '/estabelecimento/financeiro', icon: Wallet },
+  { label: 'Terminais POS', href: '/estabelecimento/pos', icon: Monitor },
+  { label: 'Modo TV', href: '/estabelecimento/modo-tv', icon: Monitor },
+  { label: 'Meu Perfil', href: '/estabelecimento/perfil', icon: User },
+];
+
+const getNavItems = (userType: 'admin' | 'manager' | 'establishment'): NavItem[] => {
+  switch (userType) {
+    case 'admin':
+      return adminNavItems;
+    case 'manager':
+      return managerNavItems;
+    case 'establishment':
+      return establishmentNavItems;
+    default:
+      return [];
+  }
+};
+
+const getUserTypeLabel = (userType: 'admin' | 'manager' | 'establishment'): string => {
+  switch (userType) {
+    case 'admin':
+      return 'Administrador';
+    case 'manager':
+      return 'Gerente';
+    case 'establishment':
+      return 'Estabelecimento';
+    default:
+      return '';
+  }
+};
+
+export const DashboardLayout = ({ children, userType, userName, notifications = 0 }: DashboardLayoutProps) => {
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const location = useLocation();
+  const navigate = useNavigate();
+  const navItems = getNavItems(userType);
+
+  const handleLogout = () => {
+    navigate('/');
+  };
+
+  return (
+    <div className="min-h-screen bg-muted/30">
+      {/* Mobile Header */}
+      <header className="lg:hidden fixed top-0 left-0 right-0 h-16 bg-card border-b border-border z-50 flex items-center justify-between px-4">
+        <button onClick={() => setSidebarOpen(true)} className="p-2">
+          <Menu className="h-6 w-6 text-foreground" />
+        </button>
+        <Link to="/" className="flex items-center gap-2">
+          <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
+            <span className="text-primary-foreground font-bold text-sm">SB</span>
+          </div>
+          <span className="font-display font-bold text-lg text-foreground">SORTBEM</span>
+        </Link>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button className="p-2 relative">
+              <Bell className="h-6 w-6 text-foreground" />
+              {notifications > 0 && (
+                <Badge className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center p-0 text-xs">
+                  {notifications}
+                </Badge>
+              )}
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-64">
+            <DropdownMenuItem>Nova venda realizada!</DropdownMenuItem>
+            <DropdownMenuItem>Vitória na rodada #123</DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </header>
+
+      {/* Mobile Sidebar Overlay */}
+      {sidebarOpen && (
+        <div 
+          className="lg:hidden fixed inset-0 bg-black/50 z-50"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
+      {/* Sidebar */}
+      <aside className={cn(
+        "fixed top-0 left-0 h-full w-64 bg-card border-r border-border z-50 transform transition-transform duration-300 lg:translate-x-0",
+        sidebarOpen ? "translate-x-0" : "-translate-x-full"
+      )}>
+        <div className="flex flex-col h-full">
+          {/* Sidebar Header */}
+          <div className="h-16 flex items-center justify-between px-4 border-b border-border">
+            <Link to="/" className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
+                <span className="text-primary-foreground font-bold text-sm">SB</span>
+              </div>
+              <span className="font-display font-bold text-lg text-foreground">SORTBEM</span>
+            </Link>
+            <button onClick={() => setSidebarOpen(false)} className="lg:hidden p-2">
+              <X className="h-5 w-5 text-muted-foreground" />
+            </button>
+          </div>
+
+          {/* User Info */}
+          <div className="p-4 border-b border-border">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+                <User className="h-5 w-5 text-primary" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="font-medium text-foreground truncate">{userName}</p>
+                <p className="text-sm text-muted-foreground">{getUserTypeLabel(userType)}</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Navigation */}
+          <nav className="flex-1 overflow-y-auto p-4 space-y-1">
+            {navItems.map((item) => {
+              const isActive = location.pathname === item.href;
+              return (
+                <Link
+                  key={item.href}
+                  to={item.href}
+                  onClick={() => setSidebarOpen(false)}
+                  className={cn(
+                    "flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors",
+                    isActive 
+                      ? "bg-primary text-primary-foreground" 
+                      : "text-foreground hover:bg-muted"
+                  )}
+                >
+                  <item.icon className="h-5 w-5 flex-shrink-0" />
+                  <span className="flex-1">{item.label}</span>
+                  {item.badge && item.badge > 0 && (
+                    <Badge variant="secondary" className="h-5 min-w-5 flex items-center justify-center">
+                      {item.badge}
+                    </Badge>
+                  )}
+                </Link>
+              );
+            })}
+          </nav>
+
+          {/* Sidebar Footer */}
+          <div className="p-4 border-t border-border">
+            <Button 
+              variant="ghost" 
+              className="w-full justify-start gap-3 text-muted-foreground hover:text-destructive"
+              onClick={handleLogout}
+            >
+              <LogOut className="h-5 w-5" />
+              Sair
+            </Button>
+          </div>
+        </div>
+      </aside>
+
+      {/* Main Content */}
+      <div className="lg:pl-64">
+        {/* Desktop Header */}
+        <header className="hidden lg:flex h-16 bg-card border-b border-border items-center justify-between px-6">
+          <h1 className="text-xl font-semibold text-foreground">
+            {navItems.find(item => item.href === location.pathname)?.label || 'Dashboard'}
+          </h1>
+          <div className="flex items-center gap-4">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button className="p-2 relative hover:bg-muted rounded-lg transition-colors">
+                  <Bell className="h-5 w-5 text-foreground" />
+                  {notifications > 0 && (
+                    <Badge className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center p-0 text-xs">
+                      {notifications}
+                    </Badge>
+                  )}
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-80">
+                <div className="p-2 border-b border-border">
+                  <p className="font-medium">Notificações</p>
+                </div>
+                <DropdownMenuItem className="flex flex-col items-start p-3">
+                  <span className="font-medium">Nova venda realizada!</span>
+                  <span className="text-sm text-muted-foreground">5 cartelas vendidas - R$ 25,00</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem className="flex flex-col items-start p-3">
+                  <span className="font-medium">Vitória! 🎉</span>
+                  <span className="text-sm text-muted-foreground">Uma cartela ganhou R$ 12.500!</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button className="flex items-center gap-2 p-2 hover:bg-muted rounded-lg transition-colors">
+                  <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+                    <User className="h-4 w-4 text-primary" />
+                  </div>
+                  <span className="font-medium text-foreground">{userName}</span>
+                  <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => navigate(`/${userType === 'establishment' ? 'estabelecimento' : userType}/perfil`)}>
+                  <User className="h-4 w-4 mr-2" />
+                  Meu Perfil
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={handleLogout} className="text-destructive">
+                  <LogOut className="h-4 w-4 mr-2" />
+                  Sair
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        </header>
+
+        {/* Page Content */}
+        <main className="p-4 lg:p-6 pt-20 lg:pt-6">
+          {children}
+        </main>
+      </div>
+    </div>
+  );
+};
