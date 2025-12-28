@@ -155,6 +155,9 @@ const Checkout = () => {
     ? futureRounds.find(r => r.id === selectedRounds[0])?.time || new Date(Date.now() + 8 * 60 * 1000)
     : new Date(Date.now() + 8 * 60 * 1000);
   const specialRoundTime = futureRounds.find(r => r.id === selectedRounds[0])?.time || new Date(Date.now() + 2 * 60 * 60 * 1000);
+  const roundNumber = selectedRounds.length > 0 && futureRounds.length > 0
+    ? futureRounds.find(r => r.id === selectedRounds[0])?.number || selectedRounds[0]
+    : 1;
 
   // Prize values from settings
   const estimatedPrize = drawType === 'regular'
@@ -503,7 +506,7 @@ const Checkout = () => {
                   <Store className="w-5 h-5 text-primary" />
                   <div>
                     <p className="text-sm text-muted-foreground">Vendedor</p>
-                    <p className="font-semibold text-foreground">{mockEstablishment.tradeName}</p>
+                    <p className="font-semibold text-foreground">Estabelecimento #{establishmentCode}</p>
                   </div>
                 </div>
               )}
