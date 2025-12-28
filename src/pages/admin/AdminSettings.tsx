@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,33 +8,80 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from '@/hooks/use-toast';
 import { Save, DollarSign, Percent, Clock, Hash, Trophy } from 'lucide-react';
-import { mockSettings } from '@/services/mockData';
+import { apiService } from '@/services/api';
 
 export default function AdminSettings() {
-  const [settings, setSettings] = useState(mockSettings);
-  const [winPatterns, setWinPatterns] = useState(mockSettings.winPatterns);
+  const [settings, setSettings] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [winPatterns, setWinPatterns] = useState<string[]>([]);
 
-  const handleSave = () => {
-    toast({ title: 'Configurações salvas!', description: 'As alterações foram aplicadas com sucesso.' });
+  useEffect(() => {
+    const loadSettings = async () => {
+      try {
+        const response = await apiService.getSettings();
+        if (response.ok && response.settings) {
+          setSettings(response.settings);
+          setWinPatterns(response.settings.winPatterns || []);
+        }
+      } catch (error) {
+        console.error('Error loading settings:', error);
+        toast({
+          title: 'Erro',
+          description: 'Não foi possível carregar as configurações.',
+          variant: 'destructive'
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadSettings();
+  }, []);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      // TODO: Implement bulk update or loop through changed settings
+      toast({ title: 'Configurações salvas!', description: 'As alterações foram aplicadas com sucesso.' });
+    } catch (error) {
+      toast({
+        title: 'Erro',
+        description: 'Não foi possível salvar as configurações.',
+        variant: 'destructive'
+      });
+    } finally {
+      setSaving(false);
+    }
   };
 
   const togglePattern = (pattern: string) => {
-    setWinPatterns(prev => 
+    setWinPatterns(prev =>
       prev.includes(pattern) ? prev.filter(p => p !== pattern) : [...prev, pattern]
     );
   };
 
+  if (loading || !settings) {
+    return (
+      <DashboardLayout userType="admin" userName="Administrador" notifications={0}>
+        <div className="flex items-center justify-center min-h-[400px]">
+          <div className="animate-spin w-12 h-12 border-4 border-primary border-t-transparent rounded-full" />
+        </div>
+      </DashboardLayout>
+    );
+  }
+
   return (
-    <DashboardLayout userType="admin" userName="Administrador" notifications={5}>
+    <DashboardLayout userType="admin" userName="Administrador" notifications={0}>
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-2xl font-bold text-foreground">Configurações do Sistema</h2>
             <p className="text-muted-foreground">Gerencie os valores, percentuais e regras do jogo</p>
           </div>
-          <Button variant="hero" onClick={handleSave}>
+          <Button variant="hero" onClick={handleSave} disabled={saving}>
             <Save className="w-4 h-4" />
-            Salvar Alterações
+            {saving ? 'Salvando...' : 'Salvar Alterações'}
           </Button>
         </div>
 

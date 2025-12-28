@@ -8,9 +8,8 @@ import { Copy, Share2, Check, Trophy, Clock } from 'lucide-react';
 import CardGrid from '@/components/game/CardGrid';
 import LiveDraw from '@/components/game/LiveDraw';
 import CountdownTimer from '@/components/game/CountdownTimer';
-import { getCardByCode, toggleAutoMark, submitWinClaim, getTieBreakStatus } from '@/services/mockApi';
-import { mockCurrentRound } from '@/services/mockData';
 import { toast } from '@/hooks/use-toast';
+import { apiService } from '@/services/api';
 
 const CardView = () => {
   const { codigo } = useParams<{ codigo: string }>();
@@ -18,41 +17,67 @@ const CardView = () => {
   const [loading, setLoading] = useState(true);
   const [autoMark, setAutoMark] = useState(false);
   const [markedNumbers, setMarkedNumbers] = useState<number[]>([]);
-  const [drawnNumbers, setDrawnNumbers] = useState<number[]>(mockCurrentRound.drawnNumbers);
-  const [roundStatus, setRoundStatus] = useState<'waiting' | 'live' | 'finished'>('live');
+  const [drawnNumbers, setDrawnNumbers] = useState<number[]>([]);
+  const [roundStatus, setRoundStatus] = useState<'waiting' | 'live' | 'finished'>('waiting');
+  const [liveRound, setLiveRound] = useState<any>(null);
   const [tieBreak, setTieBreak] = useState<any>(null);
   const [copied, setCopied] = useState(false);
 
+  // Load card data
   useEffect(() => {
     const loadCard = async () => {
       if (!codigo) return;
       setLoading(true);
-      const cardData = await getCardByCode(codigo);
-      if (cardData) setCard(cardData);
-      setLoading(false);
+
+      try {
+        const response = await apiService.getCard(codigo);
+        if (response.ok && response.card) {
+          setCard(response.card);
+        } else {
+          setCard(null);
+        }
+      } catch (error) {
+        console.error('Error loading card:', error);
+        setCard(null);
+      } finally {
+        setLoading(false);
+      }
     };
+
     loadCard();
   }, [codigo]);
 
+  // Load live round data and poll for updates
   useEffect(() => {
-    if (roundStatus !== 'live') return;
-    const allNumbers = [5, 23, 47, 12, 68, 31, 9, 56, 73, 2, 44, 18, 65, 7, 33, 51, 29, 70, 14, 60];
-    let currentIndex = drawnNumbers.length;
-    const interval = setInterval(async () => {
-      if (currentIndex < allNumbers.length) {
-        setDrawnNumbers(allNumbers.slice(0, currentIndex + 1));
-        currentIndex++;
-        if (currentIndex > 15) {
-          const tieStatus = await getTieBreakStatus(mockCurrentRound.id);
-          if (tieStatus.hasTie) setTieBreak(tieStatus);
+    if (!card) return;
+
+    const loadLiveRound = async () => {
+      try {
+        const response = await apiService.getLiveRound();
+        if (response.ok && response.round) {
+          setLiveRound(response.round);
+          setRoundStatus(response.round.status === 'drawing' ? 'live' : 'waiting');
+
+          // Load drawn numbers if round is live
+          if (response.round.status === 'drawing') {
+            const numbersResponse = await apiService.getDrawnNumbers(response.round.id);
+            if (numbersResponse.ok && numbersResponse.numbers) {
+              setDrawnNumbers(numbersResponse.numbers);
+            }
+          }
         }
-      } else {
-        setRoundStatus('finished');
-        clearInterval(interval);
+      } catch (error) {
+        console.error('Error loading live round:', error);
       }
-    }, 3000);
+    };
+
+    loadLiveRound();
+
+    // Poll for updates every 3 seconds
+    const interval = setInterval(loadLiveRound, 3000);
+
     return () => clearInterval(interval);
-  }, [roundStatus]);
+  }, [card]);
 
   const handleToggleMark = (number: number) => {
     setMarkedNumbers(prev => prev.includes(number) ? prev.filter(n => n !== number) : [...prev, number]);
@@ -60,14 +85,17 @@ const CardView = () => {
 
   const handleAutoMarkToggle = async (enabled: boolean) => {
     setAutoMark(enabled);
-    if (card) await toggleAutoMark(card.id, enabled);
+    // TODO: Implement API call to toggle auto-mark
     toast({ title: enabled ? 'Marcação automática ativada' : 'Marcação automática desativada' });
   };
 
   const handleClaimWin = async () => {
     if (!card) return;
-    const result = await submitWinClaim(card.id);
-    toast({ title: result.success ? '🎉 Parabéns!' : 'Ainda não...', description: result.message, variant: result.success ? 'default' : 'destructive' });
+    // TODO: Implement API call to claim win
+    toast({
+      title: 'Funcionalidade em desenvolvimento',
+      description: 'Reivindicação de prêmio será implementada em breve.'
+    });
   };
 
   const handleCopyCode = () => {

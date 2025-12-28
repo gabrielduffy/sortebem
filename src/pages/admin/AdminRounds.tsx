@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -9,24 +9,44 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Trophy, Clock, Users, Hash, Pause, Eye } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
-
-const mockRounds = [
-  { id: 'R001', type: 'regular', status: 'live', startTime: new Date(), prizePool: 15000, totalCards: 2847, soldCards: 2847, unsoldCards: 153, winner: null, tieBreak: null },
-  { id: 'R000', type: 'regular', status: 'finished', startTime: new Date(Date.now() - 10 * 60000), prizePool: 12500, totalCards: 2341, soldCards: 2341, unsoldCards: 659, winner: 'Padaria do João', tieBreak: null },
-  { id: 'R-SP01', type: 'special', status: 'upcoming', startTime: new Date(Date.now() + 45 * 60000), prizePool: 85000, totalCards: 0, soldCards: 0, unsoldCards: 10000, winner: null, tieBreak: null },
-  { id: 'R-SP00', type: 'special', status: 'finished', startTime: new Date(Date.now() - 60 * 60000), prizePool: 78500, totalCards: 8934, soldCards: 8934, unsoldCards: 1066, winner: 'Mercado Central', tieBreak: 42 },
-];
-
-const mockHistory = [
-  { id: 'R099', date: '27/12/2024 15:30', type: 'Regular', winner: 'Padaria do João', winningCard: 'C-78432', prize: 'R$ 12.500', soldCards: 2341, unsoldCards: 659, pattern: 'Linha', tieBreak: null, drawnNumbers: [5, 12, 23, 31, 42, 47, 56, 68, 73, 9, 18, 27, 36, 45, 54] },
-  { id: 'R098', date: '27/12/2024 15:20', type: 'Regular', winner: 'Mercado Central', winningCard: 'C-12987', prize: 'R$ 11.800', soldCards: 2156, unsoldCards: 844, pattern: 'Coluna', tieBreak: null, drawnNumbers: [3, 15, 28, 34, 41, 52, 63, 71, 8, 19, 26, 37, 44, 55, 66] },
-  { id: 'R097', date: '27/12/2024 15:10', type: 'Regular', winner: 'Bar do Zé', winningCard: 'C-45623', prize: 'R$ 13.200', soldCards: 2567, unsoldCards: 433, pattern: 'Linha', tieBreak: 42, drawnNumbers: [7, 14, 25, 33, 46, 51, 62, 74, 6, 17, 24, 35, 43, 58, 67] },
-  { id: 'R-SP05', date: '27/12/2024 15:00', type: 'Especial', winner: 'Padaria do João', winningCard: 'C-99001', prize: 'R$ 78.500', soldCards: 8934, unsoldCards: 1066, pattern: 'Cheia', tieBreak: null, drawnNumbers: [2, 11, 22, 30, 44, 53, 61, 75, 4, 16, 29, 38, 47, 59, 70, 1, 13, 21, 32, 48] },
-];
+import { apiService } from '@/services/api';
 
 export default function AdminRounds() {
-  const [liveRound] = useState(mockRounds.find(r => r.status === 'live'));
+  const [rounds, setRounds] = useState<any[]>([]);
+  const [liveRound, setLiveRound] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
   const [viewingRound, setViewingRound] = useState<any>(null);
+
+  useEffect(() => {
+    const loadRounds = async () => {
+      try {
+        const response = await apiService.getRounds();
+        if (response.ok && response.rounds) {
+          setRounds(response.rounds);
+          setLiveRound(response.rounds.find((r: any) => r.status === 'drawing' || r.status === 'live'));
+        }
+      } catch (error) {
+        console.error('Error loading rounds:', error);
+        toast({
+          title: 'Erro',
+          description: 'Não foi possível carregar as rodadas.',
+          variant: 'destructive'
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadRounds();
+
+    // Poll for updates every 5 seconds
+    const interval = setInterval(loadRounds, 5000);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  const upcomingRounds = rounds.filter(r => r.status === 'selling' || r.status === 'scheduled');
+  const finishedRounds = rounds.filter(r => r.status === 'finished');
 
   const handlePause = () => toast({ title: 'Rodada pausada', description: 'O sorteio foi pausado temporariamente.' });
   const handleForceEnd = () => toast({ title: 'Rodada finalizada', description: 'A rodada foi encerrada manualmente.' });

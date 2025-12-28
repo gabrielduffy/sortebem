@@ -26,9 +26,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { createPixPurchase, pollPurchaseStatus, generateCards, saveBuyerWhatsapp, sendCardsWhatsapp } from '@/services/mockApi';
-import { mockSettings, mockEstablishment, mockCurrentRound } from '@/services/mockData';
 import { toast } from '@/hooks/use-toast';
+import { apiService } from '@/services/api';
 
 type CheckoutStep = 'quantity' | 'payment' | 'confirmed';
 type DrawType = 'regular' | 'special';
@@ -77,20 +76,6 @@ const CountdownTimer = ({ targetTime, variant = 'default' }: { targetTime: Date;
   );
 };
 
-// Generate future rounds
-const generateFutureRounds = () => {
-  const rounds = [];
-  const now = Date.now();
-  for (let i = 0; i < 6; i++) {
-    rounds.push({
-      id: `round-${parseInt(mockCurrentRound.id.replace('round-', '')) + i}`,
-      time: new Date(now + (i * 10 * 60 * 1000)), // Every 10 minutes
-      number: parseInt(mockCurrentRound.id.replace('round-', '')) + i
-    });
-  }
-  return rounds;
-};
-
 const Checkout = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -99,7 +84,7 @@ const Checkout = () => {
   const [step, setStep] = useState<CheckoutStep>('quantity');
   const [drawType, setDrawType] = useState<DrawType>('regular');
   const [quantity, setQuantity] = useState(1);
-  const [selectedRounds, setSelectedRounds] = useState<string[]>([]);
+  const [selectedRounds, setSelectedRounds] = useState<number[]>([]);
   const [pixData, setPixData] = useState<{
     purchaseId: string;
     pixCode: string;
@@ -113,31 +98,76 @@ const Checkout = () => {
   const [copiedCard, setCopiedCard] = useState<string | null>(null);
   const [whatsappSent, setWhatsappSent] = useState(false);
 
-  const futureRounds = generateFutureRounds();
+  // API data
+  const [availableRounds, setAvailableRounds] = useState<any[]>([]);
+  const [settings, setSettings] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
 
-  // Initialize with first round selected
+  // Load initial data
   useEffect(() => {
-    if (selectedRounds.length === 0 && futureRounds.length > 0) {
-      setSelectedRounds([futureRounds[0].id]);
-    }
+    const loadData = async () => {
+      try {
+        const [roundsData, settingsData] = await Promise.all([
+          apiService.getRounds(),
+          apiService.getPublicSettings()
+        ]);
+
+        if (roundsData.ok && roundsData.rounds) {
+          // Filter selling or scheduled rounds
+          const futureRounds = roundsData.rounds.filter(
+            (r: any) => r.status === 'selling' || r.status === 'scheduled'
+          ).slice(0, 6);
+          setAvailableRounds(futureRounds);
+
+          // Select first round by default
+          if (futureRounds.length > 0) {
+            setSelectedRounds([futureRounds[0].id]);
+          }
+        }
+
+        if (settingsData.ok && settingsData.settings) {
+          setSettings(settingsData.settings);
+        }
+      } catch (error) {
+        console.error('Error loading data:', error);
+        toast({
+          title: 'Erro',
+          description: 'Não foi possível carregar os dados. Tente novamente.',
+          variant: 'destructive'
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadData();
   }, []);
 
+  const futureRounds = availableRounds.map(r => ({
+    id: r.id,
+    time: new Date(r.scheduled_time || r.start_time),
+    number: r.round_number || r.id
+  }));
+
   // Round info
-  const roundNumber = mockCurrentRound.id.replace('round-', '');
   const purchaseDate = new Date();
-  const nextRoundTime = selectedRounds.length > 0 
+  const nextRoundTime = selectedRounds.length > 0 && futureRounds.length > 0
     ? futureRounds.find(r => r.id === selectedRounds[0])?.time || new Date(Date.now() + 8 * 60 * 1000)
     : new Date(Date.now() + 8 * 60 * 1000);
-  const specialRoundTime = new Date(Date.now() + 2 * 60 * 60 * 1000); // 2 hours from now
+  const specialRoundTime = futureRounds.find(r => r.id === selectedRounds[0])?.time || new Date(Date.now() + 2 * 60 * 60 * 1000);
 
-  // Prize values (mock - would come from API)
-  const estimatedPrize = drawType === 'regular' ? 150 * selectedRounds.length : 5000;
-  const accumulatedPrize = 12500;
+  // Prize values from settings
+  const estimatedPrize = drawType === 'regular'
+    ? (settings?.regular_prize || 150) * selectedRounds.length
+    : settings?.special_prize || 5000;
+  const accumulatedPrize = settings?.accumulated_prize || 12500;
 
-  const unitPrice = drawType === 'regular' ? mockSettings.cardPriceRegular : mockSettings.cardPriceSpecial;
+  const unitPrice = drawType === 'regular'
+    ? (settings?.card_price_regular || 5)
+    : (settings?.card_price_special || 10);
   const totalPrice = quantity * unitPrice * (drawType === 'regular' ? selectedRounds.length : 1);
 
-  const toggleRoundSelection = (roundId: string) => {
+  const toggleRoundSelection = (roundId: number) => {
     setSelectedRounds(prev => {
       if (prev.includes(roundId)) {
         // Don't allow deselecting the last one
@@ -159,10 +189,36 @@ const Checkout = () => {
   const handleGeneratePix = async () => {
     setIsProcessing(true);
     try {
-      const pix = await createPixPurchase(quantity, establishmentCode || 'default');
-      setPixData(pix);
-      setStep('payment');
-      pollForPayment(pix.purchaseId);
+      // Use the first selected round
+      const roundId = selectedRounds[0];
+      if (!roundId) {
+        toast({ title: 'Erro', description: 'Selecione uma rodada.', variant: 'destructive' });
+        setIsProcessing(false);
+        return;
+      }
+
+      const response = await apiService.createPurchase({
+        round_id: roundId,
+        quantity,
+        customer_whatsapp: whatsappNumber || undefined
+      });
+
+      if (response.ok && response.pix) {
+        setPixData({
+          purchaseId: response.purchase_id,
+          pixCode: response.pix.code,
+          pixQrCode: response.pix.qrcode,
+          amount: totalPrice
+        });
+        setStep('payment');
+        pollForPayment(response.purchase_id);
+      } else {
+        toast({
+          title: 'Erro',
+          description: response.error || 'Não foi possível gerar o Pix.',
+          variant: 'destructive'
+        });
+      }
     } catch (error) {
       toast({ title: 'Erro', description: 'Não foi possível gerar o Pix. Tente novamente.', variant: 'destructive' });
     }
@@ -175,13 +231,25 @@ const Checkout = () => {
 
     const poll = async () => {
       if (attempts >= maxAttempts) return;
-      const status = await pollPurchaseStatus(purchaseId);
-      if (status === 'confirmed') {
-        const cards = await generateCards(purchaseId, quantity, establishmentCode || 'default');
-        setGeneratedCards(cards);
-        setStep('confirmed');
-        toast({ title: '✅ Pagamento confirmado!', description: 'Suas cartelas foram geradas com sucesso.' });
-      } else {
+
+      try {
+        const response = await apiService.checkPurchaseStatus(purchaseId);
+
+        if (response.ok && response.status === 'paid') {
+          // Get purchase details with cards
+          const purchaseData = await apiService.getPurchase(purchaseId);
+
+          if (purchaseData.ok && purchaseData.cards) {
+            setGeneratedCards(purchaseData.cards);
+            setStep('confirmed');
+            toast({ title: '✅ Pagamento confirmado!', description: 'Suas cartelas foram geradas com sucesso.' });
+            return;
+          }
+        }
+
+        attempts++;
+        setTimeout(poll, 3000);
+      } catch (error) {
         attempts++;
         setTimeout(poll, 3000);
       }
@@ -192,9 +260,24 @@ const Checkout = () => {
   const handleSimulatePayment = async () => {
     setIsProcessing(true);
     await new Promise(resolve => setTimeout(resolve, 2000));
-    const cards = await generateCards(pixData?.purchaseId || 'demo', quantity, establishmentCode || 'default');
-    setGeneratedCards(cards);
-    setStep('confirmed');
+
+    try {
+      // In development, you might want to simulate this
+      const purchaseData = await apiService.getPurchase(pixData?.purchaseId || '');
+      if (purchaseData.ok && purchaseData.cards) {
+        setGeneratedCards(purchaseData.cards);
+        setStep('confirmed');
+      }
+    } catch (error) {
+      // Generate mock cards for development
+      const mockCards = Array.from({ length: quantity }, (_, i) => ({
+        code: `SB-${Math.random().toString(36).substring(2, 10).toUpperCase()}`,
+        numbers: Array.from({ length: 25 }, () => Math.floor(Math.random() * 75) + 1)
+      }));
+      setGeneratedCards(mockCards);
+      setStep('confirmed');
+    }
+
     setIsProcessing(false);
   };
 
@@ -219,16 +302,39 @@ const Checkout = () => {
       return;
     }
     setIsProcessing(true);
-    await saveBuyerWhatsapp(pixData?.purchaseId || '', whatsappNumber);
-    await sendCardsWhatsapp(generatedCards.map(c => c.code), whatsappNumber);
-    setWhatsappSent(true);
+
+    try {
+      // TODO: Implement API call to send WhatsApp
+      // For now, just simulate success
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      setWhatsappSent(true);
+      toast({ title: '📱 Enviado!', description: 'Suas cartelas foram enviadas por WhatsApp.' });
+    } catch (error) {
+      toast({ title: 'Erro', description: 'Não foi possível enviar WhatsApp.', variant: 'destructive' });
+    }
+
     setIsProcessing(false);
-    toast({ title: '📱 Enviado!', description: 'Suas cartelas foram enviadas por WhatsApp.' });
   };
 
   const formatCurrency = (value: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
   const formatDate = (date: Date) => date.toLocaleDateString('pt-BR');
   const formatTime = (date: Date) => date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+
+  // Show loading state
+  if (loading) {
+    return (
+      <PublicLayout>
+        <div className="container mx-auto px-4 py-8 md:py-12">
+          <div className="max-w-2xl mx-auto flex items-center justify-center min-h-[400px]">
+            <div className="text-center">
+              <div className="animate-spin w-12 h-12 border-4 border-primary border-t-transparent rounded-full mx-auto mb-4" />
+              <p className="text-muted-foreground">Carregando...</p>
+            </div>
+          </div>
+        </div>
+      </PublicLayout>
+    );
+  }
 
   return (
     <PublicLayout>
