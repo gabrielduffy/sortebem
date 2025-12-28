@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { QRCodeSVG } from 'qrcode.react';
@@ -16,17 +16,66 @@ import {
   Shield,
   Clock,
   Calendar,
-  Hash
+  Hash,
+  Trophy,
+  Star,
+  Sparkles
 } from 'lucide-react';
 import PublicLayout from '@/components/layout/PublicLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { createPixPurchase, pollPurchaseStatus, generateCards, saveBuyerWhatsapp, sendCardsWhatsapp } from '@/services/mockApi';
 import { mockSettings, mockEstablishment, mockCurrentRound } from '@/services/mockData';
 import { toast } from '@/hooks/use-toast';
 
 type CheckoutStep = 'quantity' | 'payment' | 'confirmed';
+type DrawType = 'regular' | 'special';
+
+// Countdown Timer Component
+const CountdownTimer = ({ targetTime, variant = 'default' }: { targetTime: Date; variant?: 'default' | 'hero' }) => {
+  const [timeLeft, setTimeLeft] = useState({ minutes: 0, seconds: 0 });
+
+  useEffect(() => {
+    const calculateTimeLeft = () => {
+      const difference = targetTime.getTime() - Date.now();
+      if (difference > 0) {
+        setTimeLeft({
+          minutes: Math.floor((difference / 1000 / 60) % 60),
+          seconds: Math.floor((difference / 1000) % 60)
+        });
+      }
+    };
+    calculateTimeLeft();
+    const interval = setInterval(calculateTimeLeft, 1000);
+    return () => clearInterval(interval);
+  }, [targetTime]);
+
+  const formatNumber = (num: number) => num.toString().padStart(2, '0');
+
+  if (variant === 'hero') {
+    return (
+      <div className="flex items-center justify-center gap-2">
+        <div className="bg-primary text-primary-foreground px-4 py-3 rounded-xl text-center min-w-[70px]">
+          <span className="text-3xl md:text-4xl font-bold">{formatNumber(timeLeft.minutes)}</span>
+          <p className="text-xs opacity-80">min</p>
+        </div>
+        <span className="text-3xl font-bold text-primary animate-pulse">:</span>
+        <div className="bg-primary text-primary-foreground px-4 py-3 rounded-xl text-center min-w-[70px]">
+          <span className="text-3xl md:text-4xl font-bold">{formatNumber(timeLeft.seconds)}</span>
+          <p className="text-xs opacity-80">seg</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <span className="font-mono font-bold text-primary text-lg">
+      {formatNumber(timeLeft.minutes)}:{formatNumber(timeLeft.seconds)}
+    </span>
+  );
+};
 
 const Checkout = () => {
   const navigate = useNavigate();
@@ -34,6 +83,7 @@ const Checkout = () => {
   const establishmentCode = searchParams.get('ref') || null;
 
   const [step, setStep] = useState<CheckoutStep>('quantity');
+  const [drawType, setDrawType] = useState<DrawType>('regular');
   const [quantity, setQuantity] = useState(1);
   const [pixData, setPixData] = useState<{
     purchaseId: string;
@@ -52,8 +102,13 @@ const Checkout = () => {
   const roundNumber = mockCurrentRound.id.replace('round-', '');
   const purchaseDate = new Date();
   const nextRoundTime = new Date(Date.now() + 8 * 60 * 1000);
+  const specialRoundTime = new Date(Date.now() + 2 * 60 * 60 * 1000); // 2 hours from now
 
-  const unitPrice = mockSettings.cardPriceRegular;
+  // Prize values (mock - would come from API)
+  const estimatedPrize = drawType === 'regular' ? 150 : 5000;
+  const accumulatedPrize = 12500;
+
+  const unitPrice = drawType === 'regular' ? mockSettings.cardPriceRegular : mockSettings.cardPriceSpecial;
   const totalPrice = quantity * unitPrice;
 
   const handleQuantityChange = (delta: number) => {
@@ -161,37 +216,81 @@ const Checkout = () => {
           {/* Step 1: Quantity */}
           {step === 'quantity' && (
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
-              <div className="text-center mb-8">
+              <div className="text-center mb-4">
                 <h1 className="text-3xl font-bold text-foreground mb-2">Comprar Cartelas</h1>
-                <p className="text-muted-foreground">Escolha a quantidade e participe do próximo sorteio!</p>
+                <p className="text-muted-foreground">Escolha o tipo de sorteio e participe!</p>
               </div>
 
-              {/* Round Info */}
-              <div className="bg-primary/5 border border-primary/20 rounded-xl p-4">
-                <div className="grid grid-cols-3 gap-4 text-center">
-                  <div>
-                    <div className="flex items-center justify-center gap-1 text-muted-foreground text-sm mb-1">
-                      <Calendar className="w-4 h-4" />
-                      <span>Data</span>
-                    </div>
-                    <p className="font-semibold text-foreground">{formatDate(purchaseDate)}</p>
+              {/* Prize Highlight Banner */}
+              <motion.div 
+                initial={{ scale: 0.95, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                className="relative overflow-hidden bg-gradient-to-r from-primary via-primary/90 to-primary rounded-2xl p-6 text-primary-foreground"
+              >
+                <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2" />
+                <div className="absolute bottom-0 left-0 w-24 h-24 bg-white/10 rounded-full translate-y-1/2 -translate-x-1/2" />
+                
+                <div className="relative z-10 text-center">
+                  <div className="flex items-center justify-center gap-2 mb-2">
+                    <Trophy className="w-6 h-6" />
+                    <span className="text-sm font-medium opacity-90">Prêmio Estimado</span>
+                    <Sparkles className="w-5 h-5" />
                   </div>
-                  <div>
-                    <div className="flex items-center justify-center gap-1 text-muted-foreground text-sm mb-1">
-                      <Clock className="w-4 h-4" />
-                      <span>Próximo Sorteio</span>
-                    </div>
-                    <p className="font-semibold text-primary">{formatTime(nextRoundTime)}</p>
+                  <div className="text-4xl md:text-5xl font-bold mb-3">
+                    {formatCurrency(estimatedPrize)}
                   </div>
-                  <div>
-                    <div className="flex items-center justify-center gap-1 text-muted-foreground text-sm mb-1">
-                      <Hash className="w-4 h-4" />
-                      <span>Rodada</span>
+                  {drawType === 'special' && (
+                    <div className="inline-flex items-center gap-2 bg-white/20 rounded-full px-4 py-1">
+                      <Star className="w-4 h-4" />
+                      <span className="text-sm">Acumulado: {formatCurrency(accumulatedPrize)}</span>
                     </div>
-                    <p className="font-semibold text-foreground">#{roundNumber}</p>
-                  </div>
+                  )}
                 </div>
-              </div>
+              </motion.div>
+
+              {/* Draw Type Selector */}
+              <Tabs value={drawType} onValueChange={(v) => setDrawType(v as DrawType)} className="w-full">
+                <TabsList className="grid w-full grid-cols-2 h-auto p-1">
+                  <TabsTrigger value="regular" className="py-3 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+                    <div className="flex flex-col items-center gap-1">
+                      <Clock className="w-5 h-5" />
+                      <span className="font-semibold">Sorteio Regular</span>
+                      <span className="text-xs opacity-80">A cada 10 min</span>
+                    </div>
+                  </TabsTrigger>
+                  <TabsTrigger value="special" className="py-3 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+                    <div className="flex flex-col items-center gap-1">
+                      <Trophy className="w-5 h-5" />
+                      <span className="font-semibold">Sorteio Especial</span>
+                      <span className="text-xs opacity-80">Prêmios maiores</span>
+                    </div>
+                  </TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="regular" className="mt-4">
+                  {/* Countdown Hero - Regular */}
+                  <div className="bg-card border-2 border-primary/30 rounded-2xl p-6 text-center">
+                    <div className="flex items-center justify-center gap-2 text-primary mb-3">
+                      <Clock className="w-5 h-5 animate-pulse" />
+                      <span className="font-semibold text-lg">Próximo Sorteio em</span>
+                    </div>
+                    <CountdownTimer targetTime={nextRoundTime} variant="hero" />
+                    <p className="text-muted-foreground text-sm mt-3">Rodada #{roundNumber} • {formatDate(purchaseDate)}</p>
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="special" className="mt-4">
+                  {/* Countdown Hero - Special */}
+                  <div className="bg-gradient-to-br from-amber-500/10 to-orange-500/10 border-2 border-amber-500/30 rounded-2xl p-6 text-center">
+                    <div className="flex items-center justify-center gap-2 text-amber-600 mb-3">
+                      <Trophy className="w-5 h-5 animate-pulse" />
+                      <span className="font-semibold text-lg">Sorteio Especial em</span>
+                    </div>
+                    <CountdownTimer targetTime={specialRoundTime} variant="hero" />
+                    <p className="text-muted-foreground text-sm mt-3">Rodada Especial • {formatDate(purchaseDate)}</p>
+                  </div>
+                </TabsContent>
+              </Tabs>
 
               {establishmentCode && (
                 <div className="bg-secondary rounded-xl p-4 flex items-center gap-3">
@@ -217,7 +316,7 @@ const Checkout = () => {
                 </div>
                 <div className="space-y-2 text-sm border-t border-border pt-4">
                   <div className="flex justify-between text-muted-foreground">
-                    <span>Valor por cartela</span>
+                    <span>Valor por cartela ({drawType === 'regular' ? 'Regular' : 'Especial'})</span>
                     <span>{formatCurrency(unitPrice)}</span>
                   </div>
                   <div className="flex justify-between text-lg font-bold text-foreground">
@@ -269,10 +368,15 @@ const Checkout = () => {
                 <p className="text-muted-foreground">Escaneie o QR Code ou copie o código Pix</p>
               </div>
 
-              {/* Round Info in Payment */}
-              <div className="bg-muted rounded-xl p-3 flex items-center justify-center gap-4 text-sm">
-                <span className="text-muted-foreground">📅 {formatDate(purchaseDate)}</span>
-                <span className="text-muted-foreground">🕐 {formatTime(purchaseDate)}</span>
+              {/* Countdown during payment */}
+              <div className="bg-primary/10 border border-primary/30 rounded-xl p-4 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <Clock className="w-5 h-5 text-primary animate-pulse" />
+                  <div>
+                    <p className="text-sm text-muted-foreground">Sorteio começa em</p>
+                    <CountdownTimer targetTime={drawType === 'regular' ? nextRoundTime : specialRoundTime} />
+                  </div>
+                </div>
                 <span className="text-primary font-semibold">Rodada #{roundNumber}</span>
               </div>
 
@@ -280,7 +384,7 @@ const Checkout = () => {
                 <div className="text-center mb-6">
                   <p className="text-sm text-muted-foreground">Valor a pagar</p>
                   <p className="text-4xl font-bold text-primary">{formatCurrency(pixData.amount)}</p>
-                  <p className="text-sm text-muted-foreground mt-1">{quantity} cartela{quantity > 1 ? 's' : ''}</p>
+                  <p className="text-sm text-muted-foreground mt-1">{quantity} cartela{quantity > 1 ? 's' : ''} • Sorteio {drawType === 'regular' ? 'Regular' : 'Especial'}</p>
                 </div>
                 <div className="flex justify-center mb-6">
                   <div className="bg-background p-4 rounded-xl">
@@ -321,6 +425,15 @@ const Checkout = () => {
                 </div>
                 <h1 className="text-3xl font-bold text-foreground mb-2">Pagamento Confirmado! ✅</h1>
                 <p className="text-muted-foreground">Suas cartelas foram geradas com sucesso</p>
+              </div>
+
+              {/* Countdown after confirmation */}
+              <div className="bg-primary/10 border border-primary/30 rounded-xl p-4 text-center">
+                <div className="flex items-center justify-center gap-2 mb-2">
+                  <Clock className="w-5 h-5 text-primary animate-pulse" />
+                  <span className="font-semibold text-primary">O sorteio começa em</span>
+                </div>
+                <CountdownTimer targetTime={drawType === 'regular' ? nextRoundTime : specialRoundTime} variant="hero" />
               </div>
 
               {/* Confirmed Round Info */}
@@ -383,25 +496,27 @@ const Checkout = () => {
                 {!whatsappSent ? (
                   <div className="space-y-4">
                     <div>
-                      <Label htmlFor="whatsapp">WhatsApp (com DDD)</Label>
-                      <Input id="whatsapp" type="tel" placeholder="11999999999" value={whatsappNumber} onChange={(e) => setWhatsappNumber(e.target.value.replace(/\D/g, ''))} maxLength={11} />
+                      <Label htmlFor="whatsapp">Número do WhatsApp (com DDD)</Label>
+                      <Input
+                        id="whatsapp"
+                        type="tel"
+                        placeholder="(11) 99999-9999"
+                        value={whatsappNumber}
+                        onChange={(e) => setWhatsappNumber(e.target.value)}
+                        className="mt-2"
+                      />
                     </div>
-                    <Button variant="outline" className="w-full bg-success/10 border-success/20 text-success hover:bg-success/20" onClick={handleSendWhatsapp} disabled={isProcessing}>
+                    <Button className="w-full" onClick={handleSendWhatsapp} disabled={isProcessing}>
                       <MessageCircle className="w-4 h-4" />
-                      Enviar Cartelas no WhatsApp
+                      Enviar para WhatsApp
                     </Button>
                   </div>
                 ) : (
-                  <div className="flex items-center justify-center gap-2 text-success py-4">
-                    <Check className="w-5 h-5" />
-                    <span className="font-medium">Cartelas enviadas com sucesso!</span>
+                  <div className="text-center text-success">
+                    <Check className="w-8 h-8 mx-auto mb-2" />
+                    <p className="font-medium">Cartelas enviadas com sucesso!</p>
                   </div>
                 )}
-              </div>
-
-              {/* Important Notice */}
-              <div className="bg-warning/10 border border-warning/20 rounded-xl p-4">
-                <p className="text-sm text-warning font-medium">⚠️ Guarde o código da cartela para resgatar seu prêmio em caso de vitória!</p>
               </div>
             </motion.div>
           )}
