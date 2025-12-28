@@ -48,16 +48,16 @@ export default function AdminDashboard() {
   return (
     <DashboardLayout userType="admin" userName="Administrador" notifications={0}>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <StatCard title="Faturamento Total" value={`R$ ${(adminData.totalRevenue / 1000).toFixed(0)}k`} icon={TrendingUp} trend={{ value: 23, isPositive: true }} />
-        <StatCard title="Arrecadado Caridade" value={`R$ ${(adminData.charityRaised / 1000).toFixed(0)}k`} icon={Gift} />
-        <StatCard title="Pool de Prêmios" value={`R$ ${(adminData.prizePool / 1000).toFixed(0)}k`} icon={Trophy} />
-        <StatCard title="Receita Plataforma" value={`R$ ${(adminData.platformRevenue / 1000).toFixed(0)}k`} icon={Wallet} />
+        <StatCard title="Faturamento Total" value={`R$ ${((adminData.totalRevenue || 0) / 1000).toFixed(0)}k`} icon={TrendingUp} trend={{ value: 23, isPositive: true }} />
+        <StatCard title="Arrecadado Caridade" value={`R$ ${((adminData.charityRaised || 0) / 1000).toFixed(0)}k`} icon={Gift} />
+        <StatCard title="Pool de Prêmios" value={`R$ ${((adminData.prizePool || 0) / 1000).toFixed(0)}k`} icon={Trophy} />
+        <StatCard title="Receita Plataforma" value={`R$ ${((adminData.platformRevenue || 0) / 1000).toFixed(0)}k`} icon={Wallet} />
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <StatCard title="Gerentes" value={adminData.totalManagers} icon={Users} />
-        <StatCard title="Estabelecimentos" value={adminData.totalEstablishments} icon={Building2} />
-        <StatCard title="Cartelas Emitidas" value={`${(adminData.totalCards / 1000).toFixed(0)}k`} icon={LayoutDashboard} />
-        <StatCard title="Rodadas Ativas" value={adminData.activeRounds} icon={Clock} />
+        <StatCard title="Gerentes" value={adminData.totalManagers || 0} icon={Users} />
+        <StatCard title="Estabelecimentos" value={adminData.totalEstablishments || 0} icon={Building2} />
+        <StatCard title="Cartelas Emitidas" value={`${((adminData.totalCards || 0) / 1000).toFixed(0)}k`} icon={LayoutDashboard} />
+        <StatCard title="Rodadas Ativas" value={adminData.activeRounds || 0} icon={Clock} />
       </div>
 
       {/* Charts */}
