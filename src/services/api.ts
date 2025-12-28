@@ -222,7 +222,17 @@ class ApiService {
   /**
    * Create purchase
    */
-  async createPurchase(data: { round_id: number; quantity: number; customer_whatsapp?: string }) {
+  async createPurchase(data: {
+    round_id: number;
+    quantity: number;
+    payment_method: string;
+    customer?: {
+      name?: string;
+      email?: string;
+      phone?: string;
+      cpf?: string;
+    }
+  }) {
     const response = await this.fetch('/purchases', {
       method: 'POST',
       body: JSON.stringify(data),
@@ -300,8 +310,8 @@ class ApiService {
   /**
    * Get TV mode data
    */
-  async getTVData(slug: string) {
-    const response = await fetch(`${API_BASE_URL}/stats/tv/${slug}`);
+  async getTVData(slug?: string) {
+    const response = await fetch(`${API_BASE_URL}/stats/tv`);
     return await response.json();
   }
 

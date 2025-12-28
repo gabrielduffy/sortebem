@@ -174,6 +174,12 @@ const Checkout = () => {
 
   // Get card price from selected round or fallback to settings
   const selectedRoundData = futureRounds.find(r => r.id === selectedRounds[0]);
+
+  console.log('DEBUG - selectedRoundData:', selectedRoundData);
+  console.log('DEBUG - selectedRoundData?.card_price:', selectedRoundData?.card_price);
+  console.log('DEBUG - settings?.card_price_regular:', settings?.card_price_regular);
+  console.log('DEBUG - parseFloat(settings?.card_price_regular):', parseFloat(settings?.card_price_regular));
+
   const unitPrice = drawType === 'regular'
     ? (selectedRoundData?.card_price || parseFloat(settings?.card_price_regular) || 5)
     : (parseFloat(settings?.card_price_special) || 10);
@@ -226,7 +232,10 @@ const Checkout = () => {
       const purchaseData = {
         round_id: parseInt(roundId.toString(), 10),
         quantity,
-        payment_method: 'pix'
+        payment_method: 'pix',
+        customer: {
+          phone: whatsappNumber || undefined
+        }
       };
       console.log('Dados para compra:', purchaseData);
 
