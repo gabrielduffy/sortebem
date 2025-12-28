@@ -31,8 +31,8 @@ export default function AdminManagers() {
     try {
       setLoading(true);
       const response = await apiService.getManagers();
-      if (response.ok && response.managers) {
-        setManagers(response.managers);
+      if (response.ok && response.data) {
+        setManagers(response.data);
       }
     } catch (error) {
       console.error('Error loading managers:', error);
@@ -158,10 +158,10 @@ export default function AdminManagers() {
   const formatCurrency = (value: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 
   const columns = [
-    { key: 'name', label: 'Nome Completo' },
-    { key: 'cpf', label: 'CPF' },
-    { key: 'whatsapp', label: 'WhatsApp' },
-    { key: 'establishments_count', label: 'Estabelecimentos' },
+    { key: 'name', label: 'Nome Completo', render: (m: any) => m.name || 'Sem nome' },
+    { key: 'cpf', label: 'CPF', render: (m: any) => m.cpf || '-' },
+    { key: 'whatsapp', label: 'WhatsApp', render: (m: any) => m.whatsapp || '-' },
+    { key: 'establishments_count', label: 'Estabelecimentos', render: (m: any) => m.establishments_count || 0 },
     { key: 'total_commission', label: 'Comissão Total', render: (m: any) => formatCurrency(m.total_commission || 0) },
     { key: 'kyc_status', label: 'KYC', render: (m: any) => (
       <Badge variant={m.kyc_status === 'approved' ? 'default' : m.kyc_status === 'pending' ? 'secondary' : 'destructive'}>
@@ -280,10 +280,10 @@ export default function AdminManagers() {
           <DialogContent className="max-w-2xl"><DialogHeader><DialogTitle>Detalhes do Gerente</DialogTitle></DialogHeader>
           {viewingManager && (
             <div className="grid md:grid-cols-2 gap-4 py-4">
-              <div><Label className="text-muted-foreground">Nome Completo</Label><p className="font-medium">{viewingManager.name}</p></div>
-              <div><Label className="text-muted-foreground">CPF</Label><p className="font-medium">{viewingManager.cpf}</p></div>
-              <div><Label className="text-muted-foreground">WhatsApp</Label><p className="font-medium">{viewingManager.whatsapp}</p></div>
-              <div><Label className="text-muted-foreground">E-mail</Label><p className="font-medium">{viewingManager.email}</p></div>
+              <div><Label className="text-muted-foreground">Nome Completo</Label><p className="font-medium">{viewingManager.name || 'Sem nome'}</p></div>
+              <div><Label className="text-muted-foreground">CPF</Label><p className="font-medium">{viewingManager.cpf || '-'}</p></div>
+              <div><Label className="text-muted-foreground">WhatsApp</Label><p className="font-medium">{viewingManager.whatsapp || '-'}</p></div>
+              <div><Label className="text-muted-foreground">E-mail</Label><p className="font-medium">{viewingManager.email || '-'}</p></div>
               <div><Label className="text-muted-foreground">Código de Indicação</Label><p className="font-medium text-primary">{viewingManager.referral_code || 'N/A'}</p></div>
               <div><Label className="text-muted-foreground">Status KYC</Label><Badge variant={viewingManager.kyc_status === 'approved' ? 'default' : viewingManager.kyc_status === 'pending' ? 'secondary' : 'destructive'}>{viewingManager.kyc_status === 'approved' ? 'Aprovado' : viewingManager.kyc_status === 'pending' ? 'Pendente' : 'Reprovado'}</Badge></div>
               <div><Label className="text-muted-foreground">Estabelecimentos</Label><p className="font-medium">{viewingManager.establishments_count || 0}</p></div>
