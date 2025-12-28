@@ -255,7 +255,7 @@ export default function EstablishmentPOS() {
               Siga as instruções para configurar seu terminal para vendas de cartelas.
             </p>
             <ol className="space-y-2 text-sm text-muted-foreground">
-              <li>1. Baixe o APK SORTBEM no site oficial</li>
+              <li>1. Baixe o APK SORTEBEM no site oficial</li>
               <li>2. Transfira o arquivo para a Smart 2 via USB ou download direto</li>
               <li>3. Instale o aplicativo nas configurações do terminal</li>
               <li>4. Abra o app e insira a API Key gerada acima</li>
