@@ -15,7 +15,7 @@ const Footer = () => {
               <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center">
                 <Heart className="w-6 h-6 text-primary-foreground" />
               </div>
-              <span className="text-2xl font-bold text-primary">SORTBEM</span>
+              <span className="text-2xl font-bold text-primary">SORTEBEM</span>
             </Link>
             <p className="text-background/70 text-sm leading-relaxed">
               Sorteios beneficentes que transformam vidas. Cada cartela vendida 
@@ -103,7 +103,7 @@ const Footer = () => {
             <ul className="space-y-3">
               <li className="flex items-center gap-3 text-background/70">
                 <Mail className="w-5 h-5 text-primary" />
-                contato@sortbem.com.br
+                contato@sortebem.com.br
               </li>
               <li className="flex items-center gap-3 text-background/70">
                 <Phone className="w-5 h-5 text-primary" />
@@ -122,7 +122,7 @@ const Footer = () => {
       <div className="border-t border-background/10">
         <div className="container mx-auto px-4 py-6">
           <div className="flex flex-col md:flex-row items-center justify-between gap-4 text-sm text-background/60">
-            <p>© {currentYear} SORTBEM. Todos os direitos reservados.</p>
+            <p>© {currentYear} SORTEBEM. Todos os direitos reservados.</p>
             <div className="flex gap-6">
               <Link to="/termos" className="hover:text-primary transition-colors">
                 Termos de Uso

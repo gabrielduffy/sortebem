@@ -42,7 +42,7 @@ const CardGrid = ({
   const isMarked = (number: number) => localMarked.includes(number);
   const isDrawn = (number: number) => drawnNumbers.includes(number);
 
-  const columnHeaders = ['S', 'O', 'R', 'T', 'B'];
+  const columnHeaders = ['S', 'O', 'R', 'T', 'E'];
 
   return (
     <div className="bg-card border-4 border-primary rounded-2xl overflow-hidden shadow-xl">

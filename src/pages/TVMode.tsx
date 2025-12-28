@@ -91,7 +91,7 @@ const TVMode = () => {
                 <Heart className="w-7 h-7 text-primary-foreground" />
               </div>
               <div>
-                <h1 className="text-2xl md:text-3xl font-bold text-primary">SORTBEM</h1>
+                <h1 className="text-2xl md:text-3xl font-bold text-primary">SORTEBEM</h1>
                 <p className="text-background/70 text-sm">{data.establishment.tradeName}</p>
               </div>
             </div>
@@ -267,7 +267,7 @@ const TVMode = () => {
         <div className="container mx-auto px-6 py-4">
           <div className="flex items-center justify-between text-background/60">
             <Link to="/" className="hover:text-primary transition-colors">
-              www.sortbem.com.br
+              www.sortebem.com.br
             </Link>
             <p>Sorteios beneficentes que transformam vidas</p>
           </div>
