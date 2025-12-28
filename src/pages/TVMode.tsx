@@ -25,21 +25,18 @@ const TVMode = () => {
       try {
         // Load establishment data
         const tvData = await apiService.getTVData(slugEstabelecimento);
-        console.log('TV Mode - TV data response:', tvData);
         if (tvData.ok && tvData.data) {
           setData(tvData.data);
         }
 
         // Load live round
         const liveRoundData = await apiService.getLiveRound();
-        console.log('TV Mode - Live round response:', liveRoundData);
         if (liveRoundData.ok && liveRoundData.data) {
           setLiveRound(liveRoundData.data);
 
           // Load drawn numbers if round is live
           if (liveRoundData.data.status === 'drawing') {
             const numbersData = await apiService.getDrawnNumbers(liveRoundData.data.id);
-            console.log('TV Mode - Drawn numbers response:', numbersData);
             if (numbersData.ok && numbersData.data) {
               setDrawnNumbers(numbersData.data);
 
@@ -72,10 +69,33 @@ const TVMode = () => {
     }).format(value);
   };
 
+  // Real countdown timer
+  const [timeLeft, setTimeLeft] = useState({ minutes: 0, seconds: 0 });
+
+  useEffect(() => {
+    if (!liveRound?.ends_at && !liveRound?.selling_ends_at) return;
+
+    const calculateTimeLeft = () => {
+      const targetTime = new Date(liveRound.selling_ends_at || liveRound.ends_at);
+      const difference = targetTime.getTime() - Date.now();
+
+      if (difference > 0) {
+        setTimeLeft({
+          minutes: Math.floor((difference / 1000 / 60) % 60),
+          seconds: Math.floor((difference / 1000) % 60)
+        });
+      } else {
+        setTimeLeft({ minutes: 0, seconds: 0 });
+      }
+    };
+
+    calculateTimeLeft();
+    const interval = setInterval(calculateTimeLeft, 1000);
+    return () => clearInterval(interval);
+  }, [liveRound]);
+
   const getTimeLeft = () => {
-    const minutes = Math.floor(Math.random() * 9) + 1;
-    const seconds = Math.floor(Math.random() * 59);
-    return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+    return `${timeLeft.minutes.toString().padStart(2, '0')}:${timeLeft.seconds.toString().padStart(2, '0')}`;
   };
 
   if (!data) {
@@ -135,10 +155,13 @@ const TVMode = () => {
               animate={{ opacity: 1, y: 0 }}
               className="bg-background/10 backdrop-blur-sm rounded-3xl p-8 text-center"
             >
-              <div className="flex items-center justify-center gap-2 mb-4">
+              <div className="flex items-center justify-center gap-2 mb-2">
                 <Clock className="w-6 h-6 text-primary" />
                 <span className="text-xl text-background/70">Próxima Rodada</span>
               </div>
+              <p className="text-lg text-background/60 mb-4">
+                #{liveRound?.number || liveRound?.round_number || '-'}
+              </p>
               <p className="text-6xl md:text-7xl font-bold font-mono text-primary">
                 {getTimeLeft()}
               </p>

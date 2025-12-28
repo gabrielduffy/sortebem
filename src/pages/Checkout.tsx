@@ -112,22 +112,16 @@ const Checkout = () => {
           apiService.getPublicSettings()
         ]);
 
-        console.log('Checkout - Rounds response:', roundsData);
-        console.log('Checkout - Settings response:', settingsData);
-
         if (roundsData.ok && roundsData.data) {
           // Filter selling or scheduled rounds
           const futureRounds = roundsData.data.filter(
             (r: any) => r.status === 'selling' || r.status === 'scheduled'
           ).slice(0, 6);
-          console.log('Rodadas disponíveis:', futureRounds);
-          console.log('Primeira rodada:', futureRounds[0]);
           setAvailableRounds(futureRounds);
 
           // Select first round by default
           if (futureRounds.length > 0) {
             setSelectedRounds([futureRounds[0].id]);
-            console.log('Rodada selecionada por padrão:', futureRounds[0].id);
           }
         }
 
@@ -174,22 +168,9 @@ const Checkout = () => {
 
   // Get card price from selected round or fallback to settings
   const selectedRoundData = futureRounds.find(r => r.id === selectedRounds[0]);
-
-  console.log('DEBUG - selectedRoundData:', selectedRoundData);
-  console.log('DEBUG - selectedRoundData?.card_price:', selectedRoundData?.card_price);
-  console.log('DEBUG - settings?.card_price_regular:', settings?.card_price_regular);
-  console.log('DEBUG - parseFloat(settings?.card_price_regular):', parseFloat(settings?.card_price_regular));
-
   const unitPrice = drawType === 'regular'
     ? (selectedRoundData?.card_price || parseFloat(settings?.card_price_regular) || 5)
     : (parseFloat(settings?.card_price_special) || 10);
-
-  console.log('Checkout - selectedRounds:', selectedRounds);
-  console.log('Checkout - selectedRounds.length:', selectedRounds.length);
-  console.log('Checkout - drawType:', drawType);
-  console.log('Checkout - unitPrice:', unitPrice);
-  console.log('Checkout - quantity:', quantity);
-
   const totalPrice = quantity * unitPrice * (drawType === 'regular' ? selectedRounds.length : 1);
 
   const toggleRoundSelection = (roundId: number) => {
@@ -216,14 +197,8 @@ const Checkout = () => {
     try {
       // Use the first selected round
       const roundId = selectedRounds[0];
-      console.log('Round selecionada:', roundId);
-      console.log('Dados da rodada:', selectedRoundData);
-      console.log('Quantidade:', quantity);
-      console.log('Preço unitário:', unitPrice);
-      console.log('Total:', totalPrice);
 
       if (!roundId) {
-        console.log('ERRO: Nenhuma rodada selecionada');
         toast({ title: 'Erro', description: 'Selecione uma rodada.', variant: 'destructive' });
         setIsProcessing(false);
         return;
@@ -237,7 +212,6 @@ const Checkout = () => {
           phone: whatsappNumber || undefined
         }
       };
-      console.log('Dados para compra:', purchaseData);
 
       const response = await apiService.createPurchase(purchaseData);
 
