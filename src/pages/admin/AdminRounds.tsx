@@ -21,9 +21,10 @@ export default function AdminRounds() {
     const loadRounds = async () => {
       try {
         const response = await apiService.getRounds();
-        if (response.ok && response.rounds) {
-          setRounds(response.rounds);
-          setLiveRound(response.rounds.find((r: any) => r.status === 'drawing' || r.status === 'live'));
+        console.log('Rounds response:', response);
+        if (response.ok && response.data) {
+          setRounds(response.data);
+          setLiveRound(response.data.find((r: any) => r.status === 'drawing' || r.status === 'live'));
         }
       } catch (error) {
         console.error('Error loading rounds:', error);

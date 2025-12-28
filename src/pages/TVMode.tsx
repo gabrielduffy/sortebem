@@ -31,18 +31,20 @@ const TVMode = () => {
 
         // Load live round
         const liveRoundData = await apiService.getLiveRound();
-        if (liveRoundData.ok && liveRoundData.round) {
-          setLiveRound(liveRoundData.round);
+        console.log('TV Mode - Live round response:', liveRoundData);
+        if (liveRoundData.ok && liveRoundData.data) {
+          setLiveRound(liveRoundData.data);
 
           // Load drawn numbers if round is live
-          if (liveRoundData.round.status === 'drawing') {
-            const numbersData = await apiService.getDrawnNumbers(liveRoundData.round.id);
-            if (numbersData.ok && numbersData.numbers) {
-              setDrawnNumbers(numbersData.numbers);
+          if (liveRoundData.data.status === 'drawing') {
+            const numbersData = await apiService.getDrawnNumbers(liveRoundData.data.id);
+            console.log('TV Mode - Drawn numbers response:', numbersData);
+            if (numbersData.ok && numbersData.data) {
+              setDrawnNumbers(numbersData.data);
 
               // Set last number
-              if (numbersData.numbers.length > 0) {
-                setLastNumber(numbersData.numbers[numbersData.numbers.length - 1]);
+              if (numbersData.data.length > 0) {
+                setLastNumber(numbersData.data[numbersData.data.length - 1]);
               }
             }
           }

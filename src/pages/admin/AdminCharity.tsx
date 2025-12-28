@@ -27,8 +27,9 @@ export default function AdminCharity() {
     try {
       setLoading(true);
       const response = await apiService.getCharities();
-      if (response.ok && response.charities) {
-        setCharities(response.charities);
+      console.log('Charities response:', response);
+      if (response.ok && response.data) {
+        setCharities(response.data);
       }
     } catch (error) {
       console.error('Error loading charities:', error);
