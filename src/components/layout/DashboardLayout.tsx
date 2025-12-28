@@ -18,7 +18,8 @@ import {
   FileText,
   ChevronDown,
   UserPlus,
-  Dices
+  Dices,
+  Plug
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -54,6 +55,7 @@ const adminNavItems: NavItem[] = [
   { label: 'Rodadas', href: '/admin/rodadas', icon: Trophy },
   { label: 'Gerentes', href: '/admin/gerentes', icon: Users },
   { label: 'Estabelecimentos', href: '/admin/estabelecimentos', icon: Building2 },
+  { label: 'Integrações', href: '/admin/integracoes', icon: Plug },
   { label: 'Integração WhatsApp', href: '/admin/whatsapp', icon: MessageSquare },
   { label: 'Configurações POS', href: '/admin/pos', icon: Monitor },
   { label: 'Logs/Auditoria', href: '/admin/logs', icon: FileText },
