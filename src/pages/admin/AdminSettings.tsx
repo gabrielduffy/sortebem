@@ -11,7 +11,22 @@ import { Save, DollarSign, Percent, Clock, Hash, Trophy } from 'lucide-react';
 import { apiService } from '@/services/api';
 
 export default function AdminSettings() {
-  const [settings, setSettings] = useState<any>(null);
+  const [settings, setSettings] = useState<any>({
+    cardPriceRegular: 5,
+    cardPriceSpecial: 10,
+    platformPercent: 10,
+    charityPercent: 10,
+    establishmentCommission: 20,
+    managerCommission: 10,
+    prizePoolPercent: 40,
+    specialPoolPercent: 5,
+    bonusPoolPercent: 5,
+    minNumber: 1,
+    maxNumber: 75,
+    tieBreakWindowMs: 1000,
+    maxCardsPerRound: 10000,
+    winPatterns: []
+  });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [winPatterns, setWinPatterns] = useState<string[]>([]);
@@ -19,6 +34,7 @@ export default function AdminSettings() {
   useEffect(() => {
     const loadSettings = async () => {
       try {
+        setLoading(true);
         const response = await apiService.getSettings();
         if (response.ok && response.settings) {
           setSettings(response.settings);
@@ -61,7 +77,7 @@ export default function AdminSettings() {
     );
   };
 
-  if (loading || !settings) {
+  if (loading) {
     return (
       <DashboardLayout userType="admin" userName="Administrador" notifications={0}>
         <div className="flex items-center justify-center min-h-[400px]">
@@ -109,8 +125,8 @@ export default function AdminSettings() {
                     <Input
                       type="number"
                       step="0.50"
-                      value={settings.cardPriceRegular}
-                      onChange={(e) => setSettings({...settings, cardPriceRegular: parseFloat(e.target.value)})}
+                      value={settings?.cardPriceRegular || 0}
+                      onChange={(e) => setSettings({...settings, cardPriceRegular: parseFloat(e.target.value) || 0})}
                     />
                   </div>
                 </CardContent>
@@ -130,8 +146,8 @@ export default function AdminSettings() {
                     <Input
                       type="number"
                       step="0.50"
-                      value={settings.cardPriceSpecial}
-                      onChange={(e) => setSettings({...settings, cardPriceSpecial: parseFloat(e.target.value)})}
+                      value={settings?.cardPriceSpecial || 0}
+                      onChange={(e) => setSettings({...settings, cardPriceSpecial: parseFloat(e.target.value) || 0})}
                     />
                   </div>
                 </CardContent>
@@ -148,8 +164,8 @@ export default function AdminSettings() {
                 </CardTitle>
                 <CardDescription>
                   Total deve somar 100%. Atual: {
-                    settings.platformPercent + settings.charityPercent + settings.establishmentCommission + 
-                    settings.managerCommission + settings.prizePoolPercent + settings.specialPoolPercent + settings.bonusPoolPercent
+                    (settings?.platformPercent || 0) + (settings?.charityPercent || 0) + (settings?.establishmentCommission || 0) +
+                    (settings?.managerCommission || 0) + (settings?.prizePoolPercent || 0) + (settings?.specialPoolPercent || 0) + (settings?.bonusPoolPercent || 0)
                   }%
                 </CardDescription>
               </CardHeader>
@@ -158,56 +174,56 @@ export default function AdminSettings() {
                   <Label>Plataforma (%)</Label>
                   <Input
                     type="number"
-                    value={settings.platformPercent}
-                    onChange={(e) => setSettings({...settings, platformPercent: parseFloat(e.target.value)})}
+                    value={settings?.platformPercent || 0}
+                    onChange={(e) => setSettings({...settings, platformPercent: parseFloat(e.target.value) || 0})}
                   />
                 </div>
                 <div>
                   <Label>Caridade (%)</Label>
                   <Input
                     type="number"
-                    value={settings.charityPercent}
-                    onChange={(e) => setSettings({...settings, charityPercent: parseFloat(e.target.value)})}
+                    value={settings?.charityPercent || 0}
+                    onChange={(e) => setSettings({...settings, charityPercent: parseFloat(e.target.value) || 0})}
                   />
                 </div>
                 <div>
                   <Label>Comissão Estabelecimento (%)</Label>
                   <Input
                     type="number"
-                    value={settings.establishmentCommission}
-                    onChange={(e) => setSettings({...settings, establishmentCommission: parseFloat(e.target.value)})}
+                    value={settings?.establishmentCommission || 0}
+                    onChange={(e) => setSettings({...settings, establishmentCommission: parseFloat(e.target.value) || 0})}
                   />
                 </div>
                 <div>
                   <Label>Comissão Gerente (%)</Label>
                   <Input
                     type="number"
-                    value={settings.managerCommission}
-                    onChange={(e) => setSettings({...settings, managerCommission: parseFloat(e.target.value)})}
+                    value={settings?.managerCommission || 0}
+                    onChange={(e) => setSettings({...settings, managerCommission: parseFloat(e.target.value) || 0})}
                   />
                 </div>
                 <div>
                   <Label>Pool de Prêmios (%)</Label>
                   <Input
                     type="number"
-                    value={settings.prizePoolPercent}
-                    onChange={(e) => setSettings({...settings, prizePoolPercent: parseFloat(e.target.value)})}
+                    value={settings?.prizePoolPercent || 0}
+                    onChange={(e) => setSettings({...settings, prizePoolPercent: parseFloat(e.target.value) || 0})}
                   />
                 </div>
                 <div>
                   <Label>Pool Especial (%)</Label>
                   <Input
                     type="number"
-                    value={settings.specialPoolPercent}
-                    onChange={(e) => setSettings({...settings, specialPoolPercent: parseFloat(e.target.value)})}
+                    value={settings?.specialPoolPercent || 0}
+                    onChange={(e) => setSettings({...settings, specialPoolPercent: parseFloat(e.target.value) || 0})}
                   />
                 </div>
                 <div>
                   <Label>Pool Bônus (%)</Label>
                   <Input
                     type="number"
-                    value={settings.bonusPoolPercent}
-                    onChange={(e) => setSettings({...settings, bonusPoolPercent: parseFloat(e.target.value)})}
+                    value={settings?.bonusPoolPercent || 0}
+                    onChange={(e) => setSettings({...settings, bonusPoolPercent: parseFloat(e.target.value) || 0})}
                   />
                 </div>
               </CardContent>
@@ -230,16 +246,16 @@ export default function AdminSettings() {
                       <Label>Mínimo</Label>
                       <Input
                         type="number"
-                        value={settings.minNumber}
-                        onChange={(e) => setSettings({...settings, minNumber: parseInt(e.target.value)})}
+                        value={settings?.minNumber || 0}
+                        onChange={(e) => setSettings({...settings, minNumber: parseInt(e.target.value) || 0})}
                       />
                     </div>
                     <div>
                       <Label>Máximo</Label>
                       <Input
                         type="number"
-                        value={settings.maxNumber}
-                        onChange={(e) => setSettings({...settings, maxNumber: parseInt(e.target.value)})}
+                        value={settings?.maxNumber || 0}
+                        onChange={(e) => setSettings({...settings, maxNumber: parseInt(e.target.value) || 0})}
                       />
                     </div>
                   </div>
@@ -258,8 +274,8 @@ export default function AdminSettings() {
                   <div className="flex items-center gap-2">
                     <Input
                       type="number"
-                      value={settings.tieBreakWindowMs}
-                      onChange={(e) => setSettings({...settings, tieBreakWindowMs: parseInt(e.target.value)})}
+                      value={settings?.tieBreakWindowMs || 0}
+                      onChange={(e) => setSettings({...settings, tieBreakWindowMs: parseInt(e.target.value) || 0})}
                     />
                     <span className="text-muted-foreground">ms</span>
                   </div>
@@ -277,8 +293,8 @@ export default function AdminSettings() {
                 <CardContent>
                   <Input
                     type="number"
-                    value={settings.maxCardsPerRound}
-                    onChange={(e) => setSettings({...settings, maxCardsPerRound: parseInt(e.target.value)})}
+                    value={settings?.maxCardsPerRound || 0}
+                    onChange={(e) => setSettings({...settings, maxCardsPerRound: parseInt(e.target.value) || 0})}
                   />
                 </CardContent>
               </Card>
