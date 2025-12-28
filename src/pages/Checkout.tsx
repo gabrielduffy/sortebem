@@ -449,30 +449,30 @@ const Checkout = () => {
                 ))}
               </div>
 
-              {/* Info Cards */}
-              <div className="grid sm:grid-cols-3 gap-4">
-                <div className="bg-secondary rounded-xl p-4 text-center">
-                  <Gift className="w-6 h-6 text-primary mx-auto mb-2" />
-                  <p className="text-sm text-muted-foreground">Rodada a cada</p>
-                  <p className="font-semibold">10 minutos</p>
-                </div>
-                <div className="bg-secondary rounded-xl p-4 text-center">
-                  <Shield className="w-6 h-6 text-primary mx-auto mb-2" />
-                  <p className="text-sm text-muted-foreground">Pagamento</p>
-                  <p className="font-semibold">100% Seguro</p>
-                </div>
-                <div className="bg-secondary rounded-xl p-4 text-center">
-                  <Clock className="w-6 h-6 text-primary mx-auto mb-2" />
-                  <p className="text-sm text-muted-foreground">Confirmação</p>
-                  <p className="font-semibold">Instantânea</p>
-                </div>
-              </div>
-
               <Button variant="hero" size="xl" className="w-full" onClick={handleGeneratePix} disabled={isProcessing}>
                 {isProcessing ? <span className="animate-spin mr-2">⏳</span> : <CreditCard className="w-5 h-5" />}
                 Pagar com Pix
                 <ArrowRight className="w-5 h-5" />
               </Button>
+
+              {/* Info Cards */}
+              <div className="grid grid-cols-3 gap-2 sm:gap-4">
+                <div className="bg-secondary rounded-xl p-3 sm:p-4 text-center">
+                  <Gift className="w-5 h-5 sm:w-6 sm:h-6 text-primary mx-auto mb-1 sm:mb-2" />
+                  <p className="text-xs sm:text-sm text-muted-foreground">Rodada a cada</p>
+                  <p className="font-semibold text-sm sm:text-base">10 minutos</p>
+                </div>
+                <div className="bg-secondary rounded-xl p-3 sm:p-4 text-center">
+                  <Shield className="w-5 h-5 sm:w-6 sm:h-6 text-primary mx-auto mb-1 sm:mb-2" />
+                  <p className="text-xs sm:text-sm text-muted-foreground">Pagamento</p>
+                  <p className="font-semibold text-sm sm:text-base">100% Seguro</p>
+                </div>
+                <div className="bg-secondary rounded-xl p-3 sm:p-4 text-center">
+                  <Clock className="w-5 h-5 sm:w-6 sm:h-6 text-primary mx-auto mb-1 sm:mb-2" />
+                  <p className="text-xs sm:text-sm text-muted-foreground">Confirmação</p>
+                  <p className="font-semibold text-sm sm:text-base">Instantânea</p>
+                </div>
+              </div>
             </motion.div>
           )}
 
