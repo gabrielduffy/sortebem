@@ -183,33 +183,6 @@ export default function AdminManagers() {
     )}
   ];
 
-  const ManagerForm = ({ onSubmit, submitLabel, showPassword = false }: { onSubmit: () => void; submitLabel: string; showPassword?: boolean }) => (
-    <div className="grid md:grid-cols-2 gap-4 py-4">
-      <div className="space-y-2">
-        <Label>Nome Completo</Label>
-        <Input value={formData.name} onChange={e => setFormData(p => ({ ...p, name: e.target.value }))} />
-      </div>
-      <div className="space-y-2">
-        <Label>CPF</Label>
-        <Input value={formData.cpf} onChange={e => setFormData(p => ({ ...p, cpf: e.target.value }))} />
-      </div>
-      <div className="space-y-2">
-        <Label>WhatsApp</Label>
-        <Input value={formData.whatsapp} onChange={e => setFormData(p => ({ ...p, whatsapp: e.target.value }))} />
-      </div>
-      <div className="space-y-2">
-        <Label>E-mail</Label>
-        <Input value={formData.email} onChange={e => setFormData(p => ({ ...p, email: e.target.value }))} />
-      </div>
-      {showPassword && (
-        <div className="space-y-2 md:col-span-2">
-          <Label>Senha</Label>
-          <Input type="password" value={formData.password} onChange={e => setFormData(p => ({ ...p, password: e.target.value }))} />
-        </div>
-      )}
-    </div>
-  );
-
   return (
     <DashboardLayout userType="admin" userName="Administrador" notifications={5}>
       <div className="space-y-6">
@@ -237,16 +210,69 @@ export default function AdminManagers() {
 
         {/* Create Dialog */}
         <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-          <DialogContent><DialogHeader><DialogTitle>Novo Gerente</DialogTitle><DialogDescription>Preencha os dados para cadastrar um novo gerente.</DialogDescription></DialogHeader>
-          <ManagerForm onSubmit={handleCreate} submitLabel="Criar" showPassword />
-          <DialogFooter><Button variant="outline" onClick={() => setIsCreateOpen(false)}>Cancelar</Button><Button onClick={handleCreate} disabled={saving}>{saving ? 'Criando...' : 'Criar Gerente'}</Button></DialogFooter></DialogContent>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Novo Gerente</DialogTitle>
+              <DialogDescription>Preencha os dados para cadastrar um novo gerente.</DialogDescription>
+            </DialogHeader>
+            <div className="grid md:grid-cols-2 gap-4 py-4">
+              <div className="space-y-2">
+                <Label>Nome Completo</Label>
+                <Input value={formData.name} onChange={e => setFormData(p => ({ ...p, name: e.target.value }))} />
+              </div>
+              <div className="space-y-2">
+                <Label>CPF</Label>
+                <Input value={formData.cpf} onChange={e => setFormData(p => ({ ...p, cpf: e.target.value }))} />
+              </div>
+              <div className="space-y-2">
+                <Label>WhatsApp</Label>
+                <Input value={formData.whatsapp} onChange={e => setFormData(p => ({ ...p, whatsapp: e.target.value }))} />
+              </div>
+              <div className="space-y-2">
+                <Label>E-mail</Label>
+                <Input value={formData.email} onChange={e => setFormData(p => ({ ...p, email: e.target.value }))} />
+              </div>
+              <div className="space-y-2 md:col-span-2">
+                <Label>Senha</Label>
+                <Input type="password" value={formData.password} onChange={e => setFormData(p => ({ ...p, password: e.target.value }))} />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIsCreateOpen(false)}>Cancelar</Button>
+              <Button onClick={handleCreate} disabled={saving}>{saving ? 'Criando...' : 'Criar Gerente'}</Button>
+            </DialogFooter>
+          </DialogContent>
         </Dialog>
 
         {/* Edit Dialog */}
         <Dialog open={!!editingManager} onOpenChange={() => setEditingManager(null)}>
-          <DialogContent><DialogHeader><DialogTitle>Editar Gerente</DialogTitle></DialogHeader>
-          <ManagerForm onSubmit={handleEdit} submitLabel="Salvar" />
-          <DialogFooter><Button variant="outline" onClick={() => setEditingManager(null)}>Cancelar</Button><Button onClick={handleEdit} disabled={saving}>{saving ? 'Salvando...' : 'Salvar Alterações'}</Button></DialogFooter></DialogContent>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Editar Gerente</DialogTitle>
+            </DialogHeader>
+            <div className="grid md:grid-cols-2 gap-4 py-4">
+              <div className="space-y-2">
+                <Label>Nome Completo</Label>
+                <Input value={formData.name} onChange={e => setFormData(p => ({ ...p, name: e.target.value }))} />
+              </div>
+              <div className="space-y-2">
+                <Label>CPF</Label>
+                <Input value={formData.cpf} onChange={e => setFormData(p => ({ ...p, cpf: e.target.value }))} />
+              </div>
+              <div className="space-y-2">
+                <Label>WhatsApp</Label>
+                <Input value={formData.whatsapp} onChange={e => setFormData(p => ({ ...p, whatsapp: e.target.value }))} />
+              </div>
+              <div className="space-y-2">
+                <Label>E-mail</Label>
+                <Input value={formData.email} onChange={e => setFormData(p => ({ ...p, email: e.target.value }))} />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setEditingManager(null)}>Cancelar</Button>
+              <Button onClick={handleEdit} disabled={saving}>{saving ? 'Salvando...' : 'Salvar Alterações'}</Button>
+            </DialogFooter>
+          </DialogContent>
         </Dialog>
 
         {/* View Dialog */}

@@ -198,18 +198,6 @@ export default function AdminEstablishments() {
     )}
   ];
 
-  const EstablishmentForm = ({ showPassword = false }: { showPassword?: boolean }) => (
-    <div className="grid md:grid-cols-2 gap-4 py-4">
-      <div className="space-y-2"><Label>Nome Fantasia</Label><Input value={formData.trade_name} onChange={e => setFormData(p => ({ ...p, trade_name: e.target.value }))} /></div>
-      <div className="space-y-2"><Label>CNPJ</Label><Input value={formData.cnpj} onChange={e => setFormData(p => ({ ...p, cnpj: e.target.value }))} /></div>
-      <div className="space-y-2"><Label>WhatsApp</Label><Input value={formData.whatsapp} onChange={e => setFormData(p => ({ ...p, whatsapp: e.target.value }))} /></div>
-      <div className="space-y-2"><Label>E-mail</Label><Input type="email" value={formData.email} onChange={e => setFormData(p => ({ ...p, email: e.target.value }))} /></div>
-      {showPassword && (
-        <div className="space-y-2 md:col-span-2"><Label>Senha</Label><Input type="password" value={formData.password} onChange={e => setFormData(p => ({ ...p, password: e.target.value }))} /></div>
-      )}
-    </div>
-  );
-
   return (
     <DashboardLayout userType="admin" userName="Administrador" notifications={5}>
       <div className="space-y-6">
@@ -234,16 +222,69 @@ export default function AdminEstablishments() {
 
         {/* Create Dialog */}
         <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-          <DialogContent><DialogHeader><DialogTitle>Novo Estabelecimento</DialogTitle><DialogDescription>Preencha os dados para cadastrar um novo estabelecimento.</DialogDescription></DialogHeader>
-          <EstablishmentForm showPassword />
-          <DialogFooter><Button variant="outline" onClick={() => setIsCreateOpen(false)}>Cancelar</Button><Button onClick={handleCreate} disabled={saving}>{saving ? 'Criando...' : 'Criar Estabelecimento'}</Button></DialogFooter></DialogContent>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Novo Estabelecimento</DialogTitle>
+              <DialogDescription>Preencha os dados para cadastrar um novo estabelecimento.</DialogDescription>
+            </DialogHeader>
+            <div className="grid md:grid-cols-2 gap-4 py-4">
+              <div className="space-y-2">
+                <Label>Nome Fantasia</Label>
+                <Input value={formData.trade_name} onChange={e => setFormData(p => ({ ...p, trade_name: e.target.value }))} />
+              </div>
+              <div className="space-y-2">
+                <Label>CNPJ</Label>
+                <Input value={formData.cnpj} onChange={e => setFormData(p => ({ ...p, cnpj: e.target.value }))} />
+              </div>
+              <div className="space-y-2">
+                <Label>WhatsApp</Label>
+                <Input value={formData.whatsapp} onChange={e => setFormData(p => ({ ...p, whatsapp: e.target.value }))} />
+              </div>
+              <div className="space-y-2">
+                <Label>E-mail</Label>
+                <Input type="email" value={formData.email} onChange={e => setFormData(p => ({ ...p, email: e.target.value }))} />
+              </div>
+              <div className="space-y-2 md:col-span-2">
+                <Label>Senha</Label>
+                <Input type="password" value={formData.password} onChange={e => setFormData(p => ({ ...p, password: e.target.value }))} />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIsCreateOpen(false)}>Cancelar</Button>
+              <Button onClick={handleCreate} disabled={saving}>{saving ? 'Criando...' : 'Criar Estabelecimento'}</Button>
+            </DialogFooter>
+          </DialogContent>
         </Dialog>
 
         {/* Edit Dialog */}
         <Dialog open={!!editingEstablishment} onOpenChange={() => setEditingEstablishment(null)}>
-          <DialogContent><DialogHeader><DialogTitle>Editar Estabelecimento</DialogTitle></DialogHeader>
-          <EstablishmentForm />
-          <DialogFooter><Button variant="outline" onClick={() => setEditingEstablishment(null)}>Cancelar</Button><Button onClick={handleEdit} disabled={saving}>{saving ? 'Salvando...' : 'Salvar Alterações'}</Button></DialogFooter></DialogContent>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Editar Estabelecimento</DialogTitle>
+            </DialogHeader>
+            <div className="grid md:grid-cols-2 gap-4 py-4">
+              <div className="space-y-2">
+                <Label>Nome Fantasia</Label>
+                <Input value={formData.trade_name} onChange={e => setFormData(p => ({ ...p, trade_name: e.target.value }))} />
+              </div>
+              <div className="space-y-2">
+                <Label>CNPJ</Label>
+                <Input value={formData.cnpj} onChange={e => setFormData(p => ({ ...p, cnpj: e.target.value }))} />
+              </div>
+              <div className="space-y-2">
+                <Label>WhatsApp</Label>
+                <Input value={formData.whatsapp} onChange={e => setFormData(p => ({ ...p, whatsapp: e.target.value }))} />
+              </div>
+              <div className="space-y-2">
+                <Label>E-mail</Label>
+                <Input type="email" value={formData.email} onChange={e => setFormData(p => ({ ...p, email: e.target.value }))} />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setEditingEstablishment(null)}>Cancelar</Button>
+              <Button onClick={handleEdit} disabled={saving}>{saving ? 'Salvando...' : 'Salvar Alterações'}</Button>
+            </DialogFooter>
+          </DialogContent>
         </Dialog>
 
         {/* View Dialog */}
