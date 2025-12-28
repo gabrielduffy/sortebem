@@ -84,8 +84,8 @@ const Header = () => {
 
         {/* Mobile Menu */}
         {isMobileMenuOpen && (
-          <div className="lg:hidden py-4 border-t border-border animate-fade-in">
-            <nav className="flex flex-col gap-2">
+          <div className="lg:hidden absolute top-full left-0 right-0 bg-background border-b border-border shadow-lg z-50 animate-fade-in">
+            <nav className="container mx-auto px-4 py-4 flex flex-col gap-2">
               {navLinks.map((link) => (
                 <Link
                   key={link.href}
