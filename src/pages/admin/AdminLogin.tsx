@@ -1,26 +1,57 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Eye, EyeOff, Shield } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from '@/hooks/use-toast';
+import { useAuth } from '@/hooks/useAuth';
 
 export default function AdminLogin() {
   const navigate = useNavigate();
+  const { login, isAuthenticated, user } = useAuth();
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({ email: '', password: '' });
+  const [error, setError] = useState('');
+
+  // Redirect if already authenticated as admin
+  useEffect(() => {
+    if (isAuthenticated && user?.role === 'admin') {
+      navigate('/admin');
+    }
+  }, [isAuthenticated, user, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError('');
     setLoading(true);
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    if (formData.email && formData.password) {
-      toast({ title: "Login realizado!", description: "Bem-vindo ao painel administrativo." });
-      navigate('/admin');
+
+    try {
+      const result = await login(formData.email, formData.password);
+
+      if (result.ok) {
+        // Check if user is admin
+        const currentUser = user;
+        if (currentUser?.role !== 'admin') {
+          setError('Acesso negado. Esta área é restrita a administradores.');
+          setLoading(false);
+          return;
+        }
+
+        toast({
+          title: "Login realizado!",
+          description: "Bem-vindo ao painel administrativo."
+        });
+        navigate('/admin');
+      } else {
+        setError(result.error || 'Credenciais inválidas. Tente novamente.');
+      }
+    } catch (err) {
+      setError('Erro ao fazer login. Tente novamente.');
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   return (
@@ -43,6 +74,11 @@ export default function AdminLogin() {
             <p className="text-muted-foreground mt-2">Acesso restrito</p>
           </div>
           <form onSubmit={handleSubmit} className="space-y-4">
+            {error && (
+              <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-3 text-sm text-destructive">
+                {error}
+              </div>
+            )}
             <div className="space-y-2">
               <Label htmlFor="email">E-mail</Label>
               <Input id="email" type="email" placeholder="admin@sortbem.com" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} required />
