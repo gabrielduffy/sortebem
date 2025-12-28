@@ -58,11 +58,8 @@ export default function ManagerLogin() {
     <div className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-primary/10 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <Link to="/" className="inline-flex items-center gap-2">
-            <div className="w-12 h-12 rounded-xl bg-primary flex items-center justify-center">
-              <span className="text-primary-foreground font-bold text-xl">SB</span>
-            </div>
-            <span className="font-display font-bold text-2xl text-foreground">SORTEBEM</span>
+          <Link to="/" className="inline-flex items-center justify-center">
+            <img src="/logo.png" alt="SORTEBEM" className="h-12" />
           </Link>
         </div>
         <div className="bg-card rounded-2xl border border-border p-8 shadow-lg">
