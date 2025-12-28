@@ -21,6 +21,8 @@ import EstablishmentProfile from "./pages/establishment/EstablishmentProfile";
 import ManagerLogin from "./pages/manager/ManagerLogin";
 import ManagerDashboard from "./pages/manager/ManagerDashboard";
 import ManagerNetwork from "./pages/manager/ManagerNetwork";
+import ManagerCommissions from "./pages/manager/ManagerCommissions";
+import ManagerRegisterEstablishment from "./pages/manager/ManagerRegisterEstablishment";
 import ManagerProfile from "./pages/manager/ManagerProfile";
 // Admin
 import AdminLogin from "./pages/admin/AdminLogin";
@@ -62,6 +64,8 @@ const App = () => (
           <Route path="/gerente/login" element={<ManagerLogin />} />
           <Route path="/gerente" element={<ManagerDashboard />} />
           <Route path="/gerente/rede" element={<ManagerNetwork />} />
+          <Route path="/gerente/comissoes" element={<ManagerCommissions />} />
+          <Route path="/gerente/cadastrar" element={<ManagerRegisterEstablishment />} />
           <Route path="/gerente/perfil" element={<ManagerProfile />} />
           {/* Admin */}
           <Route path="/admin/login" element={<AdminLogin />} />

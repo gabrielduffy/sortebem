@@ -7,7 +7,6 @@ import {
   Monitor, 
   User, 
   Settings, 
-  Bell, 
   LogOut,
   Menu,
   X,
@@ -18,7 +17,7 @@ import {
   MessageSquare,
   FileText,
   ChevronDown,
-  QrCode
+  UserPlus
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -29,6 +28,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
+import { NotificationCenter, useNotifications } from '@/components/notifications/NotificationCenter';
 
 interface NavItem {
   label: string;
@@ -60,7 +60,7 @@ const managerNavItems: NavItem[] = [
   { label: 'Dashboard', href: '/gerente', icon: LayoutDashboard },
   { label: 'Minha Rede', href: '/gerente/rede', icon: Building2 },
   { label: 'Comissões', href: '/gerente/comissoes', icon: Wallet },
-  { label: 'Cadastrar Estabelecimento', href: '/gerente/cadastrar', icon: Users },
+  { label: 'Cadastrar Estabelecimento', href: '/gerente/cadastrar', icon: UserPlus },
   { label: 'Meu Perfil', href: '/gerente/perfil', icon: User },
 ];
 
@@ -99,11 +99,13 @@ const getUserTypeLabel = (userType: 'admin' | 'manager' | 'establishment'): stri
   }
 };
 
-export const DashboardLayout = ({ children, userType, userName, notifications = 0 }: DashboardLayoutProps) => {
+export const DashboardLayout = ({ children, userType, userName }: DashboardLayoutProps) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
   const navItems = getNavItems(userType);
+  
+  const { notifications, unreadCount, markAsRead, markAllAsRead, deleteNotification } = useNotifications();
 
   const handleLogout = () => {
     navigate('/');
@@ -122,22 +124,12 @@ export const DashboardLayout = ({ children, userType, userName, notifications = 
           </div>
           <span className="font-display font-bold text-lg text-foreground">SORTEBEM</span>
         </Link>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button className="p-2 relative">
-              <Bell className="h-6 w-6 text-foreground" />
-              {notifications > 0 && (
-                <Badge className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center p-0 text-xs">
-                  {notifications}
-                </Badge>
-              )}
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-64">
-            <DropdownMenuItem>Nova venda realizada!</DropdownMenuItem>
-            <DropdownMenuItem>Vitória na rodada #123</DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <NotificationCenter
+          notifications={notifications}
+          onMarkAsRead={markAsRead}
+          onMarkAllAsRead={markAllAsRead}
+          onDelete={deleteNotification}
+        />
       </header>
 
       {/* Mobile Sidebar Overlay */}
@@ -230,31 +222,12 @@ export const DashboardLayout = ({ children, userType, userName, notifications = 
             {navItems.find(item => item.href === location.pathname)?.label || 'Dashboard'}
           </h1>
           <div className="flex items-center gap-4">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button className="p-2 relative hover:bg-muted rounded-lg transition-colors">
-                  <Bell className="h-5 w-5 text-foreground" />
-                  {notifications > 0 && (
-                    <Badge className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center p-0 text-xs">
-                      {notifications}
-                    </Badge>
-                  )}
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-80">
-                <div className="p-2 border-b border-border">
-                  <p className="font-medium">Notificações</p>
-                </div>
-                <DropdownMenuItem className="flex flex-col items-start p-3">
-                  <span className="font-medium">Nova venda realizada!</span>
-                  <span className="text-sm text-muted-foreground">5 cartelas vendidas - R$ 25,00</span>
-                </DropdownMenuItem>
-                <DropdownMenuItem className="flex flex-col items-start p-3">
-                  <span className="font-medium">Vitória! 🎉</span>
-                  <span className="text-sm text-muted-foreground">Uma cartela ganhou R$ 12.500!</span>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <NotificationCenter
+              notifications={notifications}
+              onMarkAsRead={markAsRead}
+              onMarkAllAsRead={markAllAsRead}
+              onDelete={deleteNotification}
+            />
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button className="flex items-center gap-2 p-2 hover:bg-muted rounded-lg transition-colors">
@@ -265,8 +238,8 @@ export const DashboardLayout = ({ children, userType, userName, notifications = 
                   <ChevronDown className="h-4 w-4 text-muted-foreground" />
                 </button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => navigate(`/${userType === 'establishment' ? 'estabelecimento' : userType}/perfil`)}>
+              <DropdownMenuContent align="end" className="bg-card border border-border shadow-lg z-50">
+                <DropdownMenuItem onClick={() => navigate(`/${userType === 'establishment' ? 'estabelecimento' : userType === 'manager' ? 'gerente' : 'admin'}/perfil`)}>
                   <User className="h-4 w-4 mr-2" />
                   Meu Perfil
                 </DropdownMenuItem>
