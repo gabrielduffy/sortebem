@@ -120,11 +120,14 @@ const Checkout = () => {
           const futureRounds = roundsData.data.filter(
             (r: any) => r.status === 'selling' || r.status === 'scheduled'
           ).slice(0, 6);
+          console.log('Rodadas disponíveis:', futureRounds);
+          console.log('Primeira rodada:', futureRounds[0]);
           setAvailableRounds(futureRounds);
 
           // Select first round by default
           if (futureRounds.length > 0) {
             setSelectedRounds([futureRounds[0].id]);
+            console.log('Rodada selecionada por padrão:', futureRounds[0].id);
           }
         }
 
@@ -148,8 +151,9 @@ const Checkout = () => {
 
   const futureRounds = availableRounds.map(r => ({
     id: r.id,
-    time: new Date(r.scheduled_time || r.start_time),
-    number: r.round_number || r.id
+    time: new Date(r.ends_at || r.selling_ends_at || r.starts_at),
+    number: r.number || r.id,
+    card_price: parseFloat(r.card_price) || 5
   }));
 
   // Round info
@@ -168,9 +172,11 @@ const Checkout = () => {
     : settings?.special_prize || 5000;
   const accumulatedPrize = settings?.accumulated_prize || 12500;
 
+  // Get card price from selected round or fallback to settings
+  const selectedRoundData = futureRounds.find(r => r.id === selectedRounds[0]);
   const unitPrice = drawType === 'regular'
-    ? (settings?.card_price_regular || 5)
-    : (settings?.card_price_special || 10);
+    ? (selectedRoundData?.card_price || parseFloat(settings?.card_price_regular) || 5)
+    : (parseFloat(settings?.card_price_special) || 10);
   const totalPrice = quantity * unitPrice * (drawType === 'regular' ? selectedRounds.length : 1);
 
   const toggleRoundSelection = (roundId: number) => {
@@ -197,17 +203,27 @@ const Checkout = () => {
     try {
       // Use the first selected round
       const roundId = selectedRounds[0];
+      console.log('Round selecionada:', roundId);
+      console.log('Dados da rodada:', selectedRoundData);
+      console.log('Quantidade:', quantity);
+      console.log('Preço unitário:', unitPrice);
+      console.log('Total:', totalPrice);
+
       if (!roundId) {
+        console.log('ERRO: Nenhuma rodada selecionada');
         toast({ title: 'Erro', description: 'Selecione uma rodada.', variant: 'destructive' });
         setIsProcessing(false);
         return;
       }
 
-      const response = await apiService.createPurchase({
+      const purchaseData = {
         round_id: roundId,
         quantity,
         customer_whatsapp: whatsappNumber || undefined
-      });
+      };
+      console.log('Dados para compra:', purchaseData);
+
+      const response = await apiService.createPurchase(purchaseData);
 
       if (response.ok && response.data?.pix) {
         setPixData({
