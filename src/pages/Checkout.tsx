@@ -348,6 +348,30 @@ const Checkout = () => {
     );
   }
 
+  // Show message if no rounds available
+  if (!loading && availableRounds.length === 0) {
+    return (
+      <PublicLayout>
+        <div className="container mx-auto px-4 py-8 md:py-12">
+          <div className="max-w-2xl mx-auto">
+            <div className="bg-card border border-border rounded-2xl p-8 text-center">
+              <div className="w-20 h-20 bg-muted rounded-full flex items-center justify-center mx-auto mb-4">
+                <Clock className="w-10 h-10 text-muted-foreground" />
+              </div>
+              <h2 className="text-2xl font-bold text-foreground mb-2">Nenhuma rodada disponível</h2>
+              <p className="text-muted-foreground mb-6">
+                Não há rodadas abertas para compra no momento. Uma nova rodada será criada em breve!
+              </p>
+              <Button variant="outline" onClick={() => window.location.reload()}>
+                Atualizar página
+              </Button>
+            </div>
+          </div>
+        </div>
+      </PublicLayout>
+    );
+  }
+
   return (
     <PublicLayout>
       <div className="container mx-auto px-4 py-8 md:py-12">
