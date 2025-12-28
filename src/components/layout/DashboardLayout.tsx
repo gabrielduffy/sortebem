@@ -120,7 +120,7 @@ export const DashboardLayout = ({ children, userType, userName, notifications = 
           <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
             <span className="text-primary-foreground font-bold text-sm">SB</span>
           </div>
-          <span className="font-display font-bold text-lg text-foreground">SORTBEM</span>
+          <span className="font-display font-bold text-lg text-foreground">SORTEBEM</span>
         </Link>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -160,7 +160,7 @@ export const DashboardLayout = ({ children, userType, userName, notifications = 
               <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
                 <span className="text-primary-foreground font-bold text-sm">SB</span>
               </div>
-              <span className="font-display font-bold text-lg text-foreground">SORTBEM</span>
+              <span className="font-display font-bold text-lg text-foreground">SORTEBEM</span>
             </Link>
             <button onClick={() => setSidebarOpen(false)} className="lg:hidden p-2">
               <X className="h-5 w-5 text-muted-foreground" />
