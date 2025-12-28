@@ -3,6 +3,8 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { AuthProvider } from "@/hooks/useAuth";
+import { ProtectedRoute } from "@/components/ProtectedRoute";
 import Index from "./pages/Index";
 import CardView from "./pages/CardView";
 import TVMode from "./pages/TVMode";
@@ -41,50 +43,143 @@ const queryClient = new QueryClient();
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <Routes>
-          {/* Public */}
-          <Route path="/" element={<Index />} />
-          <Route path="/c/:codigo" element={<CardView />} />
-          <Route path="/tv/:slugEstabelecimento" element={<TVMode />} />
-          <Route path="/checkout" element={<Checkout />} />
-          <Route path="/resgatar" element={<Redeem />} />
-          <Route path="/como-funciona" element={<HowItWorks />} />
-          {/* Establishment */}
-          <Route path="/estabelecimento/login" element={<EstablishmentLogin />} />
-          <Route path="/estabelecimento" element={<EstablishmentDashboard />} />
-          <Route path="/estabelecimento/vendas" element={<EstablishmentSales />} />
-          <Route path="/estabelecimento/financeiro" element={<EstablishmentFinance />} />
-          <Route path="/estabelecimento/pos" element={<EstablishmentPOS />} />
-          <Route path="/estabelecimento/modo-tv" element={<TVMode />} />
-          <Route path="/estabelecimento/perfil" element={<EstablishmentProfile />} />
-          {/* Manager */}
-          <Route path="/gerente/login" element={<ManagerLogin />} />
-          <Route path="/gerente" element={<ManagerDashboard />} />
-          <Route path="/gerente/rede" element={<ManagerNetwork />} />
-          <Route path="/gerente/comissoes" element={<ManagerCommissions />} />
-          <Route path="/gerente/cadastrar" element={<ManagerRegisterEstablishment />} />
-          <Route path="/gerente/perfil" element={<ManagerProfile />} />
-          {/* Admin */}
-          <Route path="/admin/login" element={<AdminLogin />} />
-          <Route path="/admin" element={<AdminDashboard />} />
-          <Route path="/admin/configuracoes" element={<AdminSettings />} />
-          <Route path="/admin/sorteio" element={<AdminDraw />} />
-          <Route path="/admin/instituicao" element={<AdminCharity />} />
-          <Route path="/admin/rodadas" element={<AdminRounds />} />
-          <Route path="/admin/gerentes" element={<AdminManagers />} />
-          <Route path="/admin/estabelecimentos" element={<AdminEstablishments />} />
-          <Route path="/admin/whatsapp" element={<AdminWhatsApp />} />
-          <Route path="/admin/pos" element={<AdminPOS />} />
-          <Route path="/admin/logs" element={<AdminLogs />} />
-          {/* 404 */}
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </BrowserRouter>
-    </TooltipProvider>
+    <AuthProvider>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+          <Routes>
+            {/* Public */}
+            <Route path="/" element={<Index />} />
+            <Route path="/c/:codigo" element={<CardView />} />
+            <Route path="/tv/:slugEstabelecimento" element={<TVMode />} />
+            <Route path="/checkout" element={<Checkout />} />
+            <Route path="/resgatar" element={<Redeem />} />
+            <Route path="/como-funciona" element={<HowItWorks />} />
+
+            {/* Establishment Login (public) */}
+            <Route path="/estabelecimento/login" element={<EstablishmentLogin />} />
+            {/* Establishment Protected Routes */}
+            <Route path="/estabelecimento" element={
+              <ProtectedRoute allowedRoles={['establishment']}>
+                <EstablishmentDashboard />
+              </ProtectedRoute>
+            } />
+            <Route path="/estabelecimento/vendas" element={
+              <ProtectedRoute allowedRoles={['establishment']}>
+                <EstablishmentSales />
+              </ProtectedRoute>
+            } />
+            <Route path="/estabelecimento/financeiro" element={
+              <ProtectedRoute allowedRoles={['establishment']}>
+                <EstablishmentFinance />
+              </ProtectedRoute>
+            } />
+            <Route path="/estabelecimento/pos" element={
+              <ProtectedRoute allowedRoles={['establishment']}>
+                <EstablishmentPOS />
+              </ProtectedRoute>
+            } />
+            <Route path="/estabelecimento/modo-tv" element={
+              <ProtectedRoute allowedRoles={['establishment']}>
+                <TVMode />
+              </ProtectedRoute>
+            } />
+            <Route path="/estabelecimento/perfil" element={
+              <ProtectedRoute allowedRoles={['establishment']}>
+                <EstablishmentProfile />
+              </ProtectedRoute>
+            } />
+
+            {/* Manager Login (public) */}
+            <Route path="/gerente/login" element={<ManagerLogin />} />
+            {/* Manager Protected Routes */}
+            <Route path="/gerente" element={
+              <ProtectedRoute allowedRoles={['manager']}>
+                <ManagerDashboard />
+              </ProtectedRoute>
+            } />
+            <Route path="/gerente/rede" element={
+              <ProtectedRoute allowedRoles={['manager']}>
+                <ManagerNetwork />
+              </ProtectedRoute>
+            } />
+            <Route path="/gerente/comissoes" element={
+              <ProtectedRoute allowedRoles={['manager']}>
+                <ManagerCommissions />
+              </ProtectedRoute>
+            } />
+            <Route path="/gerente/cadastrar" element={
+              <ProtectedRoute allowedRoles={['manager']}>
+                <ManagerRegisterEstablishment />
+              </ProtectedRoute>
+            } />
+            <Route path="/gerente/perfil" element={
+              <ProtectedRoute allowedRoles={['manager']}>
+                <ManagerProfile />
+              </ProtectedRoute>
+            } />
+
+            {/* Admin Login (public) */}
+            <Route path="/admin/login" element={<AdminLogin />} />
+            {/* Admin Protected Routes */}
+            <Route path="/admin" element={
+              <ProtectedRoute allowedRoles={['admin']}>
+                <AdminDashboard />
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/configuracoes" element={
+              <ProtectedRoute allowedRoles={['admin']}>
+                <AdminSettings />
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/sorteio" element={
+              <ProtectedRoute allowedRoles={['admin']}>
+                <AdminDraw />
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/instituicao" element={
+              <ProtectedRoute allowedRoles={['admin']}>
+                <AdminCharity />
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/rodadas" element={
+              <ProtectedRoute allowedRoles={['admin']}>
+                <AdminRounds />
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/gerentes" element={
+              <ProtectedRoute allowedRoles={['admin']}>
+                <AdminManagers />
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/estabelecimentos" element={
+              <ProtectedRoute allowedRoles={['admin']}>
+                <AdminEstablishments />
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/whatsapp" element={
+              <ProtectedRoute allowedRoles={['admin']}>
+                <AdminWhatsApp />
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/pos" element={
+              <ProtectedRoute allowedRoles={['admin']}>
+                <AdminPOS />
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/logs" element={
+              <ProtectedRoute allowedRoles={['admin']}>
+                <AdminLogs />
+              </ProtectedRoute>
+            } />
+
+            {/* 404 */}
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </BrowserRouter>
+      </TooltipProvider>
+    </AuthProvider>
   </QueryClientProvider>
 );
 

@@ -1,12 +1,12 @@
 import { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { 
-  LayoutDashboard, 
-  ShoppingCart, 
-  Wallet, 
-  Monitor, 
-  User, 
-  Settings, 
+import {
+  LayoutDashboard,
+  ShoppingCart,
+  Wallet,
+  Monitor,
+  User,
+  Settings,
   LogOut,
   Menu,
   X,
@@ -30,6 +30,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
 import { NotificationCenter, useNotifications } from '@/components/notifications/NotificationCenter';
+import { useAuth } from '@/hooks/useAuth';
 
 interface NavItem {
   label: string;
@@ -106,10 +107,12 @@ export const DashboardLayout = ({ children, userType, userName }: DashboardLayou
   const location = useLocation();
   const navigate = useNavigate();
   const navItems = getNavItems(userType);
-  
+  const { logout } = useAuth();
+
   const { notifications, unreadCount, markAsRead, markAllAsRead, deleteNotification } = useNotifications();
 
   const handleLogout = () => {
+    logout();
     navigate('/');
   };
 

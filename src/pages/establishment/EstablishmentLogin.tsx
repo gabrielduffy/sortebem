@@ -1,41 +1,60 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Eye, EyeOff, Building2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from '@/hooks/use-toast';
+import { useAuth } from '@/hooks/useAuth';
 
 export default function EstablishmentLogin() {
   const navigate = useNavigate();
+  const { login, isAuthenticated, user } = useAuth();
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     email: '',
     password: '',
   });
+  const [error, setError] = useState('');
+
+  // Redirect if already authenticated as establishment
+  useEffect(() => {
+    if (isAuthenticated && user?.role === 'establishment') {
+      navigate('/estabelecimento');
+    }
+  }, [isAuthenticated, user, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError('');
     setLoading(true);
 
-    // Mock login - simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    try {
+      const result = await login(formData.email, formData.password);
 
-    if (formData.email && formData.password) {
-      toast({
-        title: "Login realizado!",
-        description: "Bem-vindo ao painel do estabelecimento.",
-      });
-      navigate('/estabelecimento');
-    } else {
-      toast({
-        title: "Erro no login",
-        description: "Verifique suas credenciais e tente novamente.",
-        variant: "destructive",
-      });
+      if (result.ok) {
+        // Check if user is establishment
+        const currentUser = user;
+        if (currentUser?.role !== 'establishment') {
+          setError('Acesso negado. Esta área é restrita a estabelecimentos.');
+          setLoading(false);
+          return;
+        }
+
+        toast({
+          title: "Login realizado!",
+          description: "Bem-vindo ao painel do estabelecimento.",
+        });
+        navigate('/estabelecimento');
+      } else {
+        setError(result.error || 'Credenciais inválidas. Tente novamente.');
+      }
+    } catch (err) {
+      setError('Erro ao fazer login. Tente novamente.');
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   return (
@@ -62,6 +81,11 @@ export default function EstablishmentLogin() {
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
+            {error && (
+              <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-3 text-sm text-destructive">
+                {error}
+              </div>
+            )}
             <div className="space-y-2">
               <Label htmlFor="email">E-mail</Label>
               <Input
