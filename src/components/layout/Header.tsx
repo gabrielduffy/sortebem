@@ -38,7 +38,7 @@ const Header = () => {
               <Heart className="w-6 h-6 text-primary-foreground" />
             </div>
             <span className="text-xl md:text-2xl font-bold text-gradient">
-              SORTBEM
+              SORTEBEM
             </span>
           </Link>
 
