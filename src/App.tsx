@@ -20,9 +20,19 @@ import EstablishmentProfile from "./pages/establishment/EstablishmentProfile";
 // Manager
 import ManagerLogin from "./pages/manager/ManagerLogin";
 import ManagerDashboard from "./pages/manager/ManagerDashboard";
+import ManagerNetwork from "./pages/manager/ManagerNetwork";
+import ManagerProfile from "./pages/manager/ManagerProfile";
 // Admin
 import AdminLogin from "./pages/admin/AdminLogin";
 import AdminDashboard from "./pages/admin/AdminDashboard";
+import AdminSettings from "./pages/admin/AdminSettings";
+import AdminCharity from "./pages/admin/AdminCharity";
+import AdminRounds from "./pages/admin/AdminRounds";
+import AdminManagers from "./pages/admin/AdminManagers";
+import AdminEstablishments from "./pages/admin/AdminEstablishments";
+import AdminWhatsApp from "./pages/admin/AdminWhatsApp";
+import AdminPOS from "./pages/admin/AdminPOS";
+import AdminLogs from "./pages/admin/AdminLogs";
 
 const queryClient = new QueryClient();
 
@@ -51,9 +61,19 @@ const App = () => (
           {/* Manager */}
           <Route path="/gerente/login" element={<ManagerLogin />} />
           <Route path="/gerente" element={<ManagerDashboard />} />
+          <Route path="/gerente/rede" element={<ManagerNetwork />} />
+          <Route path="/gerente/perfil" element={<ManagerProfile />} />
           {/* Admin */}
           <Route path="/admin/login" element={<AdminLogin />} />
           <Route path="/admin" element={<AdminDashboard />} />
+          <Route path="/admin/configuracoes" element={<AdminSettings />} />
+          <Route path="/admin/instituicao" element={<AdminCharity />} />
+          <Route path="/admin/rodadas" element={<AdminRounds />} />
+          <Route path="/admin/gerentes" element={<AdminManagers />} />
+          <Route path="/admin/estabelecimentos" element={<AdminEstablishments />} />
+          <Route path="/admin/whatsapp" element={<AdminWhatsApp />} />
+          <Route path="/admin/pos" element={<AdminPOS />} />
+          <Route path="/admin/logs" element={<AdminLogs />} />
           {/* 404 */}
           <Route path="*" element={<NotFound />} />
         </Routes>

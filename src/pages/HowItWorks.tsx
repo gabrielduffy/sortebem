@@ -120,7 +120,7 @@ const HowItWorks = () => {
             </div>
             <h1 className="text-4xl md:text-5xl font-bold text-foreground mb-4">
               Como Funciona o{' '}
-              <span className="text-gradient">SORTBEM</span>
+              <span className="text-gradient">SORTEBEM</span>
             </h1>
             <p className="text-xl text-muted-foreground">
               Sorteios beneficentes simples, rápidos e transparentes. 
@@ -183,7 +183,7 @@ const HowItWorks = () => {
       <section className="py-16 md:py-24 bg-secondary">
         <div className="container mx-auto px-4">
           <h2 className="text-3xl font-bold text-center text-foreground mb-4">
-            Diferenciais do SORTBEM
+            Diferenciais do SORTEBEM
           </h2>
           <p className="text-lg text-muted-foreground text-center max-w-2xl mx-auto mb-12">
             Uma plataforma pensada para ser justa, transparente e fazer a diferença na vida das pessoas.

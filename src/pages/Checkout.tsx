@@ -14,14 +14,16 @@ import {
   Store,
   Gift,
   Shield,
-  Clock
+  Clock,
+  Calendar,
+  Hash
 } from 'lucide-react';
 import PublicLayout from '@/components/layout/PublicLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { createPixPurchase, pollPurchaseStatus, generateCards, saveBuyerWhatsapp, sendCardsWhatsapp } from '@/services/mockApi';
-import { mockSettings, mockEstablishment } from '@/services/mockData';
+import { mockSettings, mockEstablishment, mockCurrentRound } from '@/services/mockData';
 import { toast } from '@/hooks/use-toast';
 
 type CheckoutStep = 'quantity' | 'payment' | 'confirmed';
@@ -46,6 +48,11 @@ const Checkout = () => {
   const [copiedCard, setCopiedCard] = useState<string | null>(null);
   const [whatsappSent, setWhatsappSent] = useState(false);
 
+  // Round info
+  const roundNumber = mockCurrentRound.id.replace('round-', '');
+  const purchaseDate = new Date();
+  const nextRoundTime = new Date(Date.now() + 8 * 60 * 1000);
+
   const unitPrice = mockSettings.cardPriceRegular;
   const totalPrice = quantity * unitPrice;
 
@@ -62,47 +69,33 @@ const Checkout = () => {
       const pix = await createPixPurchase(quantity, establishmentCode || 'default');
       setPixData(pix);
       setStep('payment');
-      
-      // Start polling for payment status
       pollForPayment(pix.purchaseId);
     } catch (error) {
-      toast({
-        title: 'Erro',
-        description: 'Não foi possível gerar o Pix. Tente novamente.',
-        variant: 'destructive',
-      });
+      toast({ title: 'Erro', description: 'Não foi possível gerar o Pix. Tente novamente.', variant: 'destructive' });
     }
     setIsProcessing(false);
   };
 
   const pollForPayment = async (purchaseId: string) => {
     let attempts = 0;
-    const maxAttempts = 60; // 3 minutes
+    const maxAttempts = 60;
 
     const poll = async () => {
       if (attempts >= maxAttempts) return;
-      
       const status = await pollPurchaseStatus(purchaseId);
-      
       if (status === 'confirmed') {
-        // Generate cards
         const cards = await generateCards(purchaseId, quantity, establishmentCode || 'default');
         setGeneratedCards(cards);
         setStep('confirmed');
-        toast({
-          title: '✅ Pagamento confirmado!',
-          description: 'Suas cartelas foram geradas com sucesso.',
-        });
+        toast({ title: '✅ Pagamento confirmado!', description: 'Suas cartelas foram geradas com sucesso.' });
       } else {
         attempts++;
         setTimeout(poll, 3000);
       }
     };
-
     poll();
   };
 
-  // For demo: simulate confirmation after 5 seconds
   const handleSimulatePayment = async () => {
     setIsProcessing(true);
     await new Promise(resolve => setTimeout(resolve, 2000));
@@ -129,31 +122,20 @@ const Checkout = () => {
 
   const handleSendWhatsapp = async () => {
     if (!whatsappNumber || whatsappNumber.length < 10) {
-      toast({
-        title: 'Número inválido',
-        description: 'Digite um número de WhatsApp válido com DDD.',
-        variant: 'destructive',
-      });
+      toast({ title: 'Número inválido', description: 'Digite um número de WhatsApp válido com DDD.', variant: 'destructive' });
       return;
     }
-
     setIsProcessing(true);
     await saveBuyerWhatsapp(pixData?.purchaseId || '', whatsappNumber);
     await sendCardsWhatsapp(generatedCards.map(c => c.code), whatsappNumber);
     setWhatsappSent(true);
     setIsProcessing(false);
-    toast({
-      title: '📱 Enviado!',
-      description: 'Suas cartelas foram enviadas por WhatsApp.',
-    });
+    toast({ title: '📱 Enviado!', description: 'Suas cartelas foram enviadas por WhatsApp.' });
   };
 
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('pt-BR', {
-      style: 'currency',
-      currency: 'BRL',
-    }).format(value);
-  };
+  const formatCurrency = (value: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
+  const formatDate = (date: Date) => date.toLocaleDateString('pt-BR');
+  const formatTime = (date: Date) => date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 
   return (
     <PublicLayout>
@@ -164,18 +146,12 @@ const Checkout = () => {
             {['Quantidade', 'Pagamento', 'Confirmação'].map((label, index) => {
               const stepIndex = ['quantity', 'payment', 'confirmed'].indexOf(step);
               const isActive = index <= stepIndex;
-              
               return (
                 <div key={label} className="flex items-center gap-2">
-                  <div
-                    className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold
-                      ${isActive ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'}`}
-                  >
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold ${isActive ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'}`}>
                     {index + 1}
                   </div>
-                  <span className={`hidden sm:inline ${isActive ? 'text-foreground' : 'text-muted-foreground'}`}>
-                    {label}
-                  </span>
+                  <span className={`hidden sm:inline ${isActive ? 'text-foreground' : 'text-muted-foreground'}`}>{label}</span>
                   {index < 2 && <div className="w-8 h-0.5 bg-border mx-2" />}
                 </div>
               );
@@ -184,23 +160,41 @@ const Checkout = () => {
 
           {/* Step 1: Quantity */}
           {step === 'quantity' && (
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="space-y-6"
-            >
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
               <div className="text-center mb-8">
-                <h1 className="text-3xl font-bold text-foreground mb-2">
-                  Comprar Cartelas
-                </h1>
-                <p className="text-muted-foreground">
-                  Escolha a quantidade e participe do próximo sorteio!
-                </p>
+                <h1 className="text-3xl font-bold text-foreground mb-2">Comprar Cartelas</h1>
+                <p className="text-muted-foreground">Escolha a quantidade e participe do próximo sorteio!</p>
               </div>
 
-              {/* Establishment Info */}
+              {/* Round Info */}
+              <div className="bg-primary/5 border border-primary/20 rounded-xl p-4">
+                <div className="grid grid-cols-3 gap-4 text-center">
+                  <div>
+                    <div className="flex items-center justify-center gap-1 text-muted-foreground text-sm mb-1">
+                      <Calendar className="w-4 h-4" />
+                      <span>Data</span>
+                    </div>
+                    <p className="font-semibold text-foreground">{formatDate(purchaseDate)}</p>
+                  </div>
+                  <div>
+                    <div className="flex items-center justify-center gap-1 text-muted-foreground text-sm mb-1">
+                      <Clock className="w-4 h-4" />
+                      <span>Próximo Sorteio</span>
+                    </div>
+                    <p className="font-semibold text-primary">{formatTime(nextRoundTime)}</p>
+                  </div>
+                  <div>
+                    <div className="flex items-center justify-center gap-1 text-muted-foreground text-sm mb-1">
+                      <Hash className="w-4 h-4" />
+                      <span>Rodada</span>
+                    </div>
+                    <p className="font-semibold text-foreground">#{roundNumber}</p>
+                  </div>
+                </div>
+              </div>
+
               {establishmentCode && (
-                <div className="bg-primary/5 border border-primary/20 rounded-xl p-4 flex items-center gap-3">
+                <div className="bg-secondary rounded-xl p-4 flex items-center gap-3">
                   <Store className="w-5 h-5 text-primary" />
                   <div>
                     <p className="text-sm text-muted-foreground">Vendedor</p>
@@ -212,30 +206,15 @@ const Checkout = () => {
               {/* Quantity Selector */}
               <div className="bg-card border border-border rounded-2xl p-6">
                 <Label className="text-lg mb-4 block">Quantidade de Cartelas</Label>
-                
                 <div className="flex items-center justify-center gap-4 mb-6">
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    onClick={() => handleQuantityChange(-1)}
-                    disabled={quantity <= 1}
-                  >
+                  <Button variant="outline" size="icon" onClick={() => handleQuantityChange(-1)} disabled={quantity <= 1}>
                     <Minus className="w-4 h-4" />
                   </Button>
-                  
-                  <span className="text-4xl font-bold text-primary w-20 text-center">
-                    {quantity}
-                  </span>
-                  
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    onClick={() => handleQuantityChange(1)}
-                  >
+                  <span className="text-4xl font-bold text-primary w-20 text-center">{quantity}</span>
+                  <Button variant="outline" size="icon" onClick={() => handleQuantityChange(1)}>
                     <Plus className="w-4 h-4" />
                   </Button>
                 </div>
-
                 <div className="space-y-2 text-sm border-t border-border pt-4">
                   <div className="flex justify-between text-muted-foreground">
                     <span>Valor por cartela</span>
@@ -251,14 +230,7 @@ const Checkout = () => {
               {/* Quick Select */}
               <div className="grid grid-cols-4 gap-2">
                 {[5, 10, 20, 50].map(q => (
-                  <Button
-                    key={q}
-                    variant={quantity === q ? 'default' : 'outline'}
-                    onClick={() => setQuantity(q)}
-                    className="text-lg"
-                  >
-                    {q}
-                  </Button>
+                  <Button key={q} variant={quantity === q ? 'default' : 'outline'} onClick={() => setQuantity(q)} className="text-lg">{q}</Button>
                 ))}
               </div>
 
@@ -281,18 +253,8 @@ const Checkout = () => {
                 </div>
               </div>
 
-              <Button
-                variant="hero"
-                size="xl"
-                className="w-full"
-                onClick={handleGeneratePix}
-                disabled={isProcessing}
-              >
-                {isProcessing ? (
-                  <span className="animate-spin mr-2">⏳</span>
-                ) : (
-                  <CreditCard className="w-5 h-5" />
-                )}
+              <Button variant="hero" size="xl" className="w-full" onClick={handleGeneratePix} disabled={isProcessing}>
+                {isProcessing ? <span className="animate-spin mr-2">⏳</span> : <CreditCard className="w-5 h-5" />}
                 Pagar com Pix
                 <ArrowRight className="w-5 h-5" />
               </Button>
@@ -301,53 +263,34 @@ const Checkout = () => {
 
           {/* Step 2: Payment */}
           {step === 'payment' && pixData && (
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="space-y-6"
-            >
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
               <div className="text-center mb-8">
-                <h1 className="text-3xl font-bold text-foreground mb-2">
-                  Pagamento via Pix
-                </h1>
-                <p className="text-muted-foreground">
-                  Escaneie o QR Code ou copie o código Pix
-                </p>
+                <h1 className="text-3xl font-bold text-foreground mb-2">Pagamento via Pix</h1>
+                <p className="text-muted-foreground">Escaneie o QR Code ou copie o código Pix</p>
+              </div>
+
+              {/* Round Info in Payment */}
+              <div className="bg-muted rounded-xl p-3 flex items-center justify-center gap-4 text-sm">
+                <span className="text-muted-foreground">📅 {formatDate(purchaseDate)}</span>
+                <span className="text-muted-foreground">🕐 {formatTime(purchaseDate)}</span>
+                <span className="text-primary font-semibold">Rodada #{roundNumber}</span>
               </div>
 
               <div className="bg-card border border-border rounded-2xl p-6">
-                {/* Amount */}
                 <div className="text-center mb-6">
                   <p className="text-sm text-muted-foreground">Valor a pagar</p>
-                  <p className="text-4xl font-bold text-primary">
-                    {formatCurrency(pixData.amount)}
-                  </p>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    {quantity} cartela{quantity > 1 ? 's' : ''}
-                  </p>
+                  <p className="text-4xl font-bold text-primary">{formatCurrency(pixData.amount)}</p>
+                  <p className="text-sm text-muted-foreground mt-1">{quantity} cartela{quantity > 1 ? 's' : ''}</p>
                 </div>
-
-                {/* QR Code */}
                 <div className="flex justify-center mb-6">
                   <div className="bg-background p-4 rounded-xl">
-                    <QRCodeSVG
-                      value={pixData.pixCode}
-                      size={200}
-                      level="H"
-                      includeMargin
-                    />
+                    <QRCodeSVG value={pixData.pixCode} size={200} level="H" includeMargin />
                   </div>
                 </div>
-
-                {/* Pix Code */}
                 <div className="space-y-2">
                   <Label>Código Pix (Copia e Cola)</Label>
                   <div className="flex gap-2">
-                    <Input
-                      value={pixData.pixCode}
-                      readOnly
-                      className="font-mono text-xs"
-                    />
+                    <Input value={pixData.pixCode} readOnly className="font-mono text-xs" />
                     <Button variant="outline" onClick={handleCopyPix}>
                       {copiedPix ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
                     </Button>
@@ -355,24 +298,15 @@ const Checkout = () => {
                 </div>
               </div>
 
-              {/* Status */}
               <div className="bg-primary/5 border border-primary/20 rounded-xl p-4 text-center">
                 <div className="flex items-center justify-center gap-2 mb-2">
                   <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
                   <span className="font-medium text-primary">Aguardando pagamento...</span>
                 </div>
-                <p className="text-sm text-muted-foreground">
-                  O pagamento será confirmado automaticamente
-                </p>
+                <p className="text-sm text-muted-foreground">O pagamento será confirmado automaticamente</p>
               </div>
 
-              {/* Demo Button */}
-              <Button
-                variant="outline"
-                className="w-full"
-                onClick={handleSimulatePayment}
-                disabled={isProcessing}
-              >
+              <Button variant="outline" className="w-full" onClick={handleSimulatePayment} disabled={isProcessing}>
                 {isProcessing ? 'Processando...' : '(Demo) Simular Confirmação'}
               </Button>
             </motion.div>
@@ -380,57 +314,49 @@ const Checkout = () => {
 
           {/* Step 3: Confirmed */}
           {step === 'confirmed' && (
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="space-y-6"
-            >
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="space-y-6">
               <div className="text-center mb-8">
                 <div className="w-20 h-20 bg-success/10 rounded-full flex items-center justify-center mx-auto mb-4">
                   <Check className="w-10 h-10 text-success" />
                 </div>
-                <h1 className="text-3xl font-bold text-foreground mb-2">
-                  Pagamento Confirmado! ✅
-                </h1>
-                <p className="text-muted-foreground">
-                  Suas cartelas foram geradas com sucesso
-                </p>
+                <h1 className="text-3xl font-bold text-foreground mb-2">Pagamento Confirmado! ✅</h1>
+                <p className="text-muted-foreground">Suas cartelas foram geradas com sucesso</p>
+              </div>
+
+              {/* Confirmed Round Info */}
+              <div className="bg-success/10 border border-success/20 rounded-xl p-4">
+                <div className="grid grid-cols-3 gap-4 text-center">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Data da Compra</p>
+                    <p className="font-semibold text-foreground">{formatDate(purchaseDate)}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Hora</p>
+                    <p className="font-semibold text-foreground">{formatTime(purchaseDate)}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Rodada</p>
+                    <p className="font-semibold text-primary">#{roundNumber}</p>
+                  </div>
+                </div>
               </div>
 
               {/* Generated Cards */}
               <div className="bg-card border border-border rounded-2xl p-6">
-                <h2 className="font-semibold text-lg mb-4">
-                  Suas Cartelas ({generatedCards.length})
-                </h2>
-                
+                <h2 className="font-semibold text-lg mb-4">Suas Cartelas ({generatedCards.length})</h2>
                 <div className="space-y-3 max-h-60 overflow-y-auto">
                   {generatedCards.map((card, index) => (
-                    <div
-                      key={card.id}
-                      className="flex items-center justify-between bg-secondary rounded-xl p-3"
-                    >
+                    <div key={card.id} className="flex items-center justify-between bg-secondary rounded-xl p-3">
                       <div className="flex items-center gap-3">
                         <span className="text-sm text-muted-foreground">#{index + 1}</span>
-                        <code className="bg-primary/10 text-primary px-3 py-1 rounded font-mono font-bold">
-                          {card.code}
-                        </code>
+                        <code className="bg-primary/10 text-primary px-3 py-1 rounded font-mono font-bold">{card.code}</code>
                       </div>
                       <div className="flex items-center gap-2">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleCopyCardCode(card.code)}
-                        >
-                          {copiedCard === card.code ? (
-                            <Check className="w-4 h-4 text-success" />
-                          ) : (
-                            <Copy className="w-4 h-4" />
-                          )}
+                        <Button variant="ghost" size="sm" onClick={() => handleCopyCardCode(card.code)}>
+                          {copiedCard === card.code ? <Check className="w-4 h-4 text-success" /> : <Copy className="w-4 h-4" />}
                         </Button>
                         <Link to={`/c/${card.code}`}>
-                          <Button variant="outline" size="sm">
-                            Abrir
-                          </Button>
+                          <Button variant="outline" size="sm">Abrir</Button>
                         </Link>
                       </div>
                     </div>
@@ -438,7 +364,6 @@ const Checkout = () => {
                 </div>
               </div>
 
-              {/* Open First Card */}
               {generatedCards.length > 0 && (
                 <Link to={`/c/${generatedCards[0].code}`}>
                   <Button variant="hero" size="xl" className="w-full">
@@ -455,26 +380,13 @@ const Checkout = () => {
                   <MessageCircle className="w-5 h-5 text-success" />
                   Receber no WhatsApp
                 </h3>
-                
                 {!whatsappSent ? (
                   <div className="space-y-4">
                     <div>
                       <Label htmlFor="whatsapp">WhatsApp (com DDD)</Label>
-                      <Input
-                        id="whatsapp"
-                        type="tel"
-                        placeholder="11999999999"
-                        value={whatsappNumber}
-                        onChange={(e) => setWhatsappNumber(e.target.value.replace(/\D/g, ''))}
-                        maxLength={11}
-                      />
+                      <Input id="whatsapp" type="tel" placeholder="11999999999" value={whatsappNumber} onChange={(e) => setWhatsappNumber(e.target.value.replace(/\D/g, ''))} maxLength={11} />
                     </div>
-                    <Button
-                      variant="success"
-                      className="w-full"
-                      onClick={handleSendWhatsapp}
-                      disabled={isProcessing}
-                    >
+                    <Button variant="outline" className="w-full bg-success/10 border-success/20 text-success hover:bg-success/20" onClick={handleSendWhatsapp} disabled={isProcessing}>
                       <MessageCircle className="w-4 h-4" />
                       Enviar Cartelas no WhatsApp
                     </Button>
@@ -489,9 +401,7 @@ const Checkout = () => {
 
               {/* Important Notice */}
               <div className="bg-warning/10 border border-warning/20 rounded-xl p-4">
-                <p className="text-sm text-warning font-medium">
-                  ⚠️ Guarde o código da cartela para resgatar seu prêmio em caso de vitória!
-                </p>
+                <p className="text-sm text-warning font-medium">⚠️ Guarde o código da cartela para resgatar seu prêmio em caso de vitória!</p>
               </div>
             </motion.div>
           )}
