@@ -58,8 +58,8 @@ export default function AdminIntegrations() {
   const loadSettings = async () => {
     try {
       const response = await apiService.getSettings();
-      if (response.ok && response.settings) {
-        const settings = response.settings;
+      if (response.ok && response.data) {
+        const settings = response.data;
 
         // Load gateway settings
         if (settings.asaas) {

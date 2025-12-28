@@ -36,9 +36,9 @@ export default function AdminSettings() {
       try {
         setLoading(true);
         const response = await apiService.getSettings();
-        if (response.ok && response.settings) {
-          setSettings(response.settings);
-          setWinPatterns(response.settings.winPatterns || []);
+        if (response.ok && response.data) {
+          setSettings(response.data);
+          setWinPatterns(response.data.winPatterns || []);
         }
       } catch (error) {
         console.error('Error loading settings:', error);
@@ -58,7 +58,24 @@ export default function AdminSettings() {
   const handleSave = async () => {
     setSaving(true);
     try {
-      // TODO: Implement bulk update or loop through changed settings
+      // Save all settings
+      await Promise.all([
+        apiService.updateSetting('card_price_regular', settings.cardPriceRegular),
+        apiService.updateSetting('card_price_special', settings.cardPriceSpecial),
+        apiService.updateSetting('platform_percent', settings.platformPercent),
+        apiService.updateSetting('charity_percent', settings.charityPercent),
+        apiService.updateSetting('establishment_commission', settings.establishmentCommission),
+        apiService.updateSetting('manager_commission', settings.managerCommission),
+        apiService.updateSetting('prize_pool_percent', settings.prizePoolPercent),
+        apiService.updateSetting('special_pool_percent', settings.specialPoolPercent),
+        apiService.updateSetting('bonus_pool_percent', settings.bonusPoolPercent),
+        apiService.updateSetting('min_number', settings.minNumber),
+        apiService.updateSetting('max_number', settings.maxNumber),
+        apiService.updateSetting('tie_break_window_ms', settings.tieBreakWindowMs),
+        apiService.updateSetting('max_cards_per_round', settings.maxCardsPerRound),
+        apiService.updateSetting('win_patterns', winPatterns)
+      ]);
+
       toast({ title: 'Configurações salvas!', description: 'As alterações foram aplicadas com sucesso.' });
     } catch (error) {
       toast({

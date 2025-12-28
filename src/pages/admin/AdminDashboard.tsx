@@ -15,8 +15,8 @@ export default function AdminDashboard() {
     const loadStats = async () => {
       try {
         const response = await apiService.getAdminStats();
-        if (response.ok && response.stats) {
-          setStats(response.stats);
+        if (response.ok && response.data) {
+          setStats(response.data);
         }
       } catch (error) {
         console.error('Error loading admin stats:', error);
@@ -88,7 +88,7 @@ export default function AdminDashboard() {
             <Link to="/admin/configuracoes"><Button variant="outline" className="w-full justify-start">⚙️ Configurações</Button></Link>
             <Link to="/admin/instituicao"><Button variant="outline" className="w-full justify-start">🎁 Instituição do Mês</Button></Link>
             <Link to="/admin/rodadas"><Button variant="outline" className="w-full justify-start">🏆 Rodadas</Button></Link>
-            <Link to="/admin/whatsapp"><Button variant="outline" className="w-full justify-start">💬 WhatsApp</Button></Link>
+            <Link to="/admin/integracoes"><Button variant="outline" className="w-full justify-start">💬 Integrações</Button></Link>
             <Link to="/admin/pos"><Button variant="outline" className="w-full justify-start">📱 POS</Button></Link>
             <Link to="/admin/logs"><Button variant="outline" className="w-full justify-start">📋 Logs</Button></Link>
           </div>

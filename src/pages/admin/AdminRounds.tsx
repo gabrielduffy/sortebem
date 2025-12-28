@@ -118,7 +118,7 @@ export default function AdminRounds() {
                       <Users className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
                       <p className="text-sm text-muted-foreground">Não Vendidas</p>
                       <p className="text-xl font-bold text-foreground">
-                        {((liveRound.total_cards || 0) - (liveRound.sold_cards || 0)).toLocaleString()}
+                        {(Math.max(0, (liveRound.max_cards || 10000) - (liveRound.cards_sold || 0))).toLocaleString()}
                       </p>
                     </div>
                     <div className="bg-muted rounded-xl p-4 text-center">
@@ -222,16 +222,16 @@ export default function AdminRounds() {
                 ) : finishedRounds.length > 0 ? (
                   <DataTable
                     data={finishedRounds.map(r => ({
-                      id: r.round_number || r.id,
-                      date: new Date(r.end_time || r.start_time).toLocaleString('pt-BR'),
+                      id: r.number || r.round_number || r.id || '-',
+                      date: new Date(r.finished_at || r.ends_at || r.created_at).toLocaleString('pt-BR'),
                       type: r.type === 'special' ? 'Especial' : 'Regular',
                       winner: r.winner_establishment || '-',
-                      prize: formatCurrency(r.prize_amount || 0),
-                      soldCards: r.sold_cards || 0,
-                      unsoldCards: r.total_cards - (r.sold_cards || 0),
+                      prize: formatCurrency(r.prize_pool || r.prize_amount || 0),
+                      soldCards: r.cards_sold || r.sold_cards || 0,
+                      unsoldCards: Math.max(0, (r.max_cards || 10000) - (r.cards_sold || r.sold_cards || 0)),
                       pattern: r.win_pattern || '-',
-                      tieBreak: r.tie_break_number,
-                      winningCard: r.winning_card_code,
+                      tieBreak: r.tie_break_number || '-',
+                      winningCard: r.winning_card_code || '-',
                       drawnNumbers: r.drawn_numbers || []
                     }))}
                     columns={historyColumns}
