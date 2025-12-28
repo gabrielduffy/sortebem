@@ -28,6 +28,7 @@ import ManagerProfile from "./pages/manager/ManagerProfile";
 import AdminLogin from "./pages/admin/AdminLogin";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import AdminSettings from "./pages/admin/AdminSettings";
+import AdminDraw from "./pages/admin/AdminDraw";
 import AdminCharity from "./pages/admin/AdminCharity";
 import AdminRounds from "./pages/admin/AdminRounds";
 import AdminManagers from "./pages/admin/AdminManagers";
@@ -71,6 +72,7 @@ const App = () => (
           <Route path="/admin/login" element={<AdminLogin />} />
           <Route path="/admin" element={<AdminDashboard />} />
           <Route path="/admin/configuracoes" element={<AdminSettings />} />
+          <Route path="/admin/sorteio" element={<AdminDraw />} />
           <Route path="/admin/instituicao" element={<AdminCharity />} />
           <Route path="/admin/rodadas" element={<AdminRounds />} />
           <Route path="/admin/gerentes" element={<AdminManagers />} />

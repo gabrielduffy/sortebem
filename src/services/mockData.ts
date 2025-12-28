@@ -117,6 +117,61 @@ export interface Settings {
   winPatterns: string[];
 }
 
+export interface DrawSettings {
+  // Aparência
+  cardFont: string;
+  cardFontSize: number;
+  codeFontSize: number;
+  cardBgColor: string;
+  numberColor: string;
+  markedNumberColor: string;
+  markedBgColor: string;
+  enableAnimations: boolean;
+  
+  // Tempo e Ritmo
+  intervalBetweenNumbers: number;
+  animationDuration: number;
+  initialDelay: number;
+  maxRoundTime: number;
+  autoPauseEnabled: boolean;
+  autoPauseTimeout: number;
+  
+  // Voz IA
+  voiceEnabled: boolean;
+  voiceProvider: string;
+  voiceId: string;
+  voiceLanguage: string;
+  voiceSpeed: number;
+  voiceVolume: number;
+  voiceFormat: 'number_x' | 'only_number' | 'column_number';
+  
+  // Regras
+  minNumber: number;
+  maxNumber: number;
+  winPatterns: string[];
+  multiplePatterns: boolean;
+  maxCardsPerRound: number;
+  maxCardsPerUser: number | null;
+  
+  // Desempate
+  tieBreakMethod: 'stone' | 'first_claim' | 'split_prize';
+  tieBreakWindowMs: number;
+  stoneMin: number;
+  stoneMax: number;
+  showStonePublicly: boolean;
+  tieBreakAnimation: boolean;
+  
+  // Modo TV
+  tvFont: string;
+  tvFontSize: number;
+  tvBgColor: string;
+  tvNumberColor: string;
+  showWinnersHistory: boolean;
+  winnersHistoryCount: number;
+  winnerDisplayTime: number;
+  autoRotateInfo: boolean;
+}
+
 export interface Withdrawal {
   id: string;
   cardCode: string;
