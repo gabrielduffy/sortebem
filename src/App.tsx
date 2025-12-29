@@ -12,6 +12,11 @@ import Checkout from "./pages/Checkout";
 import Redeem from "./pages/Redeem";
 import HowItWorks from "./pages/HowItWorks";
 import NotFound from "./pages/NotFound";
+// Demo Pages
+import DemoRodada from "./pages/demo/DemoRodada";
+import DemoCheckout from "./pages/demo/DemoCheckout";
+import DemoCartela from "./pages/demo/DemoCartela";
+import DemoResgate from "./pages/demo/DemoResgate";
 // Establishment
 import EstablishmentLogin from "./pages/establishment/EstablishmentLogin";
 import EstablishmentDashboard from "./pages/establishment/EstablishmentDashboard";
@@ -57,6 +62,12 @@ const App = () => (
             <Route path="/checkout" element={<Checkout />} />
             <Route path="/resgatar" element={<Redeem />} />
             <Route path="/como-funciona" element={<HowItWorks />} />
+
+            {/* Demo Pages (public) */}
+            <Route path="/demo/rodada" element={<DemoRodada />} />
+            <Route path="/demo/checkout" element={<DemoCheckout />} />
+            <Route path="/demo/cartela" element={<DemoCartela />} />
+            <Route path="/demo/resgate" element={<DemoResgate />} />
 
             {/* Establishment Login (public) */}
             <Route path="/estabelecimento/login" element={<EstablishmentLogin />} />
