@@ -18,6 +18,7 @@ const TVMode = () => {
     winnerEstablishment?: string;
   } | null>(null);
   const [liveRound, setLiveRound] = useState<any>(null);
+  const [tickerMessages, setTickerMessages] = useState<any[]>([]);
 
   // Load TV data and poll for updates
   useEffect(() => {
@@ -38,6 +39,12 @@ const TVMode = () => {
           if (activeCharity) {
             setCharity(activeCharity);
           }
+        }
+
+        // Load ticker messages (active only)
+        const tickerData = await apiService.getActiveTickerMessages();
+        if (tickerData.ok && tickerData.data) {
+          setTickerMessages(tickerData.data);
         }
 
         // Load live round
@@ -112,14 +119,8 @@ const TVMode = () => {
   // Get sales URL for QR Code
   const salesUrl = `${window.location.origin}/checkout?ref=${slugEstabelecimento}`;
 
-  // Ticker messages
-  const tickerMessages = [
-    `🎯 Próximo sorteio em ${getTimeLeft()} • Prêmio: ${formatCurrency(liveRound?.prize_pool || 0)}`,
-    `🏆 Últimos ganhadores: ${(data?.recentWinners || []).slice(0, 3).map((w: any) => formatCurrency(w.prize_amount || 0)).join(' • ')}`,
-    `💝 Ajudando: ${charity?.name || 'Instituição Beneficente'}`,
-    `🎁 Rodadas a cada 10 minutos • Cartelas a partir de R$ 5,00`,
-    `📱 Participe pelo QR Code ou acesse www.sortebem.com.br`,
-  ];
+  // Format ticker messages from database
+  const formattedTickerMessages = tickerMessages.map(t => `${t.icon || ''} ${t.message}`.trim());
 
   if (!data) {
     return (
@@ -398,22 +399,28 @@ const TVMode = () => {
 
       {/* Footer Ticker */}
       <footer className="bg-background/5 backdrop-blur-sm border-t border-background/10 py-3 overflow-hidden">
-        <motion.div
-          animate={{ x: ['0%', '-100%'] }}
-          transition={{
-            duration: 30,
-            repeat: Infinity,
-            ease: 'linear',
-          }}
-          className="flex gap-8 whitespace-nowrap"
-        >
-          {/* Duplicate messages for seamless loop */}
-          {[...tickerMessages, ...tickerMessages].map((message, index) => (
-            <span key={index} className="text-background/80 text-base font-medium">
-              {message}
-            </span>
-          ))}
-        </motion.div>
+        {formattedTickerMessages.length > 0 ? (
+          <motion.div
+            animate={{ x: ['0%', '-100%'] }}
+            transition={{
+              duration: 30,
+              repeat: Infinity,
+              ease: 'linear',
+            }}
+            className="flex gap-8 whitespace-nowrap"
+          >
+            {/* Duplicate messages for seamless loop */}
+            {[...formattedTickerMessages, ...formattedTickerMessages].map((message, index) => (
+              <span key={index} className="text-background/80 text-base font-medium">
+                {message}
+              </span>
+            ))}
+          </motion.div>
+        ) : (
+          <div className="text-center text-background/60 text-sm">
+            Nenhuma mensagem configurada no letreiro
+          </div>
+        )}
       </footer>
     </div>
   );

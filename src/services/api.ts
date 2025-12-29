@@ -1172,6 +1172,139 @@ class ApiService {
       return { ok: false, error: error.message || 'Erro ao ativar instituição' };
     }
   }
+
+  // ============ TICKER MESSAGES ============
+
+  /**
+   * Get all ticker messages (admin only)
+   */
+  async getTickerMessages(): Promise<ApiResponse> {
+    try {
+      const { data, error } = await supabase
+        .from('ticker_messages')
+        .select('*')
+        .order('display_order', { ascending: true });
+
+      if (error) {
+        return { ok: false, error: error.message };
+      }
+
+      return { ok: true, data };
+    } catch (error: any) {
+      return { ok: false, error: error.message || 'Erro ao buscar mensagens do letreiro' };
+    }
+  }
+
+  /**
+   * Get active ticker messages (public)
+   */
+  async getActiveTickerMessages(): Promise<ApiResponse> {
+    try {
+      const { data, error } = await supabase
+        .from('ticker_messages')
+        .select('*')
+        .eq('is_active', true)
+        .order('display_order', { ascending: true });
+
+      if (error) {
+        return { ok: false, error: error.message };
+      }
+
+      return { ok: true, data };
+    } catch (error: any) {
+      return { ok: false, error: error.message || 'Erro ao buscar mensagens do letreiro' };
+    }
+  }
+
+  /**
+   * Create ticker message (admin only)
+   */
+  async createTickerMessage(data: {
+    message: string;
+    icon?: string;
+    is_active?: boolean;
+    display_order?: number;
+  }): Promise<ApiResponse> {
+    try {
+      const { data: tickerMessage, error } = await supabase
+        .from('ticker_messages')
+        .insert(data)
+        .select()
+        .single();
+
+      if (error) {
+        return { ok: false, error: error.message };
+      }
+
+      return { ok: true, data: tickerMessage };
+    } catch (error: any) {
+      return { ok: false, error: error.message || 'Erro ao criar mensagem do letreiro' };
+    }
+  }
+
+  /**
+   * Update ticker message (admin only)
+   */
+  async updateTickerMessage(id: string, data: any): Promise<ApiResponse> {
+    try {
+      const { data: tickerMessage, error } = await supabase
+        .from('ticker_messages')
+        .update(data)
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (error) {
+        return { ok: false, error: error.message };
+      }
+
+      return { ok: true, data: tickerMessage };
+    } catch (error: any) {
+      return { ok: false, error: error.message || 'Erro ao atualizar mensagem do letreiro' };
+    }
+  }
+
+  /**
+   * Delete ticker message (admin only)
+   */
+  async deleteTickerMessage(id: string): Promise<ApiResponse> {
+    try {
+      const { error } = await supabase
+        .from('ticker_messages')
+        .delete()
+        .eq('id', id);
+
+      if (error) {
+        return { ok: false, error: error.message };
+      }
+
+      return { ok: true, data: null };
+    } catch (error: any) {
+      return { ok: false, error: error.message || 'Erro ao deletar mensagem do letreiro' };
+    }
+  }
+
+  /**
+   * Toggle ticker message active status (admin only)
+   */
+  async toggleTickerMessageActive(id: string, is_active: boolean): Promise<ApiResponse> {
+    try {
+      const { data, error } = await supabase
+        .from('ticker_messages')
+        .update({ is_active })
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (error) {
+        return { ok: false, error: error.message };
+      }
+
+      return { ok: true, data };
+    } catch (error: any) {
+      return { ok: false, error: error.message || 'Erro ao atualizar status da mensagem' };
+    }
+  }
 }
 
 export const apiService = new ApiService();

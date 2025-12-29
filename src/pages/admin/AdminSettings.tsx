@@ -7,7 +7,7 @@ import { Switch } from '@/components/ui/switch';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from '@/hooks/use-toast';
-import { Save, DollarSign, Percent, Clock, Hash, Trophy } from 'lucide-react';
+import { Save, DollarSign, Percent, Clock, Hash, Trophy, MessageSquare, Plus, Trash2, Edit2, Eye, EyeOff, GripVertical } from 'lucide-react';
 import { apiService } from '@/services/api';
 
 export default function AdminSettings() {
@@ -31,6 +31,11 @@ export default function AdminSettings() {
   const [saving, setSaving] = useState(false);
   const [winPatterns, setWinPatterns] = useState<string[]>([]);
 
+  // Ticker messages state
+  const [tickerMessages, setTickerMessages] = useState<any[]>([]);
+  const [editingTickerId, setEditingTickerId] = useState<string | null>(null);
+  const [tickerForm, setTickerForm] = useState({ message: '', icon: '📢', is_active: true, display_order: 0 });
+
   useEffect(() => {
     const loadSettings = async () => {
       try {
@@ -39,6 +44,12 @@ export default function AdminSettings() {
         if (response.ok && response.data) {
           setSettings(response.data);
           setWinPatterns(response.data.winPatterns || []);
+        }
+
+        // Load ticker messages
+        const tickerResponse = await apiService.getTickerMessages();
+        if (tickerResponse.ok && tickerResponse.data) {
+          setTickerMessages(tickerResponse.data);
         }
       } catch (error) {
         console.error('Error loading settings:', error);
@@ -94,6 +105,81 @@ export default function AdminSettings() {
     );
   };
 
+  // Ticker Messages CRUD functions
+  const loadTickerMessages = async () => {
+    const response = await apiService.getTickerMessages();
+    if (response.ok && response.data) {
+      setTickerMessages(response.data);
+    }
+  };
+
+  const handleCreateTicker = async () => {
+    if (!tickerForm.message.trim()) {
+      toast({ title: 'Erro', description: 'Mensagem não pode ser vazia', variant: 'destructive' });
+      return;
+    }
+
+    const response = await apiService.createTickerMessage(tickerForm);
+    if (response.ok) {
+      toast({ title: 'Sucesso!', description: 'Mensagem criada com sucesso' });
+      setTickerForm({ message: '', icon: '📢', is_active: true, display_order: 0 });
+      loadTickerMessages();
+    } else {
+      toast({ title: 'Erro', description: response.error || 'Erro ao criar mensagem', variant: 'destructive' });
+    }
+  };
+
+  const handleEditTicker = (ticker: any) => {
+    setEditingTickerId(ticker.id);
+    setTickerForm({
+      message: ticker.message,
+      icon: ticker.icon || '📢',
+      is_active: ticker.is_active,
+      display_order: ticker.display_order
+    });
+  };
+
+  const handleUpdateTicker = async () => {
+    if (!editingTickerId) return;
+
+    const response = await apiService.updateTickerMessage(editingTickerId, tickerForm);
+    if (response.ok) {
+      toast({ title: 'Sucesso!', description: 'Mensagem atualizada com sucesso' });
+      setEditingTickerId(null);
+      setTickerForm({ message: '', icon: '📢', is_active: true, display_order: 0 });
+      loadTickerMessages();
+    } else {
+      toast({ title: 'Erro', description: response.error || 'Erro ao atualizar mensagem', variant: 'destructive' });
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setEditingTickerId(null);
+    setTickerForm({ message: '', icon: '📢', is_active: true, display_order: 0 });
+  };
+
+  const handleDeleteTicker = async (id: string) => {
+    if (!confirm('Tem certeza que deseja excluir esta mensagem?')) return;
+
+    const response = await apiService.deleteTickerMessage(id);
+    if (response.ok) {
+      toast({ title: 'Sucesso!', description: 'Mensagem excluída com sucesso' });
+      loadTickerMessages();
+    } else {
+      toast({ title: 'Erro', description: response.error || 'Erro ao excluir mensagem', variant: 'destructive' });
+    }
+  };
+
+  const handleToggleTickerActive = async (id: string, is_active: boolean) => {
+    const response = await apiService.toggleTickerMessageActive(id, is_active);
+    if (response.ok) {
+      toast({ title: 'Sucesso!', description: `Mensagem ${is_active ? 'ativada' : 'desativada'}` });
+      loadTickerMessages();
+    } else {
+      toast({ title: 'Erro', description: response.error || 'Erro ao atualizar status', variant: 'destructive' });
+    }
+  };
+
   if (loading) {
     return (
       <DashboardLayout userType="admin" userName="Administrador" notifications={0}>
@@ -119,11 +205,12 @@ export default function AdminSettings() {
         </div>
 
         <Tabs defaultValue="valores" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="valores">Valores</TabsTrigger>
             <TabsTrigger value="splits">Splits/Pools</TabsTrigger>
             <TabsTrigger value="jogo">Regras do Jogo</TabsTrigger>
             <TabsTrigger value="sistema">Sistema</TabsTrigger>
+            <TabsTrigger value="letreiro">Letreiro</TabsTrigger>
           </TabsList>
 
           <TabsContent value="valores" className="space-y-4">
@@ -367,6 +454,183 @@ export default function AdminSettings() {
                   </div>
                   <Switch defaultChecked />
                 </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="letreiro" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <MessageSquare className="w-5 h-5 text-primary" />
+                  Gerenciar Mensagens do Letreiro
+                </CardTitle>
+                <CardDescription>
+                  Configure as mensagens que aparecem no rodapé da TV Mode (ticker)
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {/* Form para criar/editar */}
+                <div className="border rounded-lg p-4 space-y-4 bg-secondary/30">
+                  <h3 className="font-semibold text-sm text-foreground">
+                    {editingTickerId ? 'Editar Mensagem' : 'Nova Mensagem'}
+                  </h3>
+
+                  <div className="grid md:grid-cols-3 gap-4">
+                    <div className="md:col-span-2">
+                      <Label>Mensagem *</Label>
+                      <Input
+                        placeholder="Digite a mensagem que aparecerá no letreiro..."
+                        value={tickerForm.message}
+                        onChange={(e) => setTickerForm({ ...tickerForm, message: e.target.value })}
+                      />
+                    </div>
+
+                    <div>
+                      <Label>Ícone/Emoji</Label>
+                      <Input
+                        placeholder="📢"
+                        value={tickerForm.icon}
+                        onChange={(e) => setTickerForm({ ...tickerForm, icon: e.target.value })}
+                        maxLength={2}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid md:grid-cols-2 gap-4">
+                    <div>
+                      <Label>Ordem de Exibição</Label>
+                      <Input
+                        type="number"
+                        placeholder="0"
+                        value={tickerForm.display_order}
+                        onChange={(e) => setTickerForm({ ...tickerForm, display_order: parseInt(e.target.value) || 0 })}
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Menor número aparece primeiro
+                      </p>
+                    </div>
+
+                    <div className="flex items-center justify-between pt-6">
+                      <div className="flex items-center gap-2">
+                        <Label>Ativo</Label>
+                        <Switch
+                          checked={tickerForm.is_active}
+                          onCheckedChange={(checked) => setTickerForm({ ...tickerForm, is_active: checked })}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2">
+                    {editingTickerId ? (
+                      <>
+                        <Button onClick={handleUpdateTicker} variant="default">
+                          <Save className="w-4 h-4" />
+                          Atualizar
+                        </Button>
+                        <Button onClick={handleCancelEdit} variant="outline">
+                          Cancelar
+                        </Button>
+                      </>
+                    ) : (
+                      <Button onClick={handleCreateTicker} variant="default">
+                        <Plus className="w-4 h-4" />
+                        Adicionar Mensagem
+                      </Button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Lista de mensagens */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-semibold text-sm text-foreground">
+                      Mensagens Cadastradas ({tickerMessages.length})
+                    </h3>
+                  </div>
+
+                  {tickerMessages.length === 0 ? (
+                    <div className="text-center py-8 text-muted-foreground">
+                      <MessageSquare className="w-12 h-12 mx-auto mb-2 opacity-50" />
+                      <p>Nenhuma mensagem cadastrada ainda</p>
+                      <p className="text-sm">Adicione sua primeira mensagem acima</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {tickerMessages.map((ticker) => (
+                        <div
+                          key={ticker.id}
+                          className="border rounded-lg p-4 flex items-center gap-4 hover:bg-secondary/50 transition-colors"
+                        >
+                          <div className="flex items-center gap-2">
+                            <GripVertical className="w-4 h-4 text-muted-foreground cursor-grab" />
+                            <span className="text-2xl">{ticker.icon || '📢'}</span>
+                          </div>
+
+                          <div className="flex-1">
+                            <p className="font-medium text-foreground">{ticker.message}</p>
+                            <p className="text-xs text-muted-foreground">
+                              Ordem: {ticker.display_order} • {ticker.is_active ? 'Ativo' : 'Inativo'}
+                            </p>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => handleToggleTickerActive(ticker.id, !ticker.is_active)}
+                              title={ticker.is_active ? 'Desativar' : 'Ativar'}
+                            >
+                              {ticker.is_active ? (
+                                <Eye className="w-4 h-4 text-primary" />
+                              ) : (
+                                <EyeOff className="w-4 h-4 text-muted-foreground" />
+                              )}
+                            </Button>
+
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => handleEditTicker(ticker)}
+                              title="Editar"
+                            >
+                              <Edit2 className="w-4 h-4 text-primary" />
+                            </Button>
+
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => handleDeleteTicker(ticker.id)}
+                              title="Excluir"
+                            >
+                              <Trash2 className="w-4 h-4 text-destructive" />
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Preview do letreiro */}
+                {tickerMessages.filter(t => t.is_active).length > 0 && (
+                  <div className="border rounded-lg p-4 bg-gradient-tv">
+                    <h3 className="font-semibold text-sm text-background mb-3">Preview do Letreiro</h3>
+                    <div className="bg-background/10 rounded-lg p-3 overflow-hidden">
+                      <div className="flex gap-8 whitespace-nowrap animate-scroll">
+                        {tickerMessages
+                          .filter(t => t.is_active)
+                          .sort((a, b) => a.display_order - b.display_order)
+                          .map((ticker, index) => (
+                            <span key={index} className="text-background/90 font-medium">
+                              {ticker.icon} {ticker.message}
+                            </span>
+                          ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
