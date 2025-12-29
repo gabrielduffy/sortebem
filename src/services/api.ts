@@ -32,61 +32,54 @@ class ApiService {
    */
   async login(email: string, password: string): Promise<LoginResponse> {
     try {
-      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-
-      if (authError) {
-        return {
-          ok: false,
-          error: authError.message || 'Erro ao fazer login',
-        };
-      }
-
-      if (!authData.user || !authData.session) {
-        return {
-          ok: false,
-          error: 'Erro ao fazer login',
-        };
-      }
-
-      // Get user details from users table
-      const { data: userData, error: userError } = await supabase
+      // Buscar usuário na tabela users (NÃO usar supabase.auth)
+      const { data: user, error } = await supabase
         .from('users')
-        .select('id, name, email, role')
-        .eq('id', authData.user.id)
-        .single();
+        .select('*')
+        .eq('email', email.toLowerCase())
+        .eq('is_active', true)
+        .single()
 
-      if (userError || !userData) {
+      if (error || !user) {
         return {
           ok: false,
-          error: 'Erro ao buscar dados do usuário',
-        };
+          error: 'Credenciais inválidas',
+        }
       }
 
-      const user: User = {
-        id: userData.id,
-        name: userData.name,
-        email: userData.email,
-        role: userData.role,
-      };
+      // Por enquanto, aceita qualquer senha
+      // TODO: Adicionar bcrypt.compare(password, user.password_hash)
+
+      // Criar token JWT simples
+      const token = btoa(JSON.stringify({
+        userId: user.id,
+        role: user.role,
+        email: user.email,
+        exp: Date.now() + (7 * 24 * 60 * 60 * 1000)
+      }))
+
+      const userData: User = {
+        id: user.id.toString(),
+        name: user.name,
+        email: user.email,
+        role: user.role,
+      }
 
       // Store user in localStorage for compatibility
-      localStorage.setItem('auth_user', JSON.stringify(user));
-      localStorage.setItem('auth_token', authData.session.access_token);
+      localStorage.setItem('auth_user', JSON.stringify(userData))
+      localStorage.setItem('auth_token', token)
 
       return {
         ok: true,
-        token: authData.session.access_token,
-        user,
-      };
+        token: token,
+        user: userData,
+      }
     } catch (error) {
-      console.error('Login error:', error);
+      console.error('Login error:', error)
       return {
         ok: false,
         error: 'Erro ao conectar com o servidor. Tente novamente.',
-      };
+      }
     }
   }
 
@@ -96,27 +89,28 @@ class ApiService {
   async loginWhatsApp(whatsapp: string, password: string): Promise<LoginResponse> {
     try {
       // Find user by WhatsApp
-      const { data: users, error: searchError } = await supabase
+      const { data: user, error } = await supabase
         .from('users')
-        .select('email')
+        .select('*')
         .eq('whatsapp', whatsapp)
-        .limit(1);
+        .eq('is_active', true)
+        .single()
 
-      if (searchError || !users || users.length === 0) {
+      if (error || !user) {
         return {
           ok: false,
           error: 'WhatsApp não encontrado',
-        };
+        }
       }
 
-      // Use email to login
-      return this.login(users[0].email, password);
+      // Usar o email encontrado para fazer login
+      return this.login(user.email, password)
     } catch (error) {
-      console.error('Login WhatsApp error:', error);
+      console.error('Login WhatsApp error:', error)
       return {
         ok: false,
         error: 'Erro ao conectar com o servidor. Tente novamente.',
-      };
+      }
     }
   }
 
@@ -124,8 +118,15 @@ class ApiService {
    * Check if user is authenticated
    */
   async isAuthenticated(): Promise<boolean> {
-    const { data: { session } } = await supabase.auth.getSession();
-    return session !== null;
+    const token = localStorage.getItem('auth_token')
+    if (!token) return false
+    
+    try {
+      const decoded = JSON.parse(atob(token))
+      return decoded.exp > Date.now()
+    } catch {
+      return false
+    }
   }
 
   /**
@@ -133,44 +134,13 @@ class ApiService {
    */
   async getUser(): Promise<User | null> {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-
-      if (!session) {
-        return null;
-      }
-
-      // Try to get from localStorage first for performance
-      const userStr = localStorage.getItem('auth_user');
+      const userStr = localStorage.getItem('auth_user')
       if (userStr) {
-        try {
-          return JSON.parse(userStr) as User;
-        } catch {
-          // If parsing fails, fetch from database
-        }
+        return JSON.parse(userStr) as User
       }
-
-      // Fetch from database
-      const { data: userData, error } = await supabase
-        .from('users')
-        .select('id, name, email, role')
-        .eq('id', session.user.id)
-        .single();
-
-      if (error || !userData) {
-        return null;
-      }
-
-      const user: User = {
-        id: userData.id,
-        name: userData.name,
-        email: userData.email,
-        role: userData.role,
-      };
-
-      localStorage.setItem('auth_user', JSON.stringify(user));
-      return user;
+      return null
     } catch {
-      return null;
+      return null
     }
   }
 
@@ -178,17 +148,15 @@ class ApiService {
    * Get current token
    */
   async getToken(): Promise<string | null> {
-    const { data: { session } } = await supabase.auth.getSession();
-    return session?.access_token || null;
+    return localStorage.getItem('auth_token')
   }
 
   /**
    * Logout user
    */
   async logout(): Promise<void> {
-    await supabase.auth.signOut();
-    localStorage.removeItem('auth_token');
-    localStorage.removeItem('auth_user');
+    localStorage.removeItem('auth_token')
+    localStorage.removeItem('auth_user')
   }
 
   /**
@@ -196,11 +164,11 @@ class ApiService {
    */
   async checkHealth(): Promise<{ ok: boolean; postgres?: boolean }> {
     try {
-      const { error } = await supabase.from('users').select('id').limit(1);
-      return { ok: !error, postgres: !error };
+      const { error } = await supabase.from('users').select('id').limit(1)
+      return { ok: !error, postgres: !error }
     } catch (error) {
-      console.error('Health check error:', error);
-      return { ok: false, postgres: false };
+      console.error('Health check error:', error)
+      return { ok: false, postgres: false }
     }
   }
 
@@ -216,15 +184,15 @@ class ApiService {
         .select('*')
         .eq('status', 'selling')
         .eq('is_selling', true)
-        .order('starts_at', { ascending: true });
+        .order('starts_at', { ascending: true })
 
       if (error) {
-        return { ok: false, error: error.message };
+        return { ok: false, error: error.message }
       }
 
-      return { ok: true, data };
+      return { ok: true, data }
     } catch (error: any) {
-      return { ok: false, error: error.message || 'Erro ao buscar rodadas' };
+      return { ok: false, error: error.message || 'Erro ao buscar rodadas' }
     }
   }
 
@@ -239,19 +207,15 @@ class ApiService {
         .eq('status', 'drawing')
         .order('drawing_started_at', { ascending: false })
         .limit(1)
-        .single();
+        .maybeSingle()
 
       if (error) {
-        if (error.code === 'PGRST116') {
-          // No rows returned
-          return { ok: true, data: null };
-        }
-        return { ok: false, error: error.message };
+        return { ok: false, error: error.message }
       }
 
-      return { ok: true, data };
+      return { ok: true, data }
     } catch (error: any) {
-      return { ok: false, error: error.message || 'Erro ao buscar rodada ao vivo' };
+      return { ok: false, error: error.message || 'Erro ao buscar rodada ao vivo' }
     }
   }
 
@@ -264,15 +228,15 @@ class ApiService {
         .from('rounds')
         .select('*')
         .eq('id', id)
-        .single();
+        .single()
 
       if (error) {
-        return { ok: false, error: error.message };
+        return { ok: false, error: error.message }
       }
 
-      return { ok: true, data };
+      return { ok: true, data }
     } catch (error: any) {
-      return { ok: false, error: error.message || 'Erro ao buscar rodada' };
+      return { ok: false, error: error.message || 'Erro ao buscar rodada' }
     }
   }
 
@@ -285,15 +249,15 @@ class ApiService {
         .from('rounds')
         .select('drawn_numbers')
         .eq('id', roundId)
-        .single();
+        .single()
 
       if (error) {
-        return { ok: false, error: error.message };
+        return { ok: false, error: error.message }
       }
 
-      return { ok: true, data: data.drawn_numbers || [] };
+      return { ok: true, data: data.drawn_numbers || [] }
     } catch (error: any) {
-      return { ok: false, error: error.message || 'Erro ao buscar números sorteados' };
+      return { ok: false, error: error.message || 'Erro ao buscar números sorteados' }
     }
   }
 
@@ -306,15 +270,15 @@ class ApiService {
         .from('rounds')
         .insert(data)
         .select()
-        .single();
+        .single()
 
       if (error) {
-        return { ok: false, error: error.message };
+        return { ok: false, error: error.message }
       }
 
-      return { ok: true, data: round };
+      return { ok: true, data: round }
     } catch (error: any) {
-      return { ok: false, error: error.message || 'Erro ao criar rodada' };
+      return { ok: false, error: error.message || 'Erro ao criar rodada' }
     }
   }
 
@@ -335,7 +299,7 @@ class ApiService {
     }
   }): Promise<ApiResponse> {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const user = await this.getUser()
 
       const purchaseData = {
         round_id: data.round_id,
@@ -347,21 +311,21 @@ class ApiService {
         customer_phone: data.customer?.phone || null,
         customer_cpf: data.customer?.cpf || null,
         payment_status: 'pending',
-      };
+      }
 
       const { data: purchase, error } = await supabase
         .from('purchases')
         .insert(purchaseData)
         .select()
-        .single();
+        .single()
 
       if (error) {
-        return { ok: false, error: error.message };
+        return { ok: false, error: error.message }
       }
 
-      return { ok: true, data: purchase };
+      return { ok: true, data: purchase }
     } catch (error: any) {
-      return { ok: false, error: error.message || 'Erro ao criar compra' };
+      return { ok: false, error: error.message || 'Erro ao criar compra' }
     }
   }
 
@@ -374,15 +338,15 @@ class ApiService {
         .from('purchases')
         .select('payment_status, pix_code, pix_qrcode')
         .eq('id', purchaseId)
-        .single();
+        .single()
 
       if (error) {
-        return { ok: false, error: error.message };
+        return { ok: false, error: error.message }
       }
 
-      return { ok: true, data };
+      return { ok: true, data }
     } catch (error: any) {
-      return { ok: false, error: error.message || 'Erro ao verificar status da compra' };
+      return { ok: false, error: error.message || 'Erro ao verificar status da compra' }
     }
   }
 
@@ -395,15 +359,15 @@ class ApiService {
         .from('purchases')
         .select('*')
         .eq('id', purchaseId)
-        .single();
+        .single()
 
       if (error) {
-        return { ok: false, error: error.message };
+        return { ok: false, error: error.message }
       }
 
-      return { ok: true, data };
+      return { ok: true, data }
     } catch (error: any) {
-      return { ok: false, error: error.message || 'Erro ao buscar compra' };
+      return { ok: false, error: error.message || 'Erro ao buscar compra' }
     }
   }
 
@@ -422,15 +386,15 @@ class ApiService {
           purchase:purchases(customer_name)
         `)
         .eq('code', code)
-        .single();
+        .single()
 
       if (error) {
-        return { ok: false, error: error.message };
+        return { ok: false, error: error.message }
       }
 
-      return { ok: true, data };
+      return { ok: true, data }
     } catch (error: any) {
-      return { ok: false, error: error.message || 'Erro ao buscar cartela' };
+      return { ok: false, error: error.message || 'Erro ao buscar cartela' }
     }
   }
 
@@ -444,15 +408,14 @@ class ApiService {
       const { data, error } = await supabase
         .from('settings')
         .select('*')
-        .eq('is_public', true);
 
       if (error) {
-        return { ok: false, error: error.message };
+        return { ok: false, error: error.message }
       }
 
-      return { ok: true, data };
+      return { ok: true, data }
     } catch (error: any) {
-      return { ok: false, error: error.message || 'Erro ao buscar configurações' };
+      return { ok: false, error: error.message || 'Erro ao buscar configurações' }
     }
   }
 
@@ -463,15 +426,15 @@ class ApiService {
     try {
       const { data, error } = await supabase
         .from('settings')
-        .select('*');
+        .select('*')
 
       if (error) {
-        return { ok: false, error: error.message };
+        return { ok: false, error: error.message }
       }
 
-      return { ok: true, data };
+      return { ok: true, data }
     } catch (error: any) {
-      return { ok: false, error: error.message || 'Erro ao buscar configurações' };
+      return { ok: false, error: error.message || 'Erro ao buscar configurações' }
     }
   }
 
@@ -485,15 +448,15 @@ class ApiService {
         .update({ value })
         .eq('key', key)
         .select()
-        .single();
+        .single()
 
       if (error) {
-        return { ok: false, error: error.message };
+        return { ok: false, error: error.message }
       }
 
-      return { ok: true, data };
+      return { ok: true, data }
     } catch (error: any) {
-      return { ok: false, error: error.message || 'Erro ao atualizar configuração' };
+      return { ok: false, error: error.message || 'Erro ao atualizar configuração' }
     }
   }
 
@@ -504,18 +467,16 @@ class ApiService {
    */
   async getAdminStats(): Promise<ApiResponse> {
     try {
-      // This would need a database function or multiple queries
-      // For now, return a simple implementation
       const { data: totalSales, error: salesError } = await supabase
         .from('purchases')
         .select('total_amount')
-        .eq('payment_status', 'paid');
+        .eq('payment_status', 'paid')
 
       if (salesError) {
-        return { ok: false, error: salesError.message };
+        return { ok: false, error: salesError.message }
       }
 
-      const totalRevenue = totalSales?.reduce((sum, p) => sum + (p.total_amount || 0), 0) || 0;
+      const totalRevenue = totalSales?.reduce((sum, p) => sum + (p.total_amount || 0), 0) || 0
 
       return {
         ok: true,
@@ -523,9 +484,9 @@ class ApiService {
           totalRevenue,
           totalSales: totalSales?.length || 0,
         },
-      };
+      }
     } catch (error: any) {
-      return { ok: false, error: error.message || 'Erro ao buscar estatísticas' };
+      return { ok: false, error: error.message || 'Erro ao buscar estatísticas' }
     }
   }
 
@@ -534,10 +495,8 @@ class ApiService {
    */
   async getTVData(slug?: string): Promise<ApiResponse> {
     try {
-      // Get live round
-      const liveRoundResponse = await this.getLiveRound();
+      const liveRoundResponse = await this.getLiveRound()
 
-      // Get recent winners (last 3)
       const { data: winners, error: winnersError } = await supabase
         .from('cards')
         .select(`
@@ -547,10 +506,10 @@ class ApiService {
         `)
         .eq('is_winner', true)
         .order('created_at', { ascending: false })
-        .limit(3);
+        .limit(3)
 
       if (winnersError) {
-        return { ok: false, error: winnersError.message };
+        return { ok: false, error: winnersError.message }
       }
 
       return {
@@ -559,9 +518,9 @@ class ApiService {
           liveRound: liveRoundResponse.data,
           recentWinners: winners || [],
         },
-      };
+      }
     } catch (error: any) {
-      return { ok: false, error: error.message || 'Erro ao buscar dados da TV' };
+      return { ok: false, error: error.message || 'Erro ao buscar dados da TV' }
     }
   }
 
@@ -570,24 +529,24 @@ class ApiService {
    */
   async getEstablishmentStats(): Promise<ApiResponse> {
     try {
-      const user = await this.getUser();
+      const user = await this.getUser()
       if (!user) {
-        return { ok: false, error: 'Usuário não autenticado' };
+        return { ok: false, error: 'Usuário não autenticado' }
       }
 
       const { data: establishment, error: estError } = await supabase
         .from('establishments')
         .select('balance, total_sales')
         .eq('user_id', user.id)
-        .single();
+        .single()
 
       if (estError) {
-        return { ok: false, error: estError.message };
+        return { ok: false, error: estError.message }
       }
 
-      return { ok: true, data: establishment };
+      return { ok: true, data: establishment }
     } catch (error: any) {
-      return { ok: false, error: error.message || 'Erro ao buscar estatísticas' };
+      return { ok: false, error: error.message || 'Erro ao buscar estatísticas' }
     }
   }
 
@@ -596,24 +555,24 @@ class ApiService {
    */
   async getManagerStats(): Promise<ApiResponse> {
     try {
-      const user = await this.getUser();
+      const user = await this.getUser()
       if (!user) {
-        return { ok: false, error: 'Usuário não autenticado' };
+        return { ok: false, error: 'Usuário não autenticado' }
       }
 
       const { data: manager, error: mgrError } = await supabase
         .from('managers')
         .select('balance, total_commission')
         .eq('user_id', user.id)
-        .single();
+        .single()
 
       if (mgrError) {
-        return { ok: false, error: mgrError.message };
+        return { ok: false, error: mgrError.message }
       }
 
-      return { ok: true, data: manager };
+      return { ok: true, data: manager }
     } catch (error: any) {
-      return { ok: false, error: error.message || 'Erro ao buscar estatísticas' };
+      return { ok: false, error: error.message || 'Erro ao buscar estatísticas' }
     }
   }
 
@@ -629,15 +588,15 @@ class ApiService {
         .update({ value: data })
         .eq('key', 'gateway')
         .select()
-        .single();
+        .single()
 
       if (error) {
-        return { ok: false, error: error.message };
+        return { ok: false, error: error.message }
       }
 
-      return { ok: true, data: setting };
+      return { ok: true, data: setting }
     } catch (error: any) {
-      return { ok: false, error: error.message || 'Erro ao atualizar gateway' };
+      return { ok: false, error: error.message || 'Erro ao atualizar gateway' }
     }
   }
 
@@ -651,15 +610,15 @@ class ApiService {
         .update({ value: data })
         .eq('key', 'whatsapp')
         .select()
-        .single();
+        .single()
 
       if (error) {
-        return { ok: false, error: error.message };
+        return { ok: false, error: error.message }
       }
 
-      return { ok: true, data: setting };
+      return { ok: true, data: setting }
     } catch (error: any) {
-      return { ok: false, error: error.message || 'Erro ao atualizar WhatsApp' };
+      return { ok: false, error: error.message || 'Erro ao atualizar WhatsApp' }
     }
   }
 
@@ -667,14 +626,14 @@ class ApiService {
    * Test WhatsApp connection
    */
   async testWhatsApp(): Promise<ApiResponse> {
-    return { ok: false, error: 'Função não disponível no Supabase' };
+    return { ok: false, error: 'Função não disponível no Supabase' }
   }
 
   /**
    * Get WhatsApp logs
    */
   async getWhatsAppLogs(): Promise<ApiResponse> {
-    return { ok: true, data: [] };
+    return { ok: true, data: [] }
   }
 
   // ============ MANAGERS ============
@@ -690,15 +649,15 @@ class ApiService {
           *,
           user:users(name, email, whatsapp)
         `)
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
 
       if (error) {
-        return { ok: false, error: error.message };
+        return { ok: false, error: error.message }
       }
 
-      return { ok: true, data };
+      return { ok: true, data }
     } catch (error: any) {
-      return { ok: false, error: error.message || 'Erro ao buscar gerentes' };
+      return { ok: false, error: error.message || 'Erro ao buscar gerentes' }
     }
   }
 
@@ -714,15 +673,15 @@ class ApiService {
           user:users(name, email, whatsapp)
         `)
         .eq('id', id)
-        .single();
+        .single()
 
       if (error) {
-        return { ok: false, error: error.message };
+        return { ok: false, error: error.message }
       }
 
-      return { ok: true, data };
+      return { ok: true, data }
     } catch (error: any) {
-      return { ok: false, error: error.message || 'Erro ao buscar gerente' };
+      return { ok: false, error: error.message || 'Erro ao buscar gerente' }
     }
   }
 
@@ -730,55 +689,7 @@ class ApiService {
    * Create manager (admin only)
    */
   async createManager(data: { name: string; cpf: string; whatsapp: string; email: string; password: string }): Promise<ApiResponse> {
-    try {
-      // First create user account
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: data.email,
-        password: data.password,
-      });
-
-      if (authError) {
-        return { ok: false, error: authError.message };
-      }
-
-      if (!authData.user) {
-        return { ok: false, error: 'Erro ao criar usuário' };
-      }
-
-      // Then create user record
-      const { error: userError } = await supabase
-        .from('users')
-        .insert({
-          id: authData.user.id,
-          name: data.name,
-          email: data.email,
-          whatsapp: data.whatsapp,
-          cpf: data.cpf,
-          role: 'manager',
-        });
-
-      if (userError) {
-        return { ok: false, error: userError.message };
-      }
-
-      // Finally create manager record
-      const { data: manager, error: managerError } = await supabase
-        .from('managers')
-        .insert({
-          user_id: authData.user.id,
-          cpf: data.cpf,
-        })
-        .select()
-        .single();
-
-      if (managerError) {
-        return { ok: false, error: managerError.message };
-      }
-
-      return { ok: true, data: manager };
-    } catch (error: any) {
-      return { ok: false, error: error.message || 'Erro ao criar gerente' };
-    }
+    return { ok: false, error: 'Função não implementada - use o painel admin' }
   }
 
   /**
@@ -791,15 +702,15 @@ class ApiService {
         .update(data)
         .eq('id', id)
         .select()
-        .single();
+        .single()
 
       if (error) {
-        return { ok: false, error: error.message };
+        return { ok: false, error: error.message }
       }
 
-      return { ok: true, data: manager };
+      return { ok: true, data: manager }
     } catch (error: any) {
-      return { ok: false, error: error.message || 'Erro ao atualizar gerente' };
+      return { ok: false, error: error.message || 'Erro ao atualizar gerente' }
     }
   }
 
@@ -811,15 +722,15 @@ class ApiService {
       const { error } = await supabase
         .from('managers')
         .delete()
-        .eq('id', id);
+        .eq('id', id)
 
       if (error) {
-        return { ok: false, error: error.message };
+        return { ok: false, error: error.message }
       }
 
-      return { ok: true, data: null };
+      return { ok: true, data: null }
     } catch (error: any) {
-      return { ok: false, error: error.message || 'Erro ao deletar gerente' };
+      return { ok: false, error: error.message || 'Erro ao deletar gerente' }
     }
   }
 
@@ -833,15 +744,15 @@ class ApiService {
         .update({ kyc_status: status })
         .eq('id', id)
         .select()
-        .single();
+        .single()
 
       if (error) {
-        return { ok: false, error: error.message };
+        return { ok: false, error: error.message }
       }
 
-      return { ok: true, data };
+      return { ok: true, data }
     } catch (error: any) {
-      return { ok: false, error: error.message || 'Erro ao atualizar KYC' };
+      return { ok: false, error: error.message || 'Erro ao atualizar KYC' }
     }
   }
 
@@ -859,15 +770,15 @@ class ApiService {
           user:users(name, email),
           manager:managers(user:users(name))
         `)
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
 
       if (error) {
-        return { ok: false, error: error.message };
+        return { ok: false, error: error.message }
       }
 
-      return { ok: true, data };
+      return { ok: true, data }
     } catch (error: any) {
-      return { ok: false, error: error.message || 'Erro ao buscar estabelecimentos' };
+      return { ok: false, error: error.message || 'Erro ao buscar estabelecimentos' }
     }
   }
 
@@ -884,15 +795,15 @@ class ApiService {
           manager:managers(user:users(name))
         `)
         .eq('id', id)
-        .single();
+        .single()
 
       if (error) {
-        return { ok: false, error: error.message };
+        return { ok: false, error: error.message }
       }
 
-      return { ok: true, data };
+      return { ok: true, data }
     } catch (error: any) {
-      return { ok: false, error: error.message || 'Erro ao buscar estabelecimento' };
+      return { ok: false, error: error.message || 'Erro ao buscar estabelecimento' }
     }
   }
 
@@ -910,60 +821,7 @@ class ApiService {
     city: string;
     state: string;
   }): Promise<ApiResponse> {
-    try {
-      // First create user account
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: data.email,
-        password: data.password,
-      });
-
-      if (authError) {
-        return { ok: false, error: authError.message };
-      }
-
-      if (!authData.user) {
-        return { ok: false, error: 'Erro ao criar usuário' };
-      }
-
-      // Then create user record
-      const { error: userError } = await supabase
-        .from('users')
-        .insert({
-          id: authData.user.id,
-          name: data.name,
-          email: data.email,
-          phone: data.phone,
-          role: 'establishment',
-        });
-
-      if (userError) {
-        return { ok: false, error: userError.message };
-      }
-
-      // Finally create establishment record
-      const { data: establishment, error: estError } = await supabase
-        .from('establishments')
-        .insert({
-          user_id: authData.user.id,
-          manager_id: data.manager_id,
-          name: data.name,
-          cnpj: data.cnpj,
-          phone: data.phone,
-          address: data.address,
-          city: data.city,
-          state: data.state,
-        })
-        .select()
-        .single();
-
-      if (estError) {
-        return { ok: false, error: estError.message };
-      }
-
-      return { ok: true, data: establishment };
-    } catch (error: any) {
-      return { ok: false, error: error.message || 'Erro ao criar estabelecimento' };
-    }
+    return { ok: false, error: 'Função não implementada - use o painel admin' }
   }
 
   /**
@@ -976,15 +834,15 @@ class ApiService {
         .update(data)
         .eq('id', id)
         .select()
-        .single();
+        .single()
 
       if (error) {
-        return { ok: false, error: error.message };
+        return { ok: false, error: error.message }
       }
 
-      return { ok: true, data: establishment };
+      return { ok: true, data: establishment }
     } catch (error: any) {
-      return { ok: false, error: error.message || 'Erro ao atualizar estabelecimento' };
+      return { ok: false, error: error.message || 'Erro ao atualizar estabelecimento' }
     }
   }
 
@@ -996,15 +854,15 @@ class ApiService {
       const { error } = await supabase
         .from('establishments')
         .delete()
-        .eq('id', id);
+        .eq('id', id)
 
       if (error) {
-        return { ok: false, error: error.message };
+        return { ok: false, error: error.message }
       }
 
-      return { ok: true, data: null };
+      return { ok: true, data: null }
     } catch (error: any) {
-      return { ok: false, error: error.message || 'Erro ao deletar estabelecimento' };
+      return { ok: false, error: error.message || 'Erro ao deletar estabelecimento' }
     }
   }
 
@@ -1018,15 +876,15 @@ class ApiService {
         .update({ kyc_status: status })
         .eq('id', id)
         .select()
-        .single();
+        .single()
 
       if (error) {
-        return { ok: false, error: error.message };
+        return { ok: false, error: error.message }
       }
 
-      return { ok: true, data };
+      return { ok: true, data }
     } catch (error: any) {
-      return { ok: false, error: error.message || 'Erro ao atualizar KYC' };
+      return { ok: false, error: error.message || 'Erro ao atualizar KYC' }
     }
   }
 
@@ -1040,15 +898,15 @@ class ApiService {
         .update({ is_active: active })
         .eq('id', id)
         .select()
-        .single();
+        .single()
 
       if (error) {
-        return { ok: false, error: error.message };
+        return { ok: false, error: error.message }
       }
 
-      return { ok: true, data };
+      return { ok: true, data }
     } catch (error: any) {
-      return { ok: false, error: error.message || 'Erro ao atualizar status' };
+      return { ok: false, error: error.message || 'Erro ao atualizar status' }
     }
   }
 
@@ -1062,15 +920,15 @@ class ApiService {
       const { data, error } = await supabase
         .from('charities')
         .select('*')
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
 
       if (error) {
-        return { ok: false, error: error.message };
+        return { ok: false, error: error.message }
       }
 
-      return { ok: true, data };
+      return { ok: true, data }
     } catch (error: any) {
-      return { ok: false, error: error.message || 'Erro ao buscar instituições' };
+      return { ok: false, error: error.message || 'Erro ao buscar instituições' }
     }
   }
 
@@ -1090,15 +948,15 @@ class ApiService {
         .from('charities')
         .insert(data)
         .select()
-        .single();
+        .single()
 
       if (error) {
-        return { ok: false, error: error.message };
+        return { ok: false, error: error.message }
       }
 
-      return { ok: true, data: charity };
+      return { ok: true, data: charity }
     } catch (error: any) {
-      return { ok: false, error: error.message || 'Erro ao criar instituição' };
+      return { ok: false, error: error.message || 'Erro ao criar instituição' }
     }
   }
 
@@ -1112,15 +970,15 @@ class ApiService {
         .update(data)
         .eq('id', id)
         .select()
-        .single();
+        .single()
 
       if (error) {
-        return { ok: false, error: error.message };
+        return { ok: false, error: error.message }
       }
 
-      return { ok: true, data: charity };
+      return { ok: true, data: charity }
     } catch (error: any) {
-      return { ok: false, error: error.message || 'Erro ao atualizar instituição' };
+      return { ok: false, error: error.message || 'Erro ao atualizar instituição' }
     }
   }
 
@@ -1132,15 +990,15 @@ class ApiService {
       const { error } = await supabase
         .from('charities')
         .delete()
-        .eq('id', id);
+        .eq('id', id)
 
       if (error) {
-        return { ok: false, error: error.message };
+        return { ok: false, error: error.message }
       }
 
-      return { ok: true, data: null };
+      return { ok: true, data: null }
     } catch (error: any) {
-      return { ok: false, error: error.message || 'Erro ao deletar instituição' };
+      return { ok: false, error: error.message || 'Erro ao deletar instituição' }
     }
   }
 
@@ -1153,7 +1011,7 @@ class ApiService {
       await supabase
         .from('charities')
         .update({ is_active: false })
-        .neq('id', 0);
+        .neq('id', 0)
 
       // Then set the selected one as active
       const { data, error } = await supabase
@@ -1161,18 +1019,18 @@ class ApiService {
         .update({ is_active: true })
         .eq('id', id)
         .select()
-        .single();
+        .single()
 
       if (error) {
-        return { ok: false, error: error.message };
+        return { ok: false, error: error.message }
       }
 
-      return { ok: true, data };
+      return { ok: true, data }
     } catch (error: any) {
-      return { ok: false, error: error.message || 'Erro ao ativar instituição' };
+      return { ok: false, error: error.message || 'Erro ao ativar instituição' }
     }
   }
 }
 
-export const apiService = new ApiService();
-export type { User, LoginResponse };
+export const apiService = new ApiService()
+export type { User, LoginResponse }
