@@ -16,6 +16,7 @@ export default function AdminRounds() {
   const [liveRound, setLiveRound] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [viewingRound, setViewingRound] = useState<any>(null);
+  const [currentTime, setCurrentTime] = useState(new Date());
 
   useEffect(() => {
     const loadRounds = async () => {
@@ -43,7 +44,15 @@ export default function AdminRounds() {
     // Poll for updates every 5 seconds
     const interval = setInterval(loadRounds, 5000);
 
-    return () => clearInterval(interval);
+    // Update current time every second
+    const timeInterval = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 1000);
+
+    return () => {
+      clearInterval(interval);
+      clearInterval(timeInterval);
+    };
   }, []);
 
   const upcomingRounds = rounds.filter(r => r.status === 'selling' || r.status === 'scheduled');
@@ -81,6 +90,58 @@ export default function AdminRounds() {
       });
     } catch {
       return 'Hora inválida';
+    }
+  };
+
+  // Calcular tempo restante em formato legível
+  const getTimeRemaining = (endDate: string) => {
+    if (!endDate) return 'Tempo inválido';
+    try {
+      const end = new Date(endDate);
+      const now = currentTime;
+      const diff = end.getTime() - now.getTime();
+
+      if (diff <= 0) return 'Finalizada';
+
+      const minutes = Math.floor(diff / 60000);
+      const seconds = Math.floor((diff % 60000) / 1000);
+
+      if (minutes > 60) {
+        const hours = Math.floor(minutes / 60);
+        const mins = minutes % 60;
+        return `${hours}h ${mins}min`;
+      }
+
+      if (minutes > 0) {
+        return `${minutes}min ${seconds}s`;
+      }
+
+      return `${seconds}s`;
+    } catch {
+      return 'Tempo inválido';
+    }
+  };
+
+  // Calcular tempo restante para VENDA (selling_ends_at)
+  const getSalesTimeRemaining = (sellingEndsAt: string) => {
+    if (!sellingEndsAt) return 'Tempo inválido';
+    try {
+      const end = new Date(sellingEndsAt);
+      const now = currentTime;
+      const diff = end.getTime() - now.getTime();
+
+      if (diff <= 0) return 'Vendas encerradas';
+
+      const minutes = Math.floor(diff / 60000);
+      const seconds = Math.floor((diff % 60000) / 1000);
+
+      if (minutes > 0) {
+        return `${minutes}min ${seconds}s`;
+      }
+
+      return `${seconds}s`;
+    } catch {
+      return 'Tempo inválido';
     }
   };
 
@@ -219,14 +280,32 @@ export default function AdminRounds() {
                       </div>
                     </CardHeader>
                     <CardContent>
-                      <div className="space-y-2 text-sm">
+                      <div className="space-y-3 text-sm">
                         <div className="flex justify-between">
-                          <span className="text-muted-foreground">Início Previsto:</span>
+                          <span className="text-muted-foreground">Início:</span>
                           <span className="font-medium">
                             {formatTime(round.starts_at)}
                           </span>
                         </div>
                         <div className="flex justify-between">
+                          <span className="text-muted-foreground">Término:</span>
+                          <span className="font-medium">
+                            {formatTime(round.ends_at)}
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-muted-foreground">Tempo restante:</span>
+                          <Badge variant="outline" className="font-mono">
+                            {getTimeRemaining(round.ends_at)}
+                          </Badge>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-muted-foreground">Vendas até:</span>
+                          <Badge variant="secondary" className="font-mono">
+                            {getSalesTimeRemaining(round.selling_ends_at)}
+                          </Badge>
+                        </div>
+                        <div className="flex justify-between pt-2 border-t">
                           <span className="text-muted-foreground">Pool Estimado:</span>
                           <span className="font-medium text-primary">
                             {formatCurrency(calculatePool(round))}
