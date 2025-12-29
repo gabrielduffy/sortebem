@@ -1,5 +1,5 @@
-// API Service for SORTEBEM
-const API_BASE_URL = 'https://api.sortebem.com.br';
+// API Service for SORTEBEM - Supabase Version
+import { supabase } from '../lib/supabase'
 
 interface LoginResponse {
   ok: boolean;
@@ -20,35 +20,67 @@ interface User {
   role: 'admin' | 'manager' | 'establishment';
 }
 
+interface ApiResponse {
+  ok: boolean;
+  data?: any;
+  error?: string;
+}
+
 class ApiService {
-  private token: string | null = null;
-
-  constructor() {
-    // Load token from localStorage on initialization
-    this.token = localStorage.getItem('auth_token');
-  }
-
   /**
    * Login with email and password
    */
   async login(email: string, password: string): Promise<LoginResponse> {
     try {
-      const response = await fetch(`${API_BASE_URL}/auth/login`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email, password }),
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
       });
 
-      const data: LoginResponse = await response.json();
-
-      if (data.ok && data.token && data.user) {
-        this.setToken(data.token);
-        this.setUser(data.user);
+      if (authError) {
+        return {
+          ok: false,
+          error: authError.message || 'Erro ao fazer login',
+        };
       }
 
-      return data;
+      if (!authData.user || !authData.session) {
+        return {
+          ok: false,
+          error: 'Erro ao fazer login',
+        };
+      }
+
+      // Get user details from users table
+      const { data: userData, error: userError } = await supabase
+        .from('users')
+        .select('id, name, email, role')
+        .eq('id', authData.user.id)
+        .single();
+
+      if (userError || !userData) {
+        return {
+          ok: false,
+          error: 'Erro ao buscar dados do usuário',
+        };
+      }
+
+      const user: User = {
+        id: userData.id,
+        name: userData.name,
+        email: userData.email,
+        role: userData.role,
+      };
+
+      // Store user in localStorage for compatibility
+      localStorage.setItem('auth_user', JSON.stringify(user));
+      localStorage.setItem('auth_token', authData.session.access_token);
+
+      return {
+        ok: true,
+        token: authData.session.access_token,
+        user,
+      };
     } catch (error) {
       console.error('Login error:', error);
       return {
@@ -63,22 +95,22 @@ class ApiService {
    */
   async loginWhatsApp(whatsapp: string, password: string): Promise<LoginResponse> {
     try {
-      const response = await fetch(`${API_BASE_URL}/auth/login-whatsapp`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ whatsapp, password }),
-      });
+      // Find user by WhatsApp
+      const { data: users, error: searchError } = await supabase
+        .from('users')
+        .select('email')
+        .eq('whatsapp', whatsapp)
+        .limit(1);
 
-      const data: LoginResponse = await response.json();
-
-      if (data.ok && data.token && data.user) {
-        this.setToken(data.token);
-        this.setUser(data.user);
+      if (searchError || !users || users.length === 0) {
+        return {
+          ok: false,
+          error: 'WhatsApp não encontrado',
+        };
       }
 
-      return data;
+      // Use email to login
+      return this.login(users[0].email, password);
     } catch (error) {
       console.error('Login WhatsApp error:', error);
       return {
@@ -91,19 +123,52 @@ class ApiService {
   /**
    * Check if user is authenticated
    */
-  isAuthenticated(): boolean {
-    return this.token !== null && this.getUser() !== null;
+  async isAuthenticated(): Promise<boolean> {
+    const { data: { session } } = await supabase.auth.getSession();
+    return session !== null;
   }
 
   /**
    * Get current authenticated user
    */
-  getUser(): User | null {
-    const userStr = localStorage.getItem('auth_user');
-    if (!userStr) return null;
-
+  async getUser(): Promise<User | null> {
     try {
-      return JSON.parse(userStr) as User;
+      const { data: { session } } = await supabase.auth.getSession();
+
+      if (!session) {
+        return null;
+      }
+
+      // Try to get from localStorage first for performance
+      const userStr = localStorage.getItem('auth_user');
+      if (userStr) {
+        try {
+          return JSON.parse(userStr) as User;
+        } catch {
+          // If parsing fails, fetch from database
+        }
+      }
+
+      // Fetch from database
+      const { data: userData, error } = await supabase
+        .from('users')
+        .select('id, name, email, role')
+        .eq('id', session.user.id)
+        .single();
+
+      if (error || !userData) {
+        return null;
+      }
+
+      const user: User = {
+        id: userData.id,
+        name: userData.name,
+        email: userData.email,
+        role: userData.role,
+      };
+
+      localStorage.setItem('auth_user', JSON.stringify(user));
+      return user;
     } catch {
       return null;
     }
@@ -112,63 +177,30 @@ class ApiService {
   /**
    * Get current token
    */
-  getToken(): string | null {
-    return this.token;
-  }
-
-  /**
-   * Set authentication token
-   */
-  private setToken(token: string): void {
-    this.token = token;
-    localStorage.setItem('auth_token', token);
-  }
-
-  /**
-   * Set user data
-   */
-  private setUser(user: User): void {
-    localStorage.setItem('auth_user', JSON.stringify(user));
+  async getToken(): Promise<string | null> {
+    const { data: { session } } = await supabase.auth.getSession();
+    return session?.access_token || null;
   }
 
   /**
    * Logout user
    */
-  logout(): void {
-    this.token = null;
+  async logout(): Promise<void> {
+    await supabase.auth.signOut();
     localStorage.removeItem('auth_token');
     localStorage.removeItem('auth_user');
   }
 
   /**
-   * Make authenticated API request
-   */
-  async fetch(endpoint: string, options: RequestInit = {}): Promise<Response> {
-    const headers: HeadersInit = {
-      'Content-Type': 'application/json',
-      ...options.headers,
-    };
-
-    if (this.token) {
-      headers['Authorization'] = `Bearer ${this.token}`;
-    }
-
-    return fetch(`${API_BASE_URL}${endpoint}`, {
-      ...options,
-      headers,
-    });
-  }
-
-  /**
    * Check API health
    */
-  async checkHealth(): Promise<{ ok: boolean; postgres?: boolean; redis?: boolean }> {
+  async checkHealth(): Promise<{ ok: boolean; postgres?: boolean }> {
     try {
-      const response = await fetch(`${API_BASE_URL}/health`);
-      return await response.json();
+      const { error } = await supabase.from('users').select('id').limit(1);
+      return { ok: !error, postgres: !error };
     } catch (error) {
       console.error('Health check error:', error);
-      return { ok: false };
+      return { ok: false, postgres: false };
     }
   }
 
@@ -177,44 +209,113 @@ class ApiService {
   /**
    * Get available rounds for selling
    */
-  async getRounds() {
-    const response = await this.fetch('/rounds');
-    return await response.json();
+  async getRounds(): Promise<ApiResponse> {
+    try {
+      const { data, error } = await supabase
+        .from('rounds')
+        .select('*')
+        .eq('status', 'selling')
+        .eq('is_selling', true)
+        .order('starts_at', { ascending: true });
+
+      if (error) {
+        return { ok: false, error: error.message };
+      }
+
+      return { ok: true, data };
+    } catch (error: any) {
+      return { ok: false, error: error.message || 'Erro ao buscar rodadas' };
+    }
   }
 
   /**
    * Get live round
    */
-  async getLiveRound() {
-    const response = await this.fetch('/rounds/live');
-    return await response.json();
+  async getLiveRound(): Promise<ApiResponse> {
+    try {
+      const { data, error } = await supabase
+        .from('rounds')
+        .select('*')
+        .eq('status', 'drawing')
+        .order('drawing_started_at', { ascending: false })
+        .limit(1)
+        .single();
+
+      if (error) {
+        if (error.code === 'PGRST116') {
+          // No rows returned
+          return { ok: true, data: null };
+        }
+        return { ok: false, error: error.message };
+      }
+
+      return { ok: true, data };
+    } catch (error: any) {
+      return { ok: false, error: error.message || 'Erro ao buscar rodada ao vivo' };
+    }
   }
 
   /**
    * Get round by ID
    */
-  async getRound(id: number) {
-    const response = await this.fetch(`/rounds/${id}`);
-    return await response.json();
+  async getRound(id: number): Promise<ApiResponse> {
+    try {
+      const { data, error } = await supabase
+        .from('rounds')
+        .select('*')
+        .eq('id', id)
+        .single();
+
+      if (error) {
+        return { ok: false, error: error.message };
+      }
+
+      return { ok: true, data };
+    } catch (error: any) {
+      return { ok: false, error: error.message || 'Erro ao buscar rodada' };
+    }
   }
 
   /**
    * Get drawn numbers for a round
    */
-  async getDrawnNumbers(roundId: number) {
-    const response = await this.fetch(`/rounds/${roundId}/numbers`);
-    return await response.json();
+  async getDrawnNumbers(roundId: number): Promise<ApiResponse> {
+    try {
+      const { data, error } = await supabase
+        .from('rounds')
+        .select('drawn_numbers')
+        .eq('id', roundId)
+        .single();
+
+      if (error) {
+        return { ok: false, error: error.message };
+      }
+
+      return { ok: true, data: data.drawn_numbers || [] };
+    } catch (error: any) {
+      return { ok: false, error: error.message || 'Erro ao buscar números sorteados' };
+    }
   }
 
   /**
    * Create new round (admin only)
    */
-  async createRound(data: any) {
-    const response = await this.fetch('/rounds', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    });
-    return await response.json();
+  async createRound(data: any): Promise<ApiResponse> {
+    try {
+      const { data: round, error } = await supabase
+        .from('rounds')
+        .insert(data)
+        .select()
+        .single();
+
+      if (error) {
+        return { ok: false, error: error.message };
+      }
+
+      return { ok: true, data: round };
+    } catch (error: any) {
+      return { ok: false, error: error.message || 'Erro ao criar rodada' };
+    }
   }
 
   // ============ PURCHASES ============
@@ -232,30 +333,78 @@ class ApiService {
       phone?: string;
       cpf?: string;
     }
-  }) {
-    const response = await this.fetch('/purchases', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    });
-    return await response.json();
+  }): Promise<ApiResponse> {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+
+      const purchaseData = {
+        round_id: data.round_id,
+        quantity: data.quantity,
+        payment_method: data.payment_method,
+        user_id: user?.id || null,
+        customer_name: data.customer?.name || null,
+        customer_email: data.customer?.email || null,
+        customer_phone: data.customer?.phone || null,
+        customer_cpf: data.customer?.cpf || null,
+        payment_status: 'pending',
+      };
+
+      const { data: purchase, error } = await supabase
+        .from('purchases')
+        .insert(purchaseData)
+        .select()
+        .single();
+
+      if (error) {
+        return { ok: false, error: error.message };
+      }
+
+      return { ok: true, data: purchase };
+    } catch (error: any) {
+      return { ok: false, error: error.message || 'Erro ao criar compra' };
+    }
   }
 
   /**
    * Check purchase status
    */
-  async checkPurchaseStatus(purchaseId: string) {
-    const response = await this.fetch(`/purchases/${purchaseId}/check-status`, {
-      method: 'POST',
-    });
-    return await response.json();
+  async checkPurchaseStatus(purchaseId: string): Promise<ApiResponse> {
+    try {
+      const { data, error } = await supabase
+        .from('purchases')
+        .select('payment_status, pix_code, pix_qrcode')
+        .eq('id', purchaseId)
+        .single();
+
+      if (error) {
+        return { ok: false, error: error.message };
+      }
+
+      return { ok: true, data };
+    } catch (error: any) {
+      return { ok: false, error: error.message || 'Erro ao verificar status da compra' };
+    }
   }
 
   /**
    * Get purchase details
    */
-  async getPurchase(purchaseId: string) {
-    const response = await this.fetch(`/purchases/${purchaseId}`);
-    return await response.json();
+  async getPurchase(purchaseId: string): Promise<ApiResponse> {
+    try {
+      const { data, error } = await supabase
+        .from('purchases')
+        .select('*')
+        .eq('id', purchaseId)
+        .single();
+
+      if (error) {
+        return { ok: false, error: error.message };
+      }
+
+      return { ok: true, data };
+    } catch (error: any) {
+      return { ok: false, error: error.message || 'Erro ao buscar compra' };
+    }
   }
 
   // ============ CARDS ============
@@ -263,9 +412,26 @@ class ApiService {
   /**
    * Get card by code
    */
-  async getCard(code: string) {
-    const response = await this.fetch(`/cards/${code}`);
-    return await response.json();
+  async getCard(code: string): Promise<ApiResponse> {
+    try {
+      const { data, error } = await supabase
+        .from('cards')
+        .select(`
+          *,
+          round:rounds(number, type, status),
+          purchase:purchases(customer_name)
+        `)
+        .eq('code', code)
+        .single();
+
+      if (error) {
+        return { ok: false, error: error.message };
+      }
+
+      return { ok: true, data };
+    } catch (error: any) {
+      return { ok: false, error: error.message || 'Erro ao buscar cartela' };
+    }
   }
 
   // ============ SETTINGS ============
@@ -273,28 +439,62 @@ class ApiService {
   /**
    * Get public settings
    */
-  async getPublicSettings() {
-    const response = await fetch(`${API_BASE_URL}/settings/public`);
-    return await response.json();
+  async getPublicSettings(): Promise<ApiResponse> {
+    try {
+      const { data, error } = await supabase
+        .from('settings')
+        .select('*')
+        .eq('is_public', true);
+
+      if (error) {
+        return { ok: false, error: error.message };
+      }
+
+      return { ok: true, data };
+    } catch (error: any) {
+      return { ok: false, error: error.message || 'Erro ao buscar configurações' };
+    }
   }
 
   /**
    * Get all settings (admin only)
    */
-  async getSettings() {
-    const response = await this.fetch('/settings');
-    return await response.json();
+  async getSettings(): Promise<ApiResponse> {
+    try {
+      const { data, error } = await supabase
+        .from('settings')
+        .select('*');
+
+      if (error) {
+        return { ok: false, error: error.message };
+      }
+
+      return { ok: true, data };
+    } catch (error: any) {
+      return { ok: false, error: error.message || 'Erro ao buscar configurações' };
+    }
   }
 
   /**
    * Update setting (admin only)
    */
-  async updateSetting(key: string, value: any) {
-    const response = await this.fetch('/settings', {
-      method: 'PUT',
-      body: JSON.stringify({ key, value }),
-    });
-    return await response.json();
+  async updateSetting(key: string, value: any): Promise<ApiResponse> {
+    try {
+      const { data, error } = await supabase
+        .from('settings')
+        .update({ value })
+        .eq('key', key)
+        .select()
+        .single();
+
+      if (error) {
+        return { ok: false, error: error.message };
+      }
+
+      return { ok: true, data };
+    } catch (error: any) {
+      return { ok: false, error: error.message || 'Erro ao atualizar configuração' };
+    }
   }
 
   // ============ STATS ============
@@ -302,33 +502,119 @@ class ApiService {
   /**
    * Get admin statistics
    */
-  async getAdminStats() {
-    const response = await this.fetch('/stats/admin');
-    return await response.json();
+  async getAdminStats(): Promise<ApiResponse> {
+    try {
+      // This would need a database function or multiple queries
+      // For now, return a simple implementation
+      const { data: totalSales, error: salesError } = await supabase
+        .from('purchases')
+        .select('total_amount')
+        .eq('payment_status', 'paid');
+
+      if (salesError) {
+        return { ok: false, error: salesError.message };
+      }
+
+      const totalRevenue = totalSales?.reduce((sum, p) => sum + (p.total_amount || 0), 0) || 0;
+
+      return {
+        ok: true,
+        data: {
+          totalRevenue,
+          totalSales: totalSales?.length || 0,
+        },
+      };
+    } catch (error: any) {
+      return { ok: false, error: error.message || 'Erro ao buscar estatísticas' };
+    }
   }
 
   /**
    * Get TV mode data
    */
-  async getTVData(slug?: string) {
-    const response = await fetch(`${API_BASE_URL}/stats/tv`);
-    return await response.json();
+  async getTVData(slug?: string): Promise<ApiResponse> {
+    try {
+      // Get live round
+      const liveRoundResponse = await this.getLiveRound();
+
+      // Get recent winners (last 3)
+      const { data: winners, error: winnersError } = await supabase
+        .from('cards')
+        .select(`
+          *,
+          round:rounds(number),
+          purchase:purchases(customer_name)
+        `)
+        .eq('is_winner', true)
+        .order('created_at', { ascending: false })
+        .limit(3);
+
+      if (winnersError) {
+        return { ok: false, error: winnersError.message };
+      }
+
+      return {
+        ok: true,
+        data: {
+          liveRound: liveRoundResponse.data,
+          recentWinners: winners || [],
+        },
+      };
+    } catch (error: any) {
+      return { ok: false, error: error.message || 'Erro ao buscar dados da TV' };
+    }
   }
 
   /**
    * Get establishment stats
    */
-  async getEstablishmentStats() {
-    const response = await this.fetch('/stats/establishment');
-    return await response.json();
+  async getEstablishmentStats(): Promise<ApiResponse> {
+    try {
+      const user = await this.getUser();
+      if (!user) {
+        return { ok: false, error: 'Usuário não autenticado' };
+      }
+
+      const { data: establishment, error: estError } = await supabase
+        .from('establishments')
+        .select('balance, total_sales')
+        .eq('user_id', user.id)
+        .single();
+
+      if (estError) {
+        return { ok: false, error: estError.message };
+      }
+
+      return { ok: true, data: establishment };
+    } catch (error: any) {
+      return { ok: false, error: error.message || 'Erro ao buscar estatísticas' };
+    }
   }
 
   /**
    * Get manager stats
    */
-  async getManagerStats() {
-    const response = await this.fetch('/stats/manager');
-    return await response.json();
+  async getManagerStats(): Promise<ApiResponse> {
+    try {
+      const user = await this.getUser();
+      if (!user) {
+        return { ok: false, error: 'Usuário não autenticado' };
+      }
+
+      const { data: manager, error: mgrError } = await supabase
+        .from('managers')
+        .select('balance, total_commission')
+        .eq('user_id', user.id)
+        .single();
+
+      if (mgrError) {
+        return { ok: false, error: mgrError.message };
+      }
+
+      return { ok: true, data: manager };
+    } catch (error: any) {
+      return { ok: false, error: error.message || 'Erro ao buscar estatísticas' };
+    }
   }
 
   // ============ INTEGRATIONS ============
@@ -336,41 +622,59 @@ class ApiService {
   /**
    * Update gateway settings (admin only)
    */
-  async updateGatewaySettings(data: any) {
-    const response = await this.fetch('/settings/gateway', {
-      method: 'PUT',
-      body: JSON.stringify(data),
-    });
-    return await response.json();
+  async updateGatewaySettings(data: any): Promise<ApiResponse> {
+    try {
+      const { data: setting, error } = await supabase
+        .from('settings')
+        .update({ value: data })
+        .eq('key', 'gateway')
+        .select()
+        .single();
+
+      if (error) {
+        return { ok: false, error: error.message };
+      }
+
+      return { ok: true, data: setting };
+    } catch (error: any) {
+      return { ok: false, error: error.message || 'Erro ao atualizar gateway' };
+    }
   }
 
   /**
    * Update WhatsApp settings (admin only)
    */
-  async updateWhatsAppSettings(data: any) {
-    const response = await this.fetch('/settings/whatsapp', {
-      method: 'PUT',
-      body: JSON.stringify(data),
-    });
-    return await response.json();
+  async updateWhatsAppSettings(data: any): Promise<ApiResponse> {
+    try {
+      const { data: setting, error } = await supabase
+        .from('settings')
+        .update({ value: data })
+        .eq('key', 'whatsapp')
+        .select()
+        .single();
+
+      if (error) {
+        return { ok: false, error: error.message };
+      }
+
+      return { ok: true, data: setting };
+    } catch (error: any) {
+      return { ok: false, error: error.message || 'Erro ao atualizar WhatsApp' };
+    }
   }
 
   /**
    * Test WhatsApp connection
    */
-  async testWhatsApp() {
-    const response = await this.fetch('/settings/whatsapp/test', {
-      method: 'POST',
-    });
-    return await response.json();
+  async testWhatsApp(): Promise<ApiResponse> {
+    return { ok: false, error: 'Função não disponível no Supabase' };
   }
 
   /**
    * Get WhatsApp logs
    */
-  async getWhatsAppLogs() {
-    const response = await this.fetch('/whatsapp/logs');
-    return await response.json();
+  async getWhatsAppLogs(): Promise<ApiResponse> {
+    return { ok: true, data: [] };
   }
 
   // ============ MANAGERS ============
@@ -378,60 +682,167 @@ class ApiService {
   /**
    * Get all managers (admin only)
    */
-  async getManagers() {
-    const response = await this.fetch('/managers');
-    return await response.json();
+  async getManagers(): Promise<ApiResponse> {
+    try {
+      const { data, error } = await supabase
+        .from('managers')
+        .select(`
+          *,
+          user:users(name, email, whatsapp)
+        `)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        return { ok: false, error: error.message };
+      }
+
+      return { ok: true, data };
+    } catch (error: any) {
+      return { ok: false, error: error.message || 'Erro ao buscar gerentes' };
+    }
   }
 
   /**
    * Get manager by ID
    */
-  async getManager(id: number) {
-    const response = await this.fetch(`/managers/${id}`);
-    return await response.json();
+  async getManager(id: number): Promise<ApiResponse> {
+    try {
+      const { data, error } = await supabase
+        .from('managers')
+        .select(`
+          *,
+          user:users(name, email, whatsapp)
+        `)
+        .eq('id', id)
+        .single();
+
+      if (error) {
+        return { ok: false, error: error.message };
+      }
+
+      return { ok: true, data };
+    } catch (error: any) {
+      return { ok: false, error: error.message || 'Erro ao buscar gerente' };
+    }
   }
 
   /**
    * Create manager (admin only)
    */
-  async createManager(data: { name: string; cpf: string; whatsapp: string; email: string; password: string }) {
-    const response = await this.fetch('/managers', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    });
-    return await response.json();
+  async createManager(data: { name: string; cpf: string; whatsapp: string; email: string; password: string }): Promise<ApiResponse> {
+    try {
+      // First create user account
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email: data.email,
+        password: data.password,
+      });
+
+      if (authError) {
+        return { ok: false, error: authError.message };
+      }
+
+      if (!authData.user) {
+        return { ok: false, error: 'Erro ao criar usuário' };
+      }
+
+      // Then create user record
+      const { error: userError } = await supabase
+        .from('users')
+        .insert({
+          id: authData.user.id,
+          name: data.name,
+          email: data.email,
+          whatsapp: data.whatsapp,
+          cpf: data.cpf,
+          role: 'manager',
+        });
+
+      if (userError) {
+        return { ok: false, error: userError.message };
+      }
+
+      // Finally create manager record
+      const { data: manager, error: managerError } = await supabase
+        .from('managers')
+        .insert({
+          user_id: authData.user.id,
+          cpf: data.cpf,
+        })
+        .select()
+        .single();
+
+      if (managerError) {
+        return { ok: false, error: managerError.message };
+      }
+
+      return { ok: true, data: manager };
+    } catch (error: any) {
+      return { ok: false, error: error.message || 'Erro ao criar gerente' };
+    }
   }
 
   /**
    * Update manager (admin only)
    */
-  async updateManager(id: number, data: any) {
-    const response = await this.fetch(`/managers/${id}`, {
-      method: 'PUT',
-      body: JSON.stringify(data),
-    });
-    return await response.json();
+  async updateManager(id: number, data: any): Promise<ApiResponse> {
+    try {
+      const { data: manager, error } = await supabase
+        .from('managers')
+        .update(data)
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (error) {
+        return { ok: false, error: error.message };
+      }
+
+      return { ok: true, data: manager };
+    } catch (error: any) {
+      return { ok: false, error: error.message || 'Erro ao atualizar gerente' };
+    }
   }
 
   /**
    * Delete manager (admin only)
    */
-  async deleteManager(id: number) {
-    const response = await this.fetch(`/managers/${id}`, {
-      method: 'DELETE',
-    });
-    return await response.json();
+  async deleteManager(id: number): Promise<ApiResponse> {
+    try {
+      const { error } = await supabase
+        .from('managers')
+        .delete()
+        .eq('id', id);
+
+      if (error) {
+        return { ok: false, error: error.message };
+      }
+
+      return { ok: true, data: null };
+    } catch (error: any) {
+      return { ok: false, error: error.message || 'Erro ao deletar gerente' };
+    }
   }
 
   /**
    * Update manager KYC status (admin only)
    */
-  async updateManagerKYC(id: number, status: 'approved' | 'rejected') {
-    const response = await this.fetch(`/managers/${id}/kyc`, {
-      method: 'PUT',
-      body: JSON.stringify({ status }),
-    });
-    return await response.json();
+  async updateManagerKYC(id: number, status: 'approved' | 'rejected'): Promise<ApiResponse> {
+    try {
+      const { data, error } = await supabase
+        .from('managers')
+        .update({ kyc_status: status })
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (error) {
+        return { ok: false, error: error.message };
+      }
+
+      return { ok: true, data };
+    } catch (error: any) {
+      return { ok: false, error: error.message || 'Erro ao atualizar KYC' };
+    }
   }
 
   // ============ ESTABLISHMENTS ============
@@ -439,17 +850,50 @@ class ApiService {
   /**
    * Get all establishments (admin/manager)
    */
-  async getEstablishments() {
-    const response = await this.fetch('/establishments');
-    return await response.json();
+  async getEstablishments(): Promise<ApiResponse> {
+    try {
+      const { data, error } = await supabase
+        .from('establishments')
+        .select(`
+          *,
+          user:users(name, email),
+          manager:managers(user:users(name))
+        `)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        return { ok: false, error: error.message };
+      }
+
+      return { ok: true, data };
+    } catch (error: any) {
+      return { ok: false, error: error.message || 'Erro ao buscar estabelecimentos' };
+    }
   }
 
   /**
    * Get establishment by ID
    */
-  async getEstablishment(id: number) {
-    const response = await this.fetch(`/establishments/${id}`);
-    return await response.json();
+  async getEstablishment(id: number): Promise<ApiResponse> {
+    try {
+      const { data, error } = await supabase
+        .from('establishments')
+        .select(`
+          *,
+          user:users(name, email),
+          manager:managers(user:users(name))
+        `)
+        .eq('id', id)
+        .single();
+
+      if (error) {
+        return { ok: false, error: error.message };
+      }
+
+      return { ok: true, data };
+    } catch (error: any) {
+      return { ok: false, error: error.message || 'Erro ao buscar estabelecimento' };
+    }
   }
 
   /**
@@ -465,55 +909,147 @@ class ApiService {
     address: string;
     city: string;
     state: string;
-  }) {
-    const response = await this.fetch('/establishments', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    });
-    return await response.json();
+  }): Promise<ApiResponse> {
+    try {
+      // First create user account
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email: data.email,
+        password: data.password,
+      });
+
+      if (authError) {
+        return { ok: false, error: authError.message };
+      }
+
+      if (!authData.user) {
+        return { ok: false, error: 'Erro ao criar usuário' };
+      }
+
+      // Then create user record
+      const { error: userError } = await supabase
+        .from('users')
+        .insert({
+          id: authData.user.id,
+          name: data.name,
+          email: data.email,
+          phone: data.phone,
+          role: 'establishment',
+        });
+
+      if (userError) {
+        return { ok: false, error: userError.message };
+      }
+
+      // Finally create establishment record
+      const { data: establishment, error: estError } = await supabase
+        .from('establishments')
+        .insert({
+          user_id: authData.user.id,
+          manager_id: data.manager_id,
+          name: data.name,
+          cnpj: data.cnpj,
+          phone: data.phone,
+          address: data.address,
+          city: data.city,
+          state: data.state,
+        })
+        .select()
+        .single();
+
+      if (estError) {
+        return { ok: false, error: estError.message };
+      }
+
+      return { ok: true, data: establishment };
+    } catch (error: any) {
+      return { ok: false, error: error.message || 'Erro ao criar estabelecimento' };
+    }
   }
 
   /**
    * Update establishment (admin/manager)
    */
-  async updateEstablishment(id: number, data: any) {
-    const response = await this.fetch(`/establishments/${id}`, {
-      method: 'PUT',
-      body: JSON.stringify(data),
-    });
-    return await response.json();
+  async updateEstablishment(id: number, data: any): Promise<ApiResponse> {
+    try {
+      const { data: establishment, error } = await supabase
+        .from('establishments')
+        .update(data)
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (error) {
+        return { ok: false, error: error.message };
+      }
+
+      return { ok: true, data: establishment };
+    } catch (error: any) {
+      return { ok: false, error: error.message || 'Erro ao atualizar estabelecimento' };
+    }
   }
 
   /**
    * Delete establishment (admin only)
    */
-  async deleteEstablishment(id: number) {
-    const response = await this.fetch(`/establishments/${id}`, {
-      method: 'DELETE',
-    });
-    return await response.json();
+  async deleteEstablishment(id: number): Promise<ApiResponse> {
+    try {
+      const { error } = await supabase
+        .from('establishments')
+        .delete()
+        .eq('id', id);
+
+      if (error) {
+        return { ok: false, error: error.message };
+      }
+
+      return { ok: true, data: null };
+    } catch (error: any) {
+      return { ok: false, error: error.message || 'Erro ao deletar estabelecimento' };
+    }
   }
 
   /**
    * Update establishment KYC status (admin only)
    */
-  async updateEstablishmentKYC(id: number, status: 'approved' | 'rejected') {
-    const response = await this.fetch(`/establishments/${id}/kyc`, {
-      method: 'PUT',
-      body: JSON.stringify({ status }),
-    });
-    return await response.json();
+  async updateEstablishmentKYC(id: number, status: 'approved' | 'rejected'): Promise<ApiResponse> {
+    try {
+      const { data, error } = await supabase
+        .from('establishments')
+        .update({ kyc_status: status })
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (error) {
+        return { ok: false, error: error.message };
+      }
+
+      return { ok: true, data };
+    } catch (error: any) {
+      return { ok: false, error: error.message || 'Erro ao atualizar KYC' };
+    }
   }
 
   /**
    * Toggle establishment active status (admin only)
    */
-  async toggleEstablishmentActive(id: number, active: boolean) {
-    const response = await this.fetch(`/establishments/${id}/active`, {
-      method: 'PUT',
-      body: JSON.stringify({ active }),
-    });
-    return await response.json();
+  async toggleEstablishmentActive(id: number, active: boolean): Promise<ApiResponse> {
+    try {
+      const { data, error } = await supabase
+        .from('establishments')
+        .update({ is_active: active })
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (error) {
+        return { ok: false, error: error.message };
+      }
+
+      return { ok: true, data };
+    } catch (error: any) {
+      return { ok: false, error: error.message || 'Erro ao atualizar status' };
+    }
   }
 
   // ============ CHARITIES ============
@@ -521,9 +1057,21 @@ class ApiService {
   /**
    * Get all charities
    */
-  async getCharities() {
-    const response = await this.fetch('/charities');
-    return await response.json();
+  async getCharities(): Promise<ApiResponse> {
+    try {
+      const { data, error } = await supabase
+        .from('charities')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        return { ok: false, error: error.message };
+      }
+
+      return { ok: true, data };
+    } catch (error: any) {
+      return { ok: false, error: error.message || 'Erro ao buscar instituições' };
+    }
   }
 
   /**
@@ -536,43 +1084,93 @@ class ApiService {
     website?: string;
     instagram?: string;
     logo_url?: string;
-  }) {
-    const response = await this.fetch('/charities', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    });
-    return await response.json();
+  }): Promise<ApiResponse> {
+    try {
+      const { data: charity, error } = await supabase
+        .from('charities')
+        .insert(data)
+        .select()
+        .single();
+
+      if (error) {
+        return { ok: false, error: error.message };
+      }
+
+      return { ok: true, data: charity };
+    } catch (error: any) {
+      return { ok: false, error: error.message || 'Erro ao criar instituição' };
+    }
   }
 
   /**
    * Update charity (admin only)
    */
-  async updateCharity(id: number, data: any) {
-    const response = await this.fetch(`/charities/${id}`, {
-      method: 'PUT',
-      body: JSON.stringify(data),
-    });
-    return await response.json();
+  async updateCharity(id: number, data: any): Promise<ApiResponse> {
+    try {
+      const { data: charity, error } = await supabase
+        .from('charities')
+        .update(data)
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (error) {
+        return { ok: false, error: error.message };
+      }
+
+      return { ok: true, data: charity };
+    } catch (error: any) {
+      return { ok: false, error: error.message || 'Erro ao atualizar instituição' };
+    }
   }
 
   /**
    * Delete charity (admin only)
    */
-  async deleteCharity(id: number) {
-    const response = await this.fetch(`/charities/${id}`, {
-      method: 'DELETE',
-    });
-    return await response.json();
+  async deleteCharity(id: number): Promise<ApiResponse> {
+    try {
+      const { error } = await supabase
+        .from('charities')
+        .delete()
+        .eq('id', id);
+
+      if (error) {
+        return { ok: false, error: error.message };
+      }
+
+      return { ok: true, data: null };
+    } catch (error: any) {
+      return { ok: false, error: error.message || 'Erro ao deletar instituição' };
+    }
   }
 
   /**
    * Set charity as active (admin only)
    */
-  async setActiveCharity(id: number) {
-    const response = await this.fetch(`/charities/${id}/set-active`, {
-      method: 'PUT',
-    });
-    return await response.json();
+  async setActiveCharity(id: number): Promise<ApiResponse> {
+    try {
+      // First set all charities to inactive
+      await supabase
+        .from('charities')
+        .update({ is_active: false })
+        .neq('id', 0);
+
+      // Then set the selected one as active
+      const { data, error } = await supabase
+        .from('charities')
+        .update({ is_active: true })
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (error) {
+        return { ok: false, error: error.message };
+      }
+
+      return { ok: true, data };
+    } catch (error: any) {
+      return { ok: false, error: error.message || 'Erro ao ativar instituição' };
+    }
   }
 }
 
