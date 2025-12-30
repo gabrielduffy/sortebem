@@ -101,6 +101,16 @@ export default function EstablishmentDashboard() {
     }
   ];
 
+  if (loading) {
+    return (
+      <DashboardLayout userType="establishment" userName="Carregando..." notifications={0}>
+        <div className="flex items-center justify-center min-h-[400px]">
+          <div className="animate-spin w-12 h-12 border-4 border-primary border-t-transparent rounded-full" />
+        </div>
+      </DashboardLayout>
+    );
+  }
+
   return (
     <DashboardLayout
       userType="establishment"
@@ -193,8 +203,8 @@ export default function EstablishmentDashboard() {
         </div>
 
         <div className="space-y-6">
-          <QRCodeCard title="Link de Venda" subtitle="Compartilhe para vender cartelas" url={saleUrl} code={establishment.referralCode} />
-          <QRCodeCard title="Modo TV" subtitle="Exiba em telas do estabelecimento" url={tvUrl} code={establishment.slug} />
+          <QRCodeCard title="Link de Venda" subtitle="Compartilhe para vender cartelas" url={saleUrl} code={establishment?.referral_code || establishment?.code || '-'} />
+          <QRCodeCard title="Modo TV" subtitle="Exiba em telas do estabelecimento" url={tvUrl} code={establishment?.slug || '-'} />
 
           <div className="bg-card rounded-xl border border-border p-6">
             <h3 className="font-semibold text-foreground mb-4">Status da Conta</h3>
