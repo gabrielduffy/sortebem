@@ -6,6 +6,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
+import { apiService } from '@/services/api';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 
 export default function ManagerLogin() {
   const navigate = useNavigate();
@@ -14,6 +16,9 @@ export default function ManagerLogin() {
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({ email: '', password: '' });
   const [error, setError] = useState('');
+  const [resetEmail, setResetEmail] = useState('');
+  const [isResetModalOpen, setIsResetModalOpen] = useState(false);
+  const [resetLoading, setResetLoading] = useState(false);
 
   // Redirect if already authenticated as manager
   useEffect(() => {
@@ -54,6 +59,28 @@ export default function ManagerLogin() {
     }
   };
 
+  const handleResetPassword = async () => {
+    if (!resetEmail) {
+      toast({ title: 'E-mail obrigatório', description: 'Por favor, informe seu e-mail.', variant: 'destructive' });
+      return;
+    }
+
+    try {
+      setResetLoading(true);
+      const response = await apiService.requestPasswordReset(resetEmail);
+      if (response.ok) {
+        toast({ title: 'Solicitação enviada!', description: response.message });
+        setIsResetModalOpen(false);
+      } else {
+        toast({ title: 'Erro', description: response.error || 'Erro ao solicitar recuperação.', variant: 'destructive' });
+      }
+    } catch (error) {
+      toast({ title: 'Erro', description: 'Ocorreu um erro inesperado.', variant: 'destructive' });
+    } finally {
+      setResetLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-primary/10 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
@@ -81,7 +108,32 @@ export default function ManagerLogin() {
               <Input id="email" type="email" placeholder="seu@email.com" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} required />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="password">Senha</Label>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="password">Senha</Label>
+                <Dialog open={isResetModalOpen} onOpenChange={setIsResetModalOpen}>
+                  <DialogTrigger asChild>
+                    <button type="button" className="text-sm font-medium text-primary hover:text-primary/80">
+                      Esqueci minha senha
+                    </button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Recuperar Senha</DialogTitle>
+                      <DialogDescription>Informe seu e-mail para receber um link de recuperação.</DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4 py-4">
+                      <div className="space-y-2">
+                        <Label>E-mail</Label>
+                        <Input type="email" placeholder="seu@email.com" value={resetEmail} onChange={(e) => setResetEmail(e.target.value)} />
+                      </div>
+                    </div>
+                    <DialogFooter>
+                      <Button variant="outline" onClick={() => setIsResetModalOpen(false)}>Cancelar</Button>
+                      <Button onClick={handleResetPassword} disabled={resetLoading}>{resetLoading ? 'Enviando...' : 'Enviar Link'}</Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+              </div>
               <div className="relative">
                 <Input id="password" type={showPassword ? 'text' : 'password'} placeholder="••••••••" value={formData.password} onChange={(e) => setFormData({ ...formData, password: e.target.value })} required />
                 <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">

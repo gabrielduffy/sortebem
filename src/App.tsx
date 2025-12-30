@@ -12,6 +12,7 @@ import Checkout from "./pages/Checkout";
 import Redeem from "./pages/Redeem";
 import HowItWorks from "./pages/HowItWorks";
 import NotFound from "./pages/NotFound";
+import SejaParceiro from "./pages/SejaParceiro";
 // Demo Pages
 import DemoRodada from "./pages/demo/DemoRodada";
 import DemoCheckout from "./pages/demo/DemoCheckout";
@@ -65,6 +66,7 @@ const App = () => (
             <Route path="/tv/:slugEstabelecimento" element={<TVMode />} />
             <Route path="/resgatar" element={<Redeem />} />
             <Route path="/como-funciona" element={<HowItWorks />} />
+            <Route path="/seja-parceiro" element={<SejaParceiro />} />
 
             {/* Demo Pages (public) */}
             <Route path="/demo/rodada" element={<DemoRodada />} />

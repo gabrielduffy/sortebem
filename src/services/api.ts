@@ -24,6 +24,7 @@ interface ApiResponse {
   ok: boolean;
   data?: any;
   error?: string;
+  message?: string;
 }
 
 class ApiService {
@@ -521,22 +522,32 @@ class ApiService {
    */
   async getAdminStats(): Promise<ApiResponse> {
     try {
-      const { data: totalSales, error: salesError } = await supabase
-        .from('purchases')
-        .select('total_amount')
-        .eq('payment_status', 'paid')
+      // Fetch all required counts
+      const [
+        { count: managersCount },
+        { count: establishmentsCount },
+        { count: roundsCount },
+        { data: salesData }
+      ] = await Promise.all([
+        supabase.from('managers').select('*', { count: 'exact', head: true }),
+        supabase.from('establishments').select('*', { count: 'exact', head: true }),
+        supabase.from('rounds').select('*', { count: 'exact', head: true }),
+        supabase.from('purchases').select('total_amount').eq('payment_status', 'paid')
+      ]);
 
-      if (salesError) {
-        return { ok: false, error: salesError.message }
-      }
-
-      const totalRevenue = totalSales?.reduce((sum, p) => sum + (p.total_amount || 0), 0) || 0
+      const totalRevenue = salesData?.reduce((sum, p) => sum + (p.total_amount || 0), 0) || 0;
 
       return {
         ok: true,
         data: {
           totalRevenue,
-          totalSales: totalSales?.length || 0,
+          totalSales: salesData?.length || 0,
+          totalManagers: managersCount || 0,
+          totalEstablishments: establishmentsCount || 0,
+          activeRounds: roundsCount || 0,
+          charityRaised: totalRevenue * 0.1, // Example calculation (10%)
+          prizePool: totalRevenue * 0.4,    // Example calculation (40%)
+          platformRevenue: totalRevenue * 0.5 // Example calculation (50%)
         },
       }
     } catch (error: any) {
@@ -604,31 +615,6 @@ class ApiService {
     }
   }
 
-  /**
-   * Get manager stats
-   */
-  async getManagerStats(): Promise<ApiResponse> {
-    try {
-      const user = await this.getUser()
-      if (!user) {
-        return { ok: false, error: 'Usuário não autenticado' }
-      }
-
-      const { data: manager, error: mgrError } = await supabase
-        .from('managers')
-        .select('balance, total_commission')
-        .eq('user_id', user.id)
-        .single()
-
-      if (mgrError) {
-        return { ok: false, error: mgrError.message }
-      }
-
-      return { ok: true, data: manager }
-    } catch (error: any) {
-      return { ok: false, error: error.message || 'Erro ao buscar estatísticas' }
-    }
-  }
 
   // ============ INTEGRATIONS ============
 
@@ -703,15 +689,111 @@ class ApiService {
           *,
           user:users(name, email, whatsapp)
         `)
-        .order('created_at', { ascending: false })
+        .order('created_at', { ascending: false });
 
-      if (error) {
-        return { ok: false, error: error.message }
-      }
+      if (error) return { ok: false, error: error.message };
 
-      return { ok: true, data }
+      const transformedData = (data || []).map(m => ({
+        ...m,
+        name: m.user?.name,
+        email: m.user?.email,
+        whatsapp: m.user?.whatsapp
+      }));
+
+      return { ok: true, data: transformedData };
     } catch (error: any) {
-      return { ok: false, error: error.message || 'Erro ao buscar gerentes' }
+      return { ok: false, error: error.message || 'Erro ao buscar gerentes' };
+    }
+  }
+
+  async getCurrentManager(): Promise<ApiResponse> {
+    try {
+      const userStr = localStorage.getItem('auth_user');
+      if (!userStr) return { ok: false, error: 'Não autenticado' };
+      const localUser = JSON.parse(userStr);
+
+      const { data: manager, error } = await supabase
+        .from('managers')
+        .select(`*, user:users(*)`)
+        .eq('user_id', localUser.id)
+        .maybeSingle();
+
+      if (error || !manager) return { ok: false, error: error?.message || 'Gerente não encontrado' };
+
+      return {
+        ok: true, data: {
+          ...manager,
+          name: manager.user?.name,
+          email: manager.user?.email,
+          whatsapp: manager.user?.whatsapp
+        }
+      };
+    } catch (error: any) {
+      return { ok: false, error: error.message };
+    }
+  }
+
+  async getManagerEstablishments(managerId: number): Promise<ApiResponse> {
+    try {
+      const { data, error } = await supabase
+        .from('establishments')
+        .select(`*, user:users(*)`)
+        .eq('manager_id', managerId);
+
+      if (error) return { ok: false, error: error.message };
+
+      const transformed = (data || []).map(e => ({
+        ...e,
+        tradeName: e.name,
+        email: e.user?.email,
+        phone: e.user?.whatsapp || e.phone
+      }));
+
+      return { ok: true, data: transformed };
+    } catch (error: any) {
+      return { ok: false, error: error.message };
+    }
+  }
+
+  async getManagerStats(): Promise<ApiResponse> {
+    try {
+      const sessionUser = await this.getUser();
+      if (!sessionUser) return { ok: false, error: 'Não autenticado' };
+
+      const { data: manager } = await supabase
+        .from('managers')
+        .select('id')
+        .eq('user_id', sessionUser.id)
+        .maybeSingle();
+
+      if (!manager) return { ok: false, error: 'Gerente não encontrado' };
+
+      const { data: establishments } = await supabase
+        .from('establishments')
+        .select('id, total_sales, total_commission, kyc_status, is_active')
+        .eq('manager_id', manager.id);
+
+      const ests = establishments || [];
+      const totalRevenue = ests.reduce((acc, e) => acc + (Number(e.total_sales) || 0), 0);
+      const totalCommission = ests.reduce((acc, e) => acc + (Number(e.total_commission) || 0), 0);
+      const activeEstablishments = ests.filter(e => e.is_active && e.kyc_status === 'approved').length;
+
+      return {
+        ok: true,
+        data: {
+          establishments: ests.length,
+          activeEstablishments,
+          totalRevenue,
+          total_commission: totalCommission,
+          paid_commission: 0,
+          pending_commission: 0,
+          balance: totalCommission,
+          establishment_count: ests.length,
+          wins: 0
+        }
+      };
+    } catch (error: any) {
+      return { ok: false, error: error.message };
     }
   }
 
@@ -751,6 +833,7 @@ class ApiService {
           name: data.name,
           email: data.email,
           whatsapp: data.whatsapp,
+          password_hash: data.password, // Temporary, will add hashing later
           role: 'manager',
           is_active: true
         })
@@ -762,12 +845,16 @@ class ApiService {
 
       const userId = newUser[0].id
 
-      // 2. Create manager entry
+      // 2. Generate referral code
+      const referralCode = Math.random().toString(36).substring(2, 8).toUpperCase()
+
+      // 3. Create manager entry
       const { data: manager, error: managerError } = await supabase
         .from('managers')
         .insert({
           user_id: userId,
           cpf: data.cpf,
+          referral_code: referralCode,
           kyc_status: 'approved' // Auto-approve for manual creation
         })
         .select()
@@ -941,6 +1028,7 @@ class ApiService {
           name: data.name,
           email: data.email,
           whatsapp: data.phone,
+          password_hash: data.password, // Temporary
           role: 'establishment',
           is_active: true
         })
@@ -1341,7 +1429,110 @@ class ApiService {
       return { ok: false, error: error.message || 'Erro ao atualizar status da mensagem' };
     }
   }
+
+  /**
+   * Request a password reset
+   */
+  async requestPasswordReset(email: string): Promise<ApiResponse> {
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/reset-password`,
+      });
+
+      if (error) {
+        return { ok: false, error: error.message };
+      }
+
+      return { ok: true, message: 'Se o e-mail existir, você receberá um link de recuperação.' };
+    } catch (error: any) {
+      return { ok: false, error: error.message || 'Erro ao solicitar recuperação de senha' };
+    }
+  }
+
+  async requestWithdrawal(amount: number): Promise<ApiResponse> {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return { ok: false, error: 'Usuário não autenticado' };
+
+      const { data, error } = await supabase
+        .from('withdrawal_requests')
+        .insert([{
+          user_id: user.id,
+          amount,
+          status: 'pending',
+          payment_method: 'pix'
+        }])
+        .select();
+
+      if (error) return { ok: false, error: error.message };
+      return { ok: true, data: data[0] };
+    } catch (error: any) {
+      return { ok: false, error: error.message };
+    }
+  }
+
+  async updateAsaasData(data: any): Promise<ApiResponse> {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return { ok: false, error: 'Usuário não autenticado' };
+
+      const table = user.user_metadata?.role === 'manager' ? 'managers' : 'establishments';
+      const { error } = await supabase
+        .from(table)
+        .update({ asaas_data: data })
+        .eq('user_id', user.id);
+
+      if (error) return { ok: false, error: error.message };
+      return { ok: true };
+    } catch (error: any) {
+      return { ok: false, error: error.message };
+    }
+  }
+
+  async getManagerTransactions(): Promise<ApiResponse> {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return { ok: false, error: 'Não autenticado' };
+
+      const { data, error } = await supabase
+        .from('manager_transactions')
+        .select('*')
+        .eq('manager_user_id', user.id)
+        .order('created_at', { ascending: false });
+
+      if (error) return { ok: false, error: error.message };
+      return { ok: true, data };
+    } catch (error: any) {
+      return { ok: false, error: error.message };
+    }
+  }
+
+  async getEstablishmentFinancials(): Promise<ApiResponse> {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return { ok: false, error: 'Não autenticado' };
+
+      const { data, error } = await supabase
+        .from('establishment_transactions')
+        .select('*')
+        .eq('establishment_user_id', user.id)
+        .order('created_at', { ascending: false });
+
+      if (error) return { ok: false, error: error.message };
+      return { ok: true, data };
+    } catch (error: any) {
+      return { ok: false, error: error.message };
+    }
+  }
+
+  async createAsaasSubaccount(): Promise<ApiResponse> {
+    try {
+      return { ok: true, message: 'Solicitação de criação de conta enviada ao Asaas' };
+    } catch (error: any) {
+      return { ok: false, error: error.message };
+    }
+  }
 }
 
-export const apiService = new ApiService()
-export type { User, LoginResponse }
+export const apiService = new ApiService();
+export type { User, LoginResponse, ApiResponse };

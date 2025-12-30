@@ -10,6 +10,7 @@ import { DataTable } from '@/components/dashboard/DataTable';
 import { toast } from '@/hooks/use-toast';
 import { Plus, Eye, Check, X, Building2, ShoppingCart, Wallet, Pencil, Trash2 } from 'lucide-react';
 import { apiService } from '@/services/api';
+import { maskCNPJ, maskPhone } from '@/utils/masks';
 
 const emptyEstablishment = {
   id: 0,
@@ -242,11 +243,11 @@ export default function AdminEstablishments() {
               </div>
               <div className="space-y-2">
                 <Label>CNPJ</Label>
-                <Input value={formData.cnpj} onChange={e => setFormData(p => ({ ...p, cnpj: e.target.value }))} />
+                <Input value={formData.cnpj} onChange={e => setFormData(p => ({ ...p, cnpj: maskCNPJ(e.target.value) }))} maxLength={18} placeholder="00.000.000/0000-00" />
               </div>
               <div className="space-y-2">
                 <Label>WhatsApp</Label>
-                <Input value={formData.phone} onChange={e => setFormData(p => ({ ...p, phone: e.target.value }))} />
+                <Input value={formData.phone} onChange={e => setFormData(p => ({ ...p, phone: maskPhone(e.target.value) }))} maxLength={15} placeholder="(00) 00000-0000" />
               </div>
               <div className="space-y-2">
                 <Label>E-mail</Label>
@@ -277,11 +278,11 @@ export default function AdminEstablishments() {
               </div>
               <div className="space-y-2">
                 <Label>CNPJ</Label>
-                <Input value={formData.cnpj} onChange={e => setFormData(p => ({ ...p, cnpj: e.target.value }))} />
+                <Input value={formData.cnpj} onChange={e => setFormData(p => ({ ...p, cnpj: maskCNPJ(e.target.value) }))} maxLength={18} />
               </div>
               <div className="space-y-2">
                 <Label>WhatsApp</Label>
-                <Input value={formData.phone} onChange={e => setFormData(p => ({ ...p, phone: e.target.value }))} />
+                <Input value={formData.phone} onChange={e => setFormData(p => ({ ...p, phone: maskPhone(e.target.value) }))} maxLength={15} />
               </div>
               <div className="space-y-2">
                 <Label>E-mail</Label>

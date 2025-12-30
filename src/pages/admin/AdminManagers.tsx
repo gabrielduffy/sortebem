@@ -10,6 +10,7 @@ import { DataTable } from '@/components/dashboard/DataTable';
 import { toast } from '@/hooks/use-toast';
 import { Plus, Eye, Check, X, Users, Building2, Wallet, Pencil, Trash2 } from 'lucide-react';
 import { apiService } from '@/services/api';
+import { maskCPF, maskPhone } from '@/utils/masks';
 
 const emptyManager = { id: 0, name: '', cpf: '', whatsapp: '', email: '', password: '', kyc_status: 'pending', establishments_count: 0, total_commission: 0 };
 
@@ -226,11 +227,11 @@ export default function AdminManagers() {
               </div>
               <div className="space-y-2">
                 <Label>CPF</Label>
-                <Input value={formData.cpf} onChange={e => setFormData(p => ({ ...p, cpf: e.target.value }))} />
+                <Input value={formData.cpf} onChange={e => setFormData(p => ({ ...p, cpf: maskCPF(e.target.value) }))} maxLength={14} placeholder="000.000.000-00" />
               </div>
               <div className="space-y-2">
                 <Label>WhatsApp</Label>
-                <Input value={formData.whatsapp} onChange={e => setFormData(p => ({ ...p, whatsapp: e.target.value }))} />
+                <Input value={formData.whatsapp} onChange={e => setFormData(p => ({ ...p, whatsapp: maskPhone(e.target.value) }))} maxLength={15} placeholder="(00) 00000-0000" />
               </div>
               <div className="space-y-2">
                 <Label>E-mail</Label>
@@ -261,11 +262,11 @@ export default function AdminManagers() {
               </div>
               <div className="space-y-2">
                 <Label>CPF</Label>
-                <Input value={formData.cpf} onChange={e => setFormData(p => ({ ...p, cpf: e.target.value }))} />
+                <Input value={formData.cpf} onChange={e => setFormData(p => ({ ...p, cpf: maskCPF(e.target.value) }))} maxLength={14} />
               </div>
               <div className="space-y-2">
                 <Label>WhatsApp</Label>
-                <Input value={formData.whatsapp} onChange={e => setFormData(p => ({ ...p, whatsapp: e.target.value }))} />
+                <Input value={formData.whatsapp} onChange={e => setFormData(p => ({ ...p, whatsapp: maskPhone(e.target.value) }))} maxLength={15} />
               </div>
               <div className="space-y-2">
                 <Label>E-mail</Label>

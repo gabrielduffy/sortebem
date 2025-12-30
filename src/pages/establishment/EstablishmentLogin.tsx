@@ -6,6 +6,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
+import { apiService } from '@/services/api';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 
 export default function EstablishmentLogin() {
   const navigate = useNavigate();
@@ -17,6 +19,9 @@ export default function EstablishmentLogin() {
     password: '',
   });
   const [error, setError] = useState('');
+  const [resetEmail, setResetEmail] = useState('');
+  const [isResetModalOpen, setIsResetModalOpen] = useState(false);
+  const [resetLoading, setResetLoading] = useState(false);
 
   // Redirect if already authenticated as establishment
   useEffect(() => {
@@ -54,6 +59,28 @@ export default function EstablishmentLogin() {
       setError('Erro ao fazer login. Tente novamente.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleResetPassword = async () => {
+    if (!resetEmail) {
+      toast({ title: 'E-mail obrigatório', description: 'Por favor, informe seu e-mail.', variant: 'destructive' });
+      return;
+    }
+
+    try {
+      setResetLoading(true);
+      const response = await apiService.requestPasswordReset(resetEmail);
+      if (response.ok) {
+        toast({ title: 'Solicitação enviada!', description: response.message });
+        setIsResetModalOpen(false);
+      } else {
+        toast({ title: 'Erro', description: response.error || 'Erro ao solicitar recuperação.', variant: 'destructive' });
+      }
+    } catch (error) {
+      toast({ title: 'Erro', description: 'Ocorreu um erro inesperado.', variant: 'destructive' });
+    } finally {
+      setResetLoading(false);
     }
   };
 
@@ -121,7 +148,29 @@ export default function EstablishmentLogin() {
                 <input type="checkbox" className="rounded border-border" />
                 <span className="text-muted-foreground">Lembrar-me</span>
               </label>
-              <a href="#" className="text-primary hover:underline">Esqueci a senha</a>
+              <Dialog open={isResetModalOpen} onOpenChange={setIsResetModalOpen}>
+                <DialogTrigger asChild>
+                  <button type="button" className="text-primary hover:underline">
+                    Esqueci a senha
+                  </button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Recuperar Senha</DialogTitle>
+                    <DialogDescription>Informe seu e-mail para receber um link de recuperação.</DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-4 py-4">
+                    <div className="space-y-2">
+                      <Label>E-mail</Label>
+                      <Input type="email" placeholder="seu@email.com" value={resetEmail} onChange={(e) => setResetEmail(e.target.value)} />
+                    </div>
+                  </div>
+                  <DialogFooter>
+                    <Button variant="outline" onClick={() => setIsResetModalOpen(false)}>Cancelar</Button>
+                    <Button onClick={handleResetPassword} disabled={resetLoading}>{resetLoading ? 'Enviando...' : 'Enviar Link'}</Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
             </div>
 
             <Button type="submit" className="w-full" size="lg" disabled={loading}>

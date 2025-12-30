@@ -13,10 +13,28 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { toast } from '@/hooks/use-toast';
+import { apiService } from '@/services/api';
 import { mockEstablishment } from '@/services/mockData';
 
+interface EstablishmentProfileData {
+  cnpj: string;
+  companyName: string;
+  tradeName: string;
+  address: string;
+  legalRepName: string;
+  legalRepCpf: string;
+  whatsapp: string;
+  email: string;
+  pixKeyType: "cnpj" | "email" | "cpf" | "phone" | "random";
+  pixKey: string;
+  bankCode: string;
+  agency: string;
+  accountNumber: string;
+  accountType: 'CHECKING' | 'SAVINGS';
+}
+
 export default function EstablishmentProfile() {
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<EstablishmentProfileData>({
     cnpj: mockEstablishment.cnpj,
     companyName: mockEstablishment.companyName,
     tradeName: mockEstablishment.tradeName,
@@ -27,13 +45,34 @@ export default function EstablishmentProfile() {
     email: mockEstablishment.email,
     pixKeyType: mockEstablishment.pixKeyType,
     pixKey: mockEstablishment.pixKey,
+    bankCode: '',
+    agency: '',
+    accountNumber: '',
+    accountType: 'CHECKING'
   });
 
-  const handleSave = () => {
-    toast({
-      title: "Perfil atualizado!",
-      description: "Suas informações foram salvas com sucesso.",
-    });
+  const handleSave = async () => {
+    try {
+      const response = await apiService.updateAsaasData({
+        bankCode: formData.bankCode,
+        agency: formData.agency,
+        accountNumber: formData.accountNumber,
+        accountType: formData.accountType,
+        pixKey: formData.pixKey,
+        cnpj: formData.cnpj
+      });
+
+      if (response.ok) {
+        toast({
+          title: "Perfil atualizado!",
+          description: "Suas informações foram salvas com sucesso.",
+        });
+      } else {
+        toast({ title: "Erro ao salvar", description: response.error, variant: 'destructive' });
+      }
+    } catch (error) {
+      toast({ title: "Erro", description: "Ocorreu um erro ao salvar.", variant: 'destructive' });
+    }
   };
 
   return (
@@ -51,30 +90,28 @@ export default function EstablishmentProfile() {
       </div>
 
       {/* KYC Status Banner */}
-      <div className={`rounded-xl p-4 mb-6 flex items-center gap-4 ${
-        mockEstablishment.kycStatus === 'approved' 
-          ? 'bg-green-500/10 border border-green-500/20' 
-          : mockEstablishment.kycStatus === 'pending'
+      <div className={`rounded-xl p-4 mb-6 flex items-center gap-4 ${mockEstablishment.kycStatus === 'approved'
+        ? 'bg-green-500/10 border border-green-500/20'
+        : mockEstablishment.kycStatus === 'pending'
           ? 'bg-yellow-500/10 border border-yellow-500/20'
           : 'bg-red-500/10 border border-red-500/20'
-      }`}>
-        <Shield className={`h-8 w-8 ${
-          mockEstablishment.kycStatus === 'approved' ? 'text-green-600' :
+        }`}>
+        <Shield className={`h-8 w-8 ${mockEstablishment.kycStatus === 'approved' ? 'text-green-600' :
           mockEstablishment.kycStatus === 'pending' ? 'text-yellow-600' : 'text-red-600'
-        }`} />
+          }`} />
         <div className="flex-1">
           <p className="font-semibold text-foreground">
             Status KYC: {' '}
             <Badge variant={
               mockEstablishment.kycStatus === 'approved' ? 'default' :
-              mockEstablishment.kycStatus === 'pending' ? 'secondary' : 'destructive'
+                mockEstablishment.kycStatus === 'pending' ? 'secondary' : 'destructive'
             }>
               {mockEstablishment.kycStatus === 'approved' ? 'Aprovado' :
-               mockEstablishment.kycStatus === 'pending' ? 'Em Análise' : 'Reprovado'}
+                mockEstablishment.kycStatus === 'pending' ? 'Em Análise' : 'Reprovado'}
             </Badge>
           </p>
           <p className="text-sm text-muted-foreground">
-            {mockEstablishment.kycStatus === 'approved' 
+            {mockEstablishment.kycStatus === 'approved'
               ? 'Seu estabelecimento está verificado e habilitado para vendas.'
               : 'Complete todas as informações para aprovação.'}
           </p>
@@ -90,7 +127,7 @@ export default function EstablishmentProfile() {
             </div>
             <h3 className="font-semibold text-foreground">Dados da Empresa</h3>
           </div>
-          
+
           <div className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="cnpj">CNPJ *</Label>
@@ -128,7 +165,7 @@ export default function EstablishmentProfile() {
             </div>
             <h3 className="font-semibold text-foreground">Responsável Legal</h3>
           </div>
-          
+
           <div className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="legalRepName">Nome Completo *</Label>
@@ -176,7 +213,7 @@ export default function EstablishmentProfile() {
             </div>
             <h3 className="font-semibold text-foreground">Endereço</h3>
           </div>
-          
+
           <div className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="address">Endereço Completo *</Label>
@@ -190,19 +227,44 @@ export default function EstablishmentProfile() {
           </div>
         </div>
 
-        {/* Payment */}
+        {/* Payment & Asaas KYC */}
         <div className="bg-card rounded-xl border border-border p-6">
           <div className="flex items-center gap-3 mb-6">
             <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
               <CreditCard className="h-5 w-5 text-primary" />
             </div>
-            <h3 className="font-semibold text-foreground">Dados Bancários / PIX</h3>
+            <h3 className="font-semibold text-foreground">Dados Bancários (Asaas)</h3>
           </div>
-          
+
           <div className="space-y-4">
-            <div className="space-y-2">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Banco *</Label>
+                <Input placeholder="Cód: 001" value={formData.bankCode} onChange={(e) => setFormData({ ...formData, bankCode: e.target.value })} />
+              </div>
+              <div className="space-y-2">
+                <Label>Tipo de Conta *</Label>
+                <Select value={formData.accountType} onValueChange={(v) => setFormData({ ...formData, accountType: v as any })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="CHECKING">Corrente</SelectItem>
+                    <SelectItem value="SAVINGS">Poupança</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Agência *</Label>
+                <Input placeholder="0001" value={formData.agency} onChange={(e) => setFormData({ ...formData, agency: e.target.value })} />
+              </div>
+              <div className="space-y-2">
+                <Label>Conta e Dígito *</Label>
+                <Input placeholder="12345-6" value={formData.accountNumber} onChange={(e) => setFormData({ ...formData, accountNumber: e.target.value })} />
+              </div>
+            </div>
+
+            <div className="space-y-2 border-t pt-4">
               <Label htmlFor="pixKeyType">Tipo de Chave PIX *</Label>
-              <Select 
+              <Select
                 value={formData.pixKeyType}
                 onValueChange={(value) => setFormData({ ...formData, pixKeyType: value as any })}
               >
