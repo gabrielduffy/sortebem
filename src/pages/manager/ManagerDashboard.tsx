@@ -19,6 +19,7 @@ export default function ManagerDashboard() {
     commission: 0,
     wins: 0
   });
+  const [roundHistory, setRoundHistory] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -46,6 +47,11 @@ export default function ManagerDashboard() {
       if (statsResponse.ok) {
         setStats(statsResponse.data);
       }
+      // 4. Get round history
+      const roundRes = await apiService.getRoundHistorySummary();
+      if (roundRes.ok) {
+        setRoundHistory(roundRes.data || []);
+      }
     } catch (error) {
       console.error('Error loading manager dashboard:', error);
       toast({
@@ -70,6 +76,20 @@ export default function ManagerDashboard() {
       )
     },
     { key: 'is_active', label: 'Status', render: (e: any) => <Badge variant={e.is_active ? 'default' : 'outline'}>{e.is_active ? 'Ativo' : 'Inativo'}</Badge> },
+  ];
+
+  const roundColumns = [
+    { key: 'date', label: 'Data', render: (r: any) => new Date(r.date).toLocaleDateString('pt-BR') },
+    { key: 'establishment', label: 'Estabelecimento' },
+    { key: 'ticket', label: 'Cartela', render: (r: any) => <code className="bg-muted px-1.5 py-0.5 rounded text-xs font-mono">#{r.ticket}</code> },
+    { key: 'amount', label: 'Prêmio', render: (r: any) => <span className="font-bold text-foreground">R$ {(r.amount || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span> },
+    {
+      key: 'status', label: 'Resgate', render: (r: any) => (
+        <Badge variant={r.status === 'completed' ? 'default' : r.status === 'pending' ? 'secondary' : 'outline'}>
+          {r.status === 'completed' ? 'Pago' : r.status === 'pending' ? 'Pendente' : 'Não Solicitado'}
+        </Badge>
+      )
+    }
   ];
 
   const chartData = [
@@ -115,9 +135,19 @@ export default function ManagerDashboard() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2">
-          <h3 className="font-semibold text-foreground mb-4">Seus Estabelecimentos</h3>
-          <DataTable data={establishments} columns={columns} />
+        <div className="lg:col-span-2 space-y-8">
+          <div>
+            <h3 className="font-semibold text-foreground mb-4">Seus Estabelecimentos</h3>
+            <DataTable data={establishments} columns={columns} />
+          </div>
+
+          <div>
+            <h3 className="font-semibold text-foreground mb-4 flex items-center gap-2">
+              <Trophy className="w-5 h-5 text-primary" />
+              Histórico de Rodadas e Prêmios na Rede
+            </h3>
+            <DataTable data={roundHistory} columns={roundColumns} emptyMessage="Nenhum prêmio registrado na rede." />
+          </div>
         </div>
         <div>
           {manager && (

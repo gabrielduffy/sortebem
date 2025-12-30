@@ -10,7 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from '@/hooks/use-toast';
-import { Save, Eye, EyeOff, Copy, Check, Plug, MessageCircle, Webhook, CreditCard } from 'lucide-react';
+import { Save, Eye, EyeOff, Copy, Check, Plug, MessageCircle, Webhook, CreditCard, Mail, Send, FileText, Trash2, Plus } from 'lucide-react';
 import { apiService } from '@/services/api';
 
 export default function AdminIntegrations() {
@@ -51,6 +51,24 @@ export default function AdminIntegrations() {
   const [whatsappStatus, setWhatsappStatus] = useState<'connected' | 'disconnected'>('disconnected');
   const [whatsappLogs, setWhatsappLogs] = useState<any[]>([]);
 
+  // SMTP state
+  const [smtpConfig, setSmtpConfig] = useState({
+    enabled: false,
+    host: '',
+    port: '587',
+    user: '',
+    password: '',
+    fromName: 'Sortebem',
+    fromEmail: '',
+    secure: true
+  });
+  const [showSmtpPassword, setShowSmtpPassword] = useState(false);
+  const [testEmail, setTestEmail] = useState('');
+  const [emailTemplates, setEmailTemplates] = useState([
+    { id: '1', name: 'Recuperação de Senha', subject: 'Recuperação de Senha - Sortebem', content: 'Olá, clique aqui para resetar sua senha...' },
+    { id: '2', name: 'Boas-vindas', subject: 'Bem-vindo ao Sortebem!', content: 'Olá, seja bem-vindo...' }
+  ]);
+
   useEffect(() => {
     loadSettings();
   }, []);
@@ -78,6 +96,14 @@ export default function AdminIntegrations() {
         // Load WhatsApp settings
         if (settings.whatsapp) {
           setWhatsappConfig(settings.whatsapp);
+        }
+
+        // Load SMTP settings
+        if (settings.smtp) {
+          setSmtpConfig(settings.smtp);
+        }
+        if (settings.emailTemplates) {
+          setEmailTemplates(settings.emailTemplates);
         }
       }
     } catch (error) {
@@ -163,6 +189,44 @@ export default function AdminIntegrations() {
     }
   };
 
+  const handleSaveSMTP = async () => {
+    setSaving(true);
+    try {
+      const response = await apiService.updateSMTPSettings({
+        smtp: smtpConfig,
+        templates: emailTemplates
+      });
+
+      if (response.ok) {
+        toast({ title: 'Sucesso!', description: 'Configurações de E-mail (SMTP) salvas.' });
+      } else {
+        toast({ title: 'Erro', description: response.error || 'Erro ao salvar.', variant: 'destructive' });
+      }
+    } catch (error) {
+      toast({ title: 'Erro', description: 'Não foi possível salvar as configurações.', variant: 'destructive' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleTestSMTP = async () => {
+    if (!testEmail) {
+      toast({ title: 'E-mail necessário', description: 'Informe um e-mail para o teste.', variant: 'destructive' });
+      return;
+    }
+    toast({ title: 'Testando...', description: 'Enviando e-mail de teste.' });
+    try {
+      const response = await apiService.testSMTP(testEmail, smtpConfig);
+      if (response.ok) {
+        toast({ title: 'Sucesso!', description: 'E-mail de teste enviado.' });
+      } else {
+        toast({ title: 'Erro', description: response.error || 'Falha no envio.', variant: 'destructive' });
+      }
+    } catch (error) {
+      toast({ title: 'Erro', description: 'Erro ao testar SMTP.', variant: 'destructive' });
+    }
+  };
+
   const handleCopyWebhookUrl = (url: string) => {
     navigator.clipboard.writeText(url);
     setCopiedUrl(url);
@@ -189,14 +253,18 @@ export default function AdminIntegrations() {
         </div>
 
         <Tabs defaultValue="gateway" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="gateway">
               <CreditCard className="w-4 h-4 mr-2" />
-              Gateway de Pagamento
+              Pagamentos
             </TabsTrigger>
             <TabsTrigger value="whatsapp">
               <MessageCircle className="w-4 h-4 mr-2" />
               WhatsApp
+            </TabsTrigger>
+            <TabsTrigger value="smtp">
+              <Mail className="w-4 h-4 mr-2" />
+              E-mail (SMTP)
             </TabsTrigger>
             <TabsTrigger value="webhooks">
               <Webhook className="w-4 h-4 mr-2" />
@@ -643,6 +711,144 @@ export default function AdminIntegrations() {
                 </div>
               </CardContent>
             </Card>
+          </TabsContent>
+
+          {/* ABA 4: SMTP */}
+          <TabsContent value="smtp" className="space-y-4">
+            <div className="grid md:grid-cols-2 gap-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Mail className="w-5 h-5 text-primary" />
+                    Configurações SMTP
+                  </CardTitle>
+                  <CardDescription>Configure o servidor para envio de e-mails do sistema</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <Label>Ativado</Label>
+                    <Switch
+                      checked={smtpConfig.enabled}
+                      onCheckedChange={(checked) => setSmtpConfig({ ...smtpConfig, enabled: checked })}
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Host SMTP</Label>
+                      <Input
+                        value={smtpConfig.host}
+                        onChange={(e) => setSmtpConfig({ ...smtpConfig, host: e.target.value })}
+                        placeholder="smtp.exemplo.com"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Porta</Label>
+                      <Input
+                        value={smtpConfig.port}
+                        onChange={(e) => setSmtpConfig({ ...smtpConfig, port: e.target.value })}
+                        placeholder="587"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Usuário/E-mail</Label>
+                    <Input
+                      value={smtpConfig.user}
+                      onChange={(e) => setSmtpConfig({ ...smtpConfig, user: e.target.value })}
+                      placeholder="usuario@exemplo.com"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Senha</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        type={showSmtpPassword ? 'text' : 'password'}
+                        value={smtpConfig.password}
+                        onChange={(e) => setSmtpConfig({ ...smtpConfig, password: e.target.value })}
+                        placeholder="Senha do e-mail"
+                      />
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={() => setShowSmtpPassword(!showSmtpPassword)}
+                      >
+                        {showSmtpPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </Button>
+                    </div>
+                  </div>
+
+                  <hr className="my-4 border-border" />
+
+                  <div className="space-y-4">
+                    <Label>Teste de Envio</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        value={testEmail}
+                        onChange={(e) => setTestEmail(e.target.value)}
+                        placeholder="E-mail para teste"
+                      />
+                      <Button variant="outline" onClick={handleTestSMTP}>
+                        <Send className="w-4 h-4 mr-2" />
+                        Enviar
+                      </Button>
+                    </div>
+                  </div>
+
+                  <Button variant="hero" className="w-full" onClick={handleSaveSMTP} disabled={saving}>
+                    <Save className="w-4 h-4 mr-2" />
+                    {saving ? 'Salvando...' : 'Salvar Configurações'}
+                  </Button>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <FileText className="w-5 h-5 text-primary" />
+                    Templates de E-mail
+                  </CardTitle>
+                  <CardDescription>Gerencie o conteúdo dos e-mails enviados</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    {emailTemplates.map((template, idx) => (
+                      <div key={template.id} className="p-4 border border-border rounded-lg bg-muted/30 group">
+                        <div className="flex justify-between items-start mb-2">
+                          <div>
+                            <p className="font-semibold text-foreground text-sm">{template.name}</p>
+                            <p className="text-xs text-muted-foreground">{template.subject}</p>
+                          </div>
+                          <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <Button variant="ghost" size="icon" className="h-8 w-8">
+                              <Save className="h-4 w-4" />
+                            </Button>
+                            <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive">
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
+                        <Textarea
+                          defaultValue={template.content}
+                          className="text-xs bg-background h-24"
+                          onChange={(e) => {
+                            const newTemplates = [...emailTemplates];
+                            newTemplates[idx].content = e.target.value;
+                            setEmailTemplates(newTemplates);
+                          }}
+                        />
+                      </div>
+                    ))}
+                    <Button variant="outline" className="w-full border-dashed">
+                      <Plus className="w-4 h-4 mr-2" />
+                      Novo Template
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
           </TabsContent>
         </Tabs>
       </div>

@@ -49,6 +49,7 @@ interface DashboardLayoutProps {
 
 const adminNavItems: NavItem[] = [
   { label: 'Dashboard', href: '/admin', icon: LayoutDashboard },
+  { label: 'Financeiro', href: '/admin/financeiro', icon: Wallet },
   { label: 'Configurações', href: '/admin/configuracoes', icon: Settings },
   { label: 'Sorteio', href: '/admin/sorteio', icon: Dices },
   { label: 'Instituição do Mês', href: '/admin/instituicao', icon: Gift },
@@ -137,7 +138,7 @@ export const DashboardLayout = ({ children, userType, userName }: DashboardLayou
 
       {/* Mobile Sidebar Overlay */}
       {sidebarOpen && (
-        <div 
+        <div
           className="lg:hidden fixed inset-0 bg-black/50 z-50"
           onClick={() => setSidebarOpen(false)}
         />
@@ -183,8 +184,8 @@ export const DashboardLayout = ({ children, userType, userName }: DashboardLayou
                   onClick={() => setSidebarOpen(false)}
                   className={cn(
                     "flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors",
-                    isActive 
-                      ? "bg-primary text-primary-foreground" 
+                    isActive
+                      ? "bg-primary text-primary-foreground"
                       : "text-foreground hover:bg-muted"
                   )}
                 >
@@ -202,8 +203,8 @@ export const DashboardLayout = ({ children, userType, userName }: DashboardLayou
 
           {/* Sidebar Footer */}
           <div className="p-4 border-t border-border">
-            <Button 
-              variant="ghost" 
+            <Button
+              variant="ghost"
               className="w-full justify-start gap-3 text-muted-foreground hover:text-destructive"
               onClick={handleLogout}
             >
