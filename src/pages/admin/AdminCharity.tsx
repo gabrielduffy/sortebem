@@ -17,7 +17,7 @@ export default function AdminCharity() {
   const [saving, setSaving] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingCharity, setEditingCharity] = useState<any>(null);
-  const [form, setForm] = useState({ name: '', description: '', logo: '' });
+  const [form, setForm] = useState({ name: '', description: '', logo_url: '', pix_key: '' });
 
   useEffect(() => {
     fetchCharities();
@@ -55,14 +55,15 @@ export default function AdminCharity() {
         const response = await apiService.updateCharity(editingCharity.id, {
           name: form.name,
           description: form.description,
-          logo: form.logo
+          logo_url: form.logo_url,
+          pix_key: form.pix_key
         });
 
         if (response.ok) {
           toast({ title: 'Instituição atualizada!', description: 'Os dados foram atualizados com sucesso.' });
           setIsDialogOpen(false);
           setEditingCharity(null);
-          setForm({ name: '', description: '', logo: '' });
+          setForm({ name: '', description: '', logo_url: '', pix_key: '' });
           fetchCharities();
         } else {
           toast({ title: 'Erro', description: response.error || 'Erro ao atualizar instituição.', variant: 'destructive' });
@@ -71,13 +72,14 @@ export default function AdminCharity() {
         const response = await apiService.createCharity({
           name: form.name,
           description: form.description,
-          logo: form.logo
+          logo_url: form.logo_url,
+          pix_key: form.pix_key
         });
 
         if (response.ok) {
           toast({ title: 'Instituição cadastrada!', description: 'A nova instituição foi cadastrada com sucesso.' });
           setIsDialogOpen(false);
-          setForm({ name: '', description: '', logo: '' });
+          setForm({ name: '', description: '', logo_url: '', pix_key: '' });
           fetchCharities();
         } else {
           toast({ title: 'Erro', description: response.error || 'Erro ao criar instituição.', variant: 'destructive' });
@@ -120,7 +122,7 @@ export default function AdminCharity() {
 
   const openEdit = (charity: any) => {
     setEditingCharity(charity);
-    setForm({ name: charity.name, description: charity.description, logo: charity.logo });
+    setForm({ name: charity.name, description: charity.description, logo_url: charity.logo_url, pix_key: charity.pix_key || '' });
     setIsDialogOpen(true);
   };
 
@@ -136,7 +138,7 @@ export default function AdminCharity() {
           </div>
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
-              <Button variant="hero" onClick={() => { setEditingCharity(null); setForm({ name: '', description: '', logo: '' }); }}>
+              <Button variant="hero" onClick={() => { setEditingCharity(null); setForm({ name: '', description: '', logo_url: '', pix_key: '' }); }}>
                 <Plus className="w-4 h-4" />
                 Nova Instituição
               </Button>
@@ -157,7 +159,11 @@ export default function AdminCharity() {
                 </div>
                 <div>
                   <Label>URL do Logo</Label>
-                  <Input value={form.logo} onChange={(e) => setForm(p => ({ ...p, logo: e.target.value }))} placeholder="https://..." />
+                  <Input value={form.logo_url} onChange={(e) => setForm(p => ({ ...p, logo_url: e.target.value }))} placeholder="https://..." />
+                </div>
+                <div>
+                  <Label>Chave PIX</Label>
+                  <Input value={form.pix_key} onChange={(e) => setForm(p => ({ ...p, pix_key: e.target.value }))} placeholder="00.000.000/0001-00" />
                 </div>
               </div>
               <DialogFooter>
@@ -255,11 +261,11 @@ export default function AdminCharity() {
                     </Button>
                     <Button variant="ghost" size="sm" className="text-destructive" onClick={() => handleDelete(charity.id)}>
                       <Trash2 className="w-4 h-4" />
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
           </div>
         )}
       </div>

@@ -114,10 +114,7 @@ export default function AdminManagers() {
     try {
       setSaving(true);
       const response = await apiService.updateManager(editingManager.id, {
-        name: formData.name,
-        cpf: formData.cpf,
-        whatsapp: formData.whatsapp,
-        email: formData.email
+        cpf: formData.cpf
       });
 
       if (response.ok) {
@@ -158,29 +155,33 @@ export default function AdminManagers() {
   const formatCurrency = (value: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 
   const columns = [
-    { key: 'name', label: 'Nome Completo', render: (m: any) => m.name || 'Sem nome' },
+    { key: 'name', label: 'Nome Completo', render: (m: any) => m.name || m.user?.name || 'Sem nome' },
     { key: 'cpf', label: 'CPF', render: (m: any) => m.cpf || '-' },
-    { key: 'whatsapp', label: 'WhatsApp', render: (m: any) => m.whatsapp || '-' },
+    { key: 'whatsapp', label: 'WhatsApp', render: (m: any) => m.whatsapp || m.user?.whatsapp || '-' },
     { key: 'establishments_count', label: 'Estabelecimentos', render: (m: any) => m.establishments_count || 0 },
     { key: 'total_commission', label: 'Comissão Total', render: (m: any) => formatCurrency(m.total_commission || 0) },
-    { key: 'kyc_status', label: 'KYC', render: (m: any) => (
-      <Badge variant={m.kyc_status === 'approved' ? 'default' : m.kyc_status === 'pending' ? 'secondary' : 'destructive'}>
-        {m.kyc_status === 'approved' ? 'Aprovado' : m.kyc_status === 'pending' ? 'Pendente' : 'Reprovado'}
-      </Badge>
-    )},
-    { key: 'actions', label: 'Ações', render: (m: any) => (
-      <div className="flex gap-1">
-        <Button variant="ghost" size="sm" onClick={() => setViewingManager(m)}><Eye className="w-4 h-4" /></Button>
-        <Button variant="ghost" size="sm" onClick={() => openEdit(m)}><Pencil className="w-4 h-4" /></Button>
-        <Button variant="ghost" size="sm" className="text-destructive" onClick={() => setDeleteConfirm(m.id)}><Trash2 className="w-4 h-4" /></Button>
-        {m.kyc_status === 'pending' && (
-          <>
-            <Button variant="ghost" size="sm" className="text-success" onClick={() => handleApproveKYC(m.id)}><Check className="w-4 h-4" /></Button>
-            <Button variant="ghost" size="sm" className="text-destructive" onClick={() => handleRejectKYC(m.id)}><X className="w-4 h-4" /></Button>
-          </>
-        )}
-      </div>
-    )}
+    {
+      key: 'kyc_status', label: 'KYC', render: (m: any) => (
+        <Badge variant={m.kyc_status === 'approved' ? 'default' : m.kyc_status === 'pending' ? 'secondary' : 'destructive'}>
+          {m.kyc_status === 'approved' ? 'Aprovado' : m.kyc_status === 'pending' ? 'Pendente' : 'Reprovado'}
+        </Badge>
+      )
+    },
+    {
+      key: 'actions', label: 'Ações', render: (m: any) => (
+        <div className="flex gap-1">
+          <Button variant="ghost" size="sm" onClick={() => setViewingManager(m)}><Eye className="w-4 h-4" /></Button>
+          <Button variant="ghost" size="sm" onClick={() => openEdit(m)}><Pencil className="w-4 h-4" /></Button>
+          <Button variant="ghost" size="sm" className="text-destructive" onClick={() => setDeleteConfirm(m.id)}><Trash2 className="w-4 h-4" /></Button>
+          {m.kyc_status === 'pending' && (
+            <>
+              <Button variant="ghost" size="sm" className="text-success" onClick={() => handleApproveKYC(m.id)}><Check className="w-4 h-4" /></Button>
+              <Button variant="ghost" size="sm" className="text-destructive" onClick={() => handleRejectKYC(m.id)}><X className="w-4 h-4" /></Button>
+            </>
+          )}
+        </div>
+      )
+    }
   ];
 
   return (
@@ -278,26 +279,26 @@ export default function AdminManagers() {
         {/* View Dialog */}
         <Dialog open={!!viewingManager} onOpenChange={() => setViewingManager(null)}>
           <DialogContent className="max-w-2xl"><DialogHeader><DialogTitle>Detalhes do Gerente</DialogTitle></DialogHeader>
-          {viewingManager && (
-            <div className="grid md:grid-cols-2 gap-4 py-4">
-              <div><Label className="text-muted-foreground">Nome Completo</Label><p className="font-medium">{viewingManager.name || 'Sem nome'}</p></div>
-              <div><Label className="text-muted-foreground">CPF</Label><p className="font-medium">{viewingManager.cpf || '-'}</p></div>
-              <div><Label className="text-muted-foreground">WhatsApp</Label><p className="font-medium">{viewingManager.whatsapp || '-'}</p></div>
-              <div><Label className="text-muted-foreground">E-mail</Label><p className="font-medium">{viewingManager.email || '-'}</p></div>
-              <div><Label className="text-muted-foreground">Código de Indicação</Label><p className="font-medium text-primary">{viewingManager.referral_code || 'N/A'}</p></div>
-              <div><Label className="text-muted-foreground">Status KYC</Label><Badge variant={viewingManager.kyc_status === 'approved' ? 'default' : viewingManager.kyc_status === 'pending' ? 'secondary' : 'destructive'}>{viewingManager.kyc_status === 'approved' ? 'Aprovado' : viewingManager.kyc_status === 'pending' ? 'Pendente' : 'Reprovado'}</Badge></div>
-              <div><Label className="text-muted-foreground">Estabelecimentos</Label><p className="font-medium">{viewingManager.establishments_count || 0}</p></div>
-              <div><Label className="text-muted-foreground">Comissão Total</Label><p className="font-medium text-primary">{formatCurrency(viewingManager.total_commission || 0)}</p></div>
-            </div>
-          )}
-          <DialogFooter><Button variant="outline" onClick={() => setViewingManager(null)}>Fechar</Button>
-          {viewingManager?.kyc_status === 'pending' && (<><Button variant="destructive" onClick={() => { handleRejectKYC(viewingManager.id); setViewingManager(null); }}>Reprovar</Button><Button onClick={() => { handleApproveKYC(viewingManager.id); setViewingManager(null); }}>Aprovar KYC</Button></>)}</DialogFooter></DialogContent>
+            {viewingManager && (
+              <div className="grid md:grid-cols-2 gap-4 py-4">
+                <div><Label className="text-muted-foreground">Nome Completo</Label><p className="font-medium">{viewingManager.name || viewingManager.user?.name || 'Sem nome'}</p></div>
+                <div><Label className="text-muted-foreground">CPF</Label><p className="font-medium">{viewingManager.cpf || '-'}</p></div>
+                <div><Label className="text-muted-foreground">WhatsApp</Label><p className="font-medium">{viewingManager.whatsapp || viewingManager.user?.whatsapp || '-'}</p></div>
+                <div><Label className="text-muted-foreground">E-mail</Label><p className="font-medium">{viewingManager.email || viewingManager.user?.email || '-'}</p></div>
+                <div><Label className="text-muted-foreground">Código de Indicação</Label><p className="font-medium text-primary">{viewingManager.referral_code || 'N/A'}</p></div>
+                <div><Label className="text-muted-foreground">Status KYC</Label><Badge variant={viewingManager.kyc_status === 'approved' ? 'default' : viewingManager.kyc_status === 'pending' ? 'secondary' : 'destructive'}>{viewingManager.kyc_status === 'approved' ? 'Aprovado' : viewingManager.kyc_status === 'pending' ? 'Pendente' : 'Reprovado'}</Badge></div>
+                <div><Label className="text-muted-foreground">Estabelecimentos</Label><p className="font-medium">{viewingManager.establishments_count || 0}</p></div>
+                <div><Label className="text-muted-foreground">Comissão Total</Label><p className="font-medium text-primary">{formatCurrency(viewingManager.total_commission || 0)}</p></div>
+              </div>
+            )}
+            <DialogFooter><Button variant="outline" onClick={() => setViewingManager(null)}>Fechar</Button>
+              {viewingManager?.kyc_status === 'pending' && (<><Button variant="destructive" onClick={() => { handleRejectKYC(viewingManager.id); setViewingManager(null); }}>Reprovar</Button><Button onClick={() => { handleApproveKYC(viewingManager.id); setViewingManager(null); }}>Aprovar KYC</Button></>)}</DialogFooter></DialogContent>
         </Dialog>
 
         {/* Delete Confirm */}
         <Dialog open={!!deleteConfirm} onOpenChange={() => setDeleteConfirm(null)}>
           <DialogContent><DialogHeader><DialogTitle>Confirmar Exclusão</DialogTitle><DialogDescription>Tem certeza que deseja excluir este gerente? Esta ação não pode ser desfeita.</DialogDescription></DialogHeader>
-          <DialogFooter><Button variant="outline" onClick={() => setDeleteConfirm(null)}>Cancelar</Button><Button variant="destructive" onClick={() => deleteConfirm && handleDelete(deleteConfirm)}>Excluir</Button></DialogFooter></DialogContent>
+            <DialogFooter><Button variant="outline" onClick={() => setDeleteConfirm(null)}>Cancelar</Button><Button variant="destructive" onClick={() => deleteConfirm && handleDelete(deleteConfirm)}>Excluir</Button></DialogFooter></DialogContent>
         </Dialog>
       </div>
     </DashboardLayout>

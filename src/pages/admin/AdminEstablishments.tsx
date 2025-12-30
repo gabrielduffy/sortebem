@@ -13,9 +13,9 @@ import { apiService } from '@/services/api';
 
 const emptyEstablishment = {
   id: 0,
-  trade_name: '',
+  name: '',
   cnpj: '',
-  whatsapp: '',
+  phone: '',
   email: '',
   password: '',
   manager_id: null,
@@ -89,7 +89,7 @@ export default function AdminEstablishments() {
   };
 
   const handleCreate = async () => {
-    if (!formData.trade_name || !formData.cnpj || !formData.email || !formData.password) {
+    if (!formData.name || !formData.cnpj || !formData.email || !formData.password) {
       toast({ title: 'Campos obrigatórios', description: 'Preencha todos os campos.', variant: 'destructive' });
       return;
     }
@@ -97,12 +97,15 @@ export default function AdminEstablishments() {
     try {
       setSaving(true);
       const response = await apiService.createEstablishment({
-        trade_name: formData.trade_name,
+        name: formData.name,
         cnpj: formData.cnpj,
-        whatsapp: formData.whatsapp,
+        phone: formData.phone,
         email: formData.email,
         password: formData.password,
-        manager_id: formData.manager_id
+        manager_id: formData.manager_id,
+        address: '',
+        city: '',
+        state: ''
       });
 
       if (response.ok) {
@@ -121,7 +124,7 @@ export default function AdminEstablishments() {
   };
 
   const handleEdit = async () => {
-    if (!formData.trade_name || !formData.cnpj || !formData.email) {
+    if (!formData.name || !formData.cnpj || !formData.email) {
       toast({ title: 'Campos obrigatórios', description: 'Preencha todos os campos.', variant: 'destructive' });
       return;
     }
@@ -129,10 +132,9 @@ export default function AdminEstablishments() {
     try {
       setSaving(true);
       const response = await apiService.updateEstablishment(editingEstablishment.id, {
-        trade_name: formData.trade_name,
+        name: formData.name,
         cnpj: formData.cnpj,
-        whatsapp: formData.whatsapp,
-        email: formData.email
+        phone: formData.phone
       });
 
       if (response.ok) {
@@ -173,9 +175,9 @@ export default function AdminEstablishments() {
   const formatCurrency = (value: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 
   const columns = [
-    { key: 'trade_name', label: 'Nome Fantasia', render: (e: any) => e.trade_name || 'Sem nome' },
+    { key: 'name', label: 'Nome Fantasia', render: (e: any) => e.name || 'Sem nome' },
     { key: 'cnpj', label: 'CNPJ', render: (e: any) => e.cnpj || '-' },
-    { key: 'manager_name', label: 'Gerente', render: (e: any) => e.manager_name || '-' },
+    { key: 'manager_name', label: 'Gerente', render: (e: any) => e.manager_name || (e.manager?.user?.name) || '-' },
     { key: 'total_sales', label: 'Vendas', render: (e: any) => formatCurrency(e.total_sales || 0) },
     { key: 'total_commission', label: 'Comissão', render: (e: any) => formatCurrency(e.total_commission || 0) },
     {
@@ -235,7 +237,7 @@ export default function AdminEstablishments() {
             <div className="grid md:grid-cols-2 gap-4 py-4">
               <div className="space-y-2">
                 <Label>Nome Fantasia</Label>
-                <Input value={formData.trade_name} onChange={e => setFormData(p => ({ ...p, trade_name: e.target.value }))} />
+                <Input value={formData.name} onChange={e => setFormData(p => ({ ...p, name: e.target.value }))} />
               </div>
               <div className="space-y-2">
                 <Label>CNPJ</Label>
@@ -243,7 +245,7 @@ export default function AdminEstablishments() {
               </div>
               <div className="space-y-2">
                 <Label>WhatsApp</Label>
-                <Input value={formData.whatsapp} onChange={e => setFormData(p => ({ ...p, whatsapp: e.target.value }))} />
+                <Input value={formData.phone} onChange={e => setFormData(p => ({ ...p, phone: e.target.value }))} />
               </div>
               <div className="space-y-2">
                 <Label>E-mail</Label>
@@ -270,7 +272,7 @@ export default function AdminEstablishments() {
             <div className="grid md:grid-cols-2 gap-4 py-4">
               <div className="space-y-2">
                 <Label>Nome Fantasia</Label>
-                <Input value={formData.trade_name} onChange={e => setFormData(p => ({ ...p, trade_name: e.target.value }))} />
+                <Input value={formData.name} onChange={e => setFormData(p => ({ ...p, name: e.target.value }))} />
               </div>
               <div className="space-y-2">
                 <Label>CNPJ</Label>
@@ -278,7 +280,7 @@ export default function AdminEstablishments() {
               </div>
               <div className="space-y-2">
                 <Label>WhatsApp</Label>
-                <Input value={formData.whatsapp} onChange={e => setFormData(p => ({ ...p, whatsapp: e.target.value }))} />
+                <Input value={formData.phone} onChange={e => setFormData(p => ({ ...p, phone: e.target.value }))} />
               </div>
               <div className="space-y-2">
                 <Label>E-mail</Label>
@@ -298,10 +300,10 @@ export default function AdminEstablishments() {
             {viewingEstablishment && (
               <div className="space-y-6 py-4">
                 <div className="grid md:grid-cols-2 gap-4">
-                  <div><Label className="text-muted-foreground">Nome Fantasia</Label><p className="font-medium">{viewingEstablishment.trade_name || 'Sem nome'}</p></div>
+                  <div><Label className="text-muted-foreground">Nome Fantasia</Label><p className="font-medium">{viewingEstablishment.name || 'Sem nome'}</p></div>
                   <div><Label className="text-muted-foreground">CNPJ</Label><p className="font-medium">{viewingEstablishment.cnpj || '-'}</p></div>
-                  <div><Label className="text-muted-foreground">WhatsApp</Label><p className="font-medium">{viewingEstablishment.whatsapp || '-'}</p></div>
-                  <div><Label className="text-muted-foreground">E-mail</Label><p className="font-medium">{viewingEstablishment.email || '-'}</p></div>
+                  <div><Label className="text-muted-foreground">WhatsApp</Label><p className="font-medium">{viewingEstablishment.phone || '-'}</p></div>
+                  <div><Label className="text-muted-foreground">E-mail</Label><p className="font-medium">{viewingEstablishment.user?.email || viewingEstablishment.email || '-'}</p></div>
                   <div><Label className="text-muted-foreground">Gerente</Label><p className="font-medium">{viewingEstablishment.manager_name || '-'}</p></div>
                   <div><Label className="text-muted-foreground">Vendas</Label><p className="font-medium text-primary">{formatCurrency(viewingEstablishment.total_sales || 0)}</p></div>
                   <div><Label className="text-muted-foreground">Comissão</Label><p className="font-medium text-primary">{formatCurrency(viewingEstablishment.total_commission || 0)}</p></div>
