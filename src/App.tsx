@@ -58,8 +58,11 @@ const App = () => (
             {/* Public */}
             <Route path="/" element={<Index />} />
             <Route path="/c/:codigo" element={<CardView />} />
-            <Route path="/tv/:slugEstabelecimento" element={<TVMode />} />
             <Route path="/checkout" element={<Checkout />} />
+            <Route path="/est/:code" element={<Checkout />} />
+            <Route path="/comprar" element={<Checkout />} />
+            <Route path="/tv/:code" element={<TVMode />} />
+            <Route path="/tv/:slugEstabelecimento" element={<TVMode />} />
             <Route path="/resgatar" element={<Redeem />} />
             <Route path="/como-funciona" element={<HowItWorks />} />
 

@@ -120,7 +120,7 @@ class ApiService {
   async isAuthenticated(): Promise<boolean> {
     const token = localStorage.getItem('auth_token')
     if (!token) return false
-    
+
     try {
       const decoded = JSON.parse(atob(token))
       return decoded.exp > Date.now()
@@ -291,6 +291,7 @@ class ApiService {
     round_id: number;
     quantity: number;
     payment_method: string;
+    establishment_id?: number | string | null;
     customer?: {
       name?: string;
       email?: string;
@@ -299,23 +300,22 @@ class ApiService {
     }
   }): Promise<ApiResponse> {
     try {
-      const user = await this.getUser()
-
-      const purchaseData = {
+      // 1. Criar registro na tabela purchases
+      const insertData = {
         round_id: data.round_id,
         quantity: data.quantity,
         payment_method: data.payment_method,
-        user_id: user?.id || null,
-        customer_name: data.customer?.name || null,
-        customer_email: data.customer?.email || null,
-        customer_phone: data.customer?.phone || null,
-        customer_cpf: data.customer?.cpf || null,
-        payment_status: 'pending',
+        establishment_id: data.establishment_id || null,
+        customer_name: data.customer?.name,
+        customer_email: data.customer?.email,
+        customer_phone: data.customer?.phone,
+        customer_cpf: data.customer?.cpf,
+        status: 'pending'
       }
 
       const { data: purchase, error } = await supabase
         .from('purchases')
-        .insert(purchaseData)
+        .insert(insertData)
         .select()
         .single()
 
@@ -325,7 +325,61 @@ class ApiService {
 
       return { ok: true, data: purchase }
     } catch (error: any) {
-      return { ok: false, error: error.message || 'Erro ao criar compra' }
+      return { ok: false, error: error.message || 'Erro ao processar compra' }
+    }
+  }
+
+  // ============ ESTABLISHMENTS ============
+
+  /**
+   * Get establishment by 8-digit numeric code
+   */
+  async getEstablishmentByCode(code: string): Promise<ApiResponse> {
+    try {
+      const { data, error } = await supabase
+        .from('establishments')
+        .select('*')
+        .eq('code', code)
+        .eq('is_active', true)
+        .single()
+
+      if (error) {
+        return { ok: false, error: 'Estabelecimento não encontrado' }
+      }
+
+      return { ok: true, data }
+    } catch (error: any) {
+      return { ok: false, error: error.message || 'Erro ao buscar estabelecimento' }
+    }
+  }
+
+  /**
+   * Get TV Data using establishment code
+   */
+  async getTVDataByCode(code: string): Promise<ApiResponse> {
+    // Reusing the existing establishment logic, but focusing on TV requirements
+    const estResult = await this.getEstablishmentByCode(code);
+    if (!estResult.ok) return estResult;
+
+    const establishment = estResult.data;
+
+    // Get live round
+    const liveRoundResult = await this.getLiveRound();
+
+    // Get ticker messages
+    const { data: messages } = await supabase
+      .from('ticker_messages')
+      .select('*')
+      .eq('is_active', true)
+      .order('order_index', { ascending: true });
+
+    return {
+      ok: true,
+      data: {
+        establishment,
+        liveRound: liveRoundResult.data,
+        tickerMessages: messages || []
+      }
     }
   }
 

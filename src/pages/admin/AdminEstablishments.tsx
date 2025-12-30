@@ -178,25 +178,29 @@ export default function AdminEstablishments() {
     { key: 'manager_name', label: 'Gerente', render: (e: any) => e.manager_name || '-' },
     { key: 'total_sales', label: 'Vendas', render: (e: any) => formatCurrency(e.total_sales || 0) },
     { key: 'total_commission', label: 'Comissão', render: (e: any) => formatCurrency(e.total_commission || 0) },
-    { key: 'kyc_status', label: 'KYC', render: (e: any) => (
-      <Badge variant={e.kyc_status === 'approved' ? 'default' : e.kyc_status === 'pending' ? 'secondary' : 'destructive'}>
-        {e.kyc_status === 'approved' ? 'Aprovado' : e.kyc_status === 'pending' ? 'Pendente' : 'Reprovado'}
-      </Badge>
-    )},
+    {
+      key: 'kyc_status', label: 'KYC', render: (e: any) => (
+        <Badge variant={e.kyc_status === 'approved' ? 'default' : e.kyc_status === 'pending' ? 'secondary' : 'destructive'}>
+          {e.kyc_status === 'approved' ? 'Aprovado' : e.kyc_status === 'pending' ? 'Pendente' : 'Reprovado'}
+        </Badge>
+      )
+    },
     { key: 'is_active', label: 'Status', render: (e: any) => <Badge variant={e.is_active ? 'default' : 'outline'}>{e.is_active ? 'Ativo' : 'Inativo'}</Badge> },
-    { key: 'actions', label: 'Ações', render: (e: any) => (
-      <div className="flex gap-1">
-        <Button variant="ghost" size="sm" onClick={() => setViewingEstablishment(e)}><Eye className="w-4 h-4" /></Button>
-        <Button variant="ghost" size="sm" onClick={() => openEdit(e)}><Pencil className="w-4 h-4" /></Button>
-        <Button variant="ghost" size="sm" className="text-destructive" onClick={() => setDeleteConfirm(e.id)}><Trash2 className="w-4 h-4" /></Button>
-        {e.kyc_status === 'pending' && (
-          <>
-            <Button variant="ghost" size="sm" className="text-success" onClick={() => handleApproveKYC(e.id)}><Check className="w-4 h-4" /></Button>
-            <Button variant="ghost" size="sm" className="text-destructive" onClick={() => handleRejectKYC(e.id)}><X className="w-4 h-4" /></Button>
-          </>
-        )}
-      </div>
-    )}
+    {
+      key: 'actions', label: 'Ações', render: (e: any) => (
+        <div className="flex gap-1">
+          <Button variant="ghost" size="sm" onClick={() => setViewingEstablishment(e)}><Eye className="w-4 h-4" /></Button>
+          <Button variant="ghost" size="sm" onClick={() => openEdit(e)}><Pencil className="w-4 h-4" /></Button>
+          <Button variant="ghost" size="sm" className="text-destructive" onClick={() => setDeleteConfirm(e.id)}><Trash2 className="w-4 h-4" /></Button>
+          {e.kyc_status === 'pending' && (
+            <>
+              <Button variant="ghost" size="sm" className="text-success" onClick={() => handleApproveKYC(e.id)}><Check className="w-4 h-4" /></Button>
+              <Button variant="ghost" size="sm" className="text-destructive" onClick={() => handleRejectKYC(e.id)}><X className="w-4 h-4" /></Button>
+            </>
+          )}
+        </div>
+      )
+    }
   ];
 
   return (
@@ -291,73 +295,75 @@ export default function AdminEstablishments() {
         {/* View Dialog */}
         <Dialog open={!!viewingEstablishment} onOpenChange={() => setViewingEstablishment(null)}>
           <DialogContent className="max-w-2xl"><DialogHeader><DialogTitle>Detalhes do Estabelecimento</DialogTitle></DialogHeader>
-          {viewingEstablishment && (
-            <div className="space-y-6 py-4">
-              <div className="grid md:grid-cols-2 gap-4">
-                <div><Label className="text-muted-foreground">Nome Fantasia</Label><p className="font-medium">{viewingEstablishment.trade_name || 'Sem nome'}</p></div>
-                <div><Label className="text-muted-foreground">CNPJ</Label><p className="font-medium">{viewingEstablishment.cnpj || '-'}</p></div>
-                <div><Label className="text-muted-foreground">WhatsApp</Label><p className="font-medium">{viewingEstablishment.whatsapp || '-'}</p></div>
-                <div><Label className="text-muted-foreground">E-mail</Label><p className="font-medium">{viewingEstablishment.email || '-'}</p></div>
-                <div><Label className="text-muted-foreground">Gerente</Label><p className="font-medium">{viewingEstablishment.manager_name || '-'}</p></div>
-                <div><Label className="text-muted-foreground">Vendas</Label><p className="font-medium text-primary">{formatCurrency(viewingEstablishment.total_sales || 0)}</p></div>
-                <div><Label className="text-muted-foreground">Comissão</Label><p className="font-medium text-primary">{formatCurrency(viewingEstablishment.total_commission || 0)}</p></div>
-                <div><Label className="text-muted-foreground">Status KYC</Label><Badge variant={viewingEstablishment.kyc_status === 'approved' ? 'default' : viewingEstablishment.kyc_status === 'pending' ? 'secondary' : 'destructive'}>{viewingEstablishment.kyc_status === 'approved' ? 'Aprovado' : viewingEstablishment.kyc_status === 'pending' ? 'Pendente' : 'Reprovado'}</Badge></div>
-                <div><Label className="text-muted-foreground">Ativo</Label><Badge variant={viewingEstablishment.is_active ? 'default' : 'outline'}>{viewingEstablishment.is_active ? 'Sim' : 'Não'}</Badge></div>
-              </div>
+            {viewingEstablishment && (
+              <div className="space-y-6 py-4">
+                <div className="grid md:grid-cols-2 gap-4">
+                  <div><Label className="text-muted-foreground">Nome Fantasia</Label><p className="font-medium">{viewingEstablishment.trade_name || 'Sem nome'}</p></div>
+                  <div><Label className="text-muted-foreground">CNPJ</Label><p className="font-medium">{viewingEstablishment.cnpj || '-'}</p></div>
+                  <div><Label className="text-muted-foreground">WhatsApp</Label><p className="font-medium">{viewingEstablishment.whatsapp || '-'}</p></div>
+                  <div><Label className="text-muted-foreground">E-mail</Label><p className="font-medium">{viewingEstablishment.email || '-'}</p></div>
+                  <div><Label className="text-muted-foreground">Gerente</Label><p className="font-medium">{viewingEstablishment.manager_name || '-'}</p></div>
+                  <div><Label className="text-muted-foreground">Vendas</Label><p className="font-medium text-primary">{formatCurrency(viewingEstablishment.total_sales || 0)}</p></div>
+                  <div><Label className="text-muted-foreground">Comissão</Label><p className="font-medium text-primary">{formatCurrency(viewingEstablishment.total_commission || 0)}</p></div>
+                  <div><Label className="text-muted-foreground">Status KYC</Label><Badge variant={viewingEstablishment.kyc_status === 'approved' ? 'default' : viewingEstablishment.kyc_status === 'pending' ? 'secondary' : 'destructive'}>{viewingEstablishment.kyc_status === 'approved' ? 'Aprovado' : viewingEstablishment.kyc_status === 'pending' ? 'Pendente' : 'Reprovado'}</Badge></div>
+                  <div><Label className="text-muted-foreground">Ativo</Label><Badge variant={viewingEstablishment.is_active ? 'default' : 'outline'}>{viewingEstablishment.is_active ? 'Sim' : 'Não'}</Badge></div>
+                </div>
 
-              <div className="border-t pt-4 space-y-3">
-                <h3 className="font-semibold text-foreground">Links Únicos</h3>
-                <div className="space-y-2">
-                  <Label className="text-muted-foreground">Link da TV</Label>
-                  <div className="flex gap-2">
-                    <Input
-                      readOnly
-                      value={`${window.location.origin}/tv/${viewingEstablishment.slug || viewingEstablishment.code || viewingEstablishment.id}`}
-                      className="font-mono text-sm"
-                    />
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        navigator.clipboard.writeText(`${window.location.origin}/tv/${viewingEstablishment.slug || viewingEstablishment.code || viewingEstablishment.id}`);
-                        toast({ title: 'Link da TV copiado!' });
-                      }}
-                    >
-                      Copiar
-                    </Button>
+                <div className="border-t pt-4 space-y-3">
+                  <h3 className="font-semibold text-foreground">Links Únicos</h3>
+                  <div className="space-y-2">
+                    <Label className="text-muted-foreground">Link da TV (Código de 8 dígitos)</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        readOnly
+                        value={`${window.location.origin}/tv/${viewingEstablishment.code || viewingEstablishment.slug || viewingEstablishment.id}`}
+                        className="font-mono text-sm"
+                      />
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          const link = `${window.location.origin}/tv/${viewingEstablishment.code || viewingEstablishment.slug || viewingEstablishment.id}`;
+                          navigator.clipboard.writeText(link);
+                          toast({ title: 'Link da TV copiado!' });
+                        }}
+                      >
+                        Copiar
+                      </Button>
+                    </div>
                   </div>
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-muted-foreground">Link de Vendas</Label>
-                  <div className="flex gap-2">
-                    <Input
-                      readOnly
-                      value={`${window.location.origin}/comprar?ref=${viewingEstablishment.code || viewingEstablishment.id}`}
-                      className="font-mono text-sm"
-                    />
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        navigator.clipboard.writeText(`${window.location.origin}/comprar?ref=${viewingEstablishment.code || viewingEstablishment.id}`);
-                        toast({ title: 'Link de vendas copiado!' });
-                      }}
-                    >
-                      Copiar
-                    </Button>
+                  <div className="space-y-2">
+                    <Label className="text-muted-foreground">Link de Vendas (Código de 8 dígitos)</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        readOnly
+                        value={`${window.location.origin}/est/${viewingEstablishment.code || viewingEstablishment.id}`}
+                        className="font-mono text-sm"
+                      />
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          const link = `${window.location.origin}/est/${viewingEstablishment.code || viewingEstablishment.id}`;
+                          navigator.clipboard.writeText(link);
+                          toast({ title: 'Link de vendas copiado!' });
+                        }}
+                      >
+                        Copiar
+                      </Button>
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
-          )}
-          <DialogFooter><Button variant="outline" onClick={() => setViewingEstablishment(null)}>Fechar</Button>
-          {viewingEstablishment?.kyc_status === 'pending' && (<><Button variant="destructive" onClick={() => { handleRejectKYC(viewingEstablishment.id); setViewingEstablishment(null); }}>Reprovar</Button><Button onClick={() => { handleApproveKYC(viewingEstablishment.id); setViewingEstablishment(null); }}>Aprovar KYC</Button></>)}</DialogFooter></DialogContent>
+            )}
+            <DialogFooter><Button variant="outline" onClick={() => setViewingEstablishment(null)}>Fechar</Button>
+              {viewingEstablishment?.kyc_status === 'pending' && (<><Button variant="destructive" onClick={() => { handleRejectKYC(viewingEstablishment.id); setViewingEstablishment(null); }}>Reprovar</Button><Button onClick={() => { handleApproveKYC(viewingEstablishment.id); setViewingEstablishment(null); }}>Aprovar KYC</Button></>)}</DialogFooter></DialogContent>
         </Dialog>
 
         {/* Delete Confirm */}
         <Dialog open={!!deleteConfirm} onOpenChange={() => setDeleteConfirm(null)}>
           <DialogContent><DialogHeader><DialogTitle>Confirmar Exclusão</DialogTitle><DialogDescription>Tem certeza que deseja excluir este estabelecimento? Esta ação não pode ser desfeita.</DialogDescription></DialogHeader>
-          <DialogFooter><Button variant="outline" onClick={() => setDeleteConfirm(null)}>Cancelar</Button><Button variant="destructive" onClick={() => deleteConfirm && handleDelete(deleteConfirm)}>Excluir</Button></DialogFooter></DialogContent>
+            <DialogFooter><Button variant="outline" onClick={() => setDeleteConfirm(null)}>Cancelar</Button><Button variant="destructive" onClick={() => deleteConfirm && handleDelete(deleteConfirm)}>Excluir</Button></DialogFooter></DialogContent>
         </Dialog>
       </div>
     </DashboardLayout>

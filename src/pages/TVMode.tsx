@@ -6,8 +6,13 @@ import { Trophy, Clock, Store, Volume2, VolumeX, Zap, Heart, Sparkles } from 'lu
 import { apiService } from '@/services/api';
 
 const TVMode = () => {
-  const { slugEstabelecimento } = useParams<{ slugEstabelecimento: string }>();
-  const [data, setData] = useState<any>(null);
+  const { code, slugEstabelecimento } = useParams<{ code?: string; slugEstabelecimento?: string }>();
+  // Use code if available, otherwise fallback to slug
+  const identifier = code || slugEstabelecimento;
+
+  const [tvData, setTvData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [charity, setCharity] = useState<any>(null);
   const [drawnNumbers, setDrawnNumbers] = useState<number[]>([]);
   const [lastNumber, setLastNumber] = useState<number | null>(null);
@@ -22,14 +27,20 @@ const TVMode = () => {
 
   // Load TV data and poll for updates
   useEffect(() => {
-    if (!slugEstabelecimento) return;
+    if (!identifier) return;
 
     const loadData = async () => {
       try {
         // Load establishment data
-        const tvData = await apiService.getTVData(slugEstabelecimento);
-        if (tvData.ok && tvData.data) {
-          setData(tvData.data);
+        let response;
+        if (code) {
+          response = await apiService.getTVDataByCode(code);
+        } else {
+          response = await apiService.getTVData(slugEstabelecimento!);
+        }
+
+        if (response.ok && response.data) {
+          setTvData(response.data);
         }
 
         // Load charity data (active charity)
@@ -67,6 +78,9 @@ const TVMode = () => {
         }
       } catch (error) {
         console.error('Error loading TV data:', error);
+        setError('Erro ao carregar dados da TV');
+      } finally {
+        setLoading(false);
       }
     };
 
@@ -76,7 +90,7 @@ const TVMode = () => {
     const interval = setInterval(loadData, 3000);
 
     return () => clearInterval(interval);
-  }, [slugEstabelecimento]);
+  }, [identifier]);
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', {
@@ -117,18 +131,38 @@ const TVMode = () => {
   };
 
   // Get sales URL for QR Code
-  const salesUrl = `${window.location.origin}/checkout?ref=${slugEstabelecimento}`;
+  const salesUrl = code
+    ? `${window.location.origin}/est/${code}`
+    : `${window.location.origin}/checkout?ref=${slugEstabelecimento}`;
 
   // Format ticker messages from database
   const formattedTickerMessages = tickerMessages.map(t => `${t.icon || ''} ${t.message}`.trim());
 
-  if (!data) {
+  if (loading && !tvData) {
     return (
       <div className="min-h-screen bg-gradient-tv flex items-center justify-center">
         <div className="animate-spin w-16 h-16 border-4 border-primary border-t-transparent rounded-full" />
       </div>
     );
   }
+
+  if (error && !tvData) {
+    return (
+      <div className="min-h-screen bg-gradient-tv flex items-center justify-center">
+        <div className="text-white text-center">
+          <p className="text-2xl font-bold mb-4">{error}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="bg-primary text-white px-6 py-2 rounded-lg"
+          >
+            Tentar Novamente
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  const establishment = tvData?.establishment;
 
   return (
     <div className="min-h-screen bg-gradient-tv text-background overflow-hidden flex flex-col">
@@ -138,10 +172,10 @@ const TVMode = () => {
           <div className="grid grid-cols-3 gap-4 items-center">
             {/* Left: Establishment Logo + Name */}
             <div className="flex items-center gap-3">
-              {data?.establishment?.logo_url || data?.establishment?.logoUrl ? (
+              {establishment?.logo_url || establishment?.logoUrl ? (
                 <img
-                  src={data.establishment.logo_url || data.establishment.logoUrl}
-                  alt={data.establishment.name}
+                  src={establishment.logo_url || establishment.logoUrl}
+                  alt={establishment.name}
                   className="w-14 h-14 rounded-xl object-cover bg-background/10 border border-background/20"
                 />
               ) : (
@@ -152,7 +186,7 @@ const TVMode = () => {
               <div>
                 <p className="text-sm text-background/60 uppercase tracking-wide">Estabelecimento</p>
                 <p className="text-lg font-bold text-background line-clamp-1">
-                  {data?.establishment?.trade_name || data?.establishment?.tradeName || data?.establishment?.name || 'Estabelecimento'}
+                  {establishment?.trade_name || establishment?.tradeName || establishment?.name || 'Estabelecimento'}
                 </p>
               </div>
             </div>
@@ -310,7 +344,7 @@ const TVMode = () => {
               <span className="text-base text-background/70 font-semibold">Últimos Ganhadores</span>
             </div>
             <div className="grid grid-cols-3 gap-3">
-              {(data?.recentWinners || []).slice(0, 3).map((winner: any, index: number) => (
+              {(tvData?.recentWinners || []).slice(0, 3).map((winner: any, index: number) => (
                 <motion.div
                   key={winner.id || index}
                   initial={{ opacity: 0, y: 20 }}
@@ -350,7 +384,7 @@ const TVMode = () => {
             <Trophy className="w-10 h-10 mx-auto mb-3 text-primary-foreground" />
             <p className="text-base text-primary-foreground/80 mb-2">Prêmio Atual</p>
             <p className="text-4xl font-bold text-primary-foreground">
-              {formatCurrency(data?.currentRound?.prize_pool || data?.currentRound?.prizePool || liveRound?.prize_pool || 0)}
+              {formatCurrency(tvData?.currentRound?.prize_pool || tvData?.currentRound?.prizePool || liveRound?.prize_pool || 0)}
             </p>
           </motion.div>
 

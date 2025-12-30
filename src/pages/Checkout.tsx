@@ -1,13 +1,13 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, useSearchParams, Link } from 'react-router-dom';
+import { useNavigate, useSearchParams, Link, useParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { QRCodeSVG } from 'qrcode.react';
-import { 
-  ShoppingCart, 
-  Plus, 
-  Minus, 
-  CreditCard, 
-  Copy, 
+import {
+  ShoppingCart,
+  Plus,
+  Minus,
+  CreditCard,
+  Copy,
   Check,
   MessageCircle,
   ArrowRight,
@@ -79,7 +79,9 @@ const CountdownTimer = ({ targetTime, variant = 'default' }: { targetTime: Date;
 const Checkout = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const establishmentCode = searchParams.get('ref') || null;
+  const { code } = useParams<{ code?: string }>();
+  // Prioritize route param 'code', then search param 'ref'
+  const establishmentCodeOrRef = code || searchParams.get('ref') || null;
 
   const [step, setStep] = useState<CheckoutStep>('quantity');
   const [drawType, setDrawType] = useState<DrawType>('regular');
@@ -102,11 +104,26 @@ const Checkout = () => {
   const [availableRounds, setAvailableRounds] = useState<any[]>([]);
   const [settings, setSettings] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [establishment, setEstablishment] = useState<any>(null);
 
   // Load initial data
   useEffect(() => {
     const loadData = async () => {
       try {
+        // Fetch establishment if code is present
+        if (establishmentCodeOrRef) {
+          // If it looks like our 8-digit code
+          if (/^\d{8}$/.test(establishmentCodeOrRef)) {
+            const estResult = await apiService.getEstablishmentByCode(establishmentCodeOrRef);
+            if (estResult.ok) {
+              setEstablishment(estResult.data);
+            }
+          } else {
+            // Fallback to legacy/slug lookup if we have a method for it
+            // or just rely on id if it was numeric
+          }
+        }
+
         const roundsData = await apiService.getRounds();
 
         if (roundsData.ok && roundsData.data) {
@@ -114,7 +131,7 @@ const Checkout = () => {
           const sellingRounds = roundsData.data
             .filter((r: any) => r.is_selling && r.status === 'selling')
             .slice(0, 6);
-          
+
           setAvailableRounds(sellingRounds);
 
           // Select first round by default
@@ -201,16 +218,15 @@ const Checkout = () => {
         return;
       }
 
-      const purchaseData = {
-        round_id: parseInt(roundId.toString(), 10),
-        quantity,
+      const response = await apiService.createPurchase({
+        round_id: roundId,
+        quantity: quantity,
         payment_method: 'pix',
+        establishment_id: establishment?.id || null, // Pass the numeric ID
         customer: {
-          phone: whatsappNumber || undefined
+          phone: whatsappNumber
         }
-      };
-
-      const response = await apiService.createPurchase(purchaseData);
+      });
 
       if (response.ok && response.data) {
         // Mock PIX for now
@@ -357,14 +373,14 @@ const Checkout = () => {
               </div>
 
               {/* Prize Highlight Banner */}
-              <motion.div 
+              <motion.div
                 initial={{ scale: 0.95, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
                 className="relative overflow-hidden bg-gradient-to-r from-primary via-primary/90 to-primary rounded-2xl p-6 text-primary-foreground"
               >
                 <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2" />
                 <div className="absolute bottom-0 left-0 w-24 h-24 bg-white/10 rounded-full translate-y-1/2 -translate-x-1/2" />
-                
+
                 <div className="relative z-10 text-center">
                   <div className="flex items-center justify-center gap-2 mb-2">
                     <Trophy className="w-6 h-6" />
@@ -433,11 +449,10 @@ const Checkout = () => {
                             key={round.id}
                             onClick={() => toggleRoundSelection(round.id)}
                             whileTap={{ scale: 0.97 }}
-                            className={`relative p-3 rounded-xl border-2 transition-all text-left ${
-                              isSelected 
-                                ? 'border-primary bg-primary/10' 
-                                : 'border-border bg-secondary/50 hover:border-primary/50'
-                            }`}
+                            className={`relative p-3 rounded-xl border-2 transition-all text-left ${isSelected
+                              ? 'border-primary bg-primary/10'
+                              : 'border-border bg-secondary/50 hover:border-primary/50'
+                              }`}
                           >
                             {isFirst && (
                               <span className="absolute -top-2 -right-2 bg-primary text-primary-foreground text-[10px] px-2 py-0.5 rounded-full font-semibold">
@@ -445,9 +460,8 @@ const Checkout = () => {
                               </span>
                             )}
                             <div className="flex items-center gap-2 mb-1">
-                              <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
-                                isSelected ? 'border-primary bg-primary' : 'border-muted-foreground'
-                              }`}>
+                              <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${isSelected ? 'border-primary bg-primary' : 'border-muted-foreground'
+                                }`}>
                                 {isSelected && <Check className="w-3 h-3 text-primary-foreground" />}
                               </div>
                               <span className="font-bold text-foreground">#{round.number}</span>
@@ -460,7 +474,7 @@ const Checkout = () => {
                       })}
                     </div>
                     {selectedRounds.length > 1 && (
-                      <motion.div 
+                      <motion.div
                         initial={{ opacity: 0, height: 0 }}
                         animate={{ opacity: 1, height: 'auto' }}
                         className="mt-4 p-3 bg-success/10 border border-success/20 rounded-xl"
@@ -491,12 +505,14 @@ const Checkout = () => {
                 </TabsContent>
               </Tabs>
 
-              {establishmentCode && (
+              {establishment && (
                 <div className="bg-secondary rounded-xl p-4 flex items-center gap-3">
                   <Store className="w-5 h-5 text-primary" />
                   <div>
                     <p className="text-sm text-muted-foreground">Vendedor</p>
-                    <p className="font-semibold text-foreground">Estabelecimento #{establishmentCode}</p>
+                    <p className="font-semibold text-foreground">
+                      {establishment.trade_name || establishment.name}
+                    </p>
                   </div>
                 </div>
               )}
