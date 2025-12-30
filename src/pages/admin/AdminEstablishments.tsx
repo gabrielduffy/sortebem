@@ -304,7 +304,7 @@ export default function AdminEstablishments() {
                   <div><Label className="text-muted-foreground">CNPJ</Label><p className="font-medium">{viewingEstablishment.cnpj || '-'}</p></div>
                   <div><Label className="text-muted-foreground">WhatsApp</Label><p className="font-medium">{viewingEstablishment.phone || '-'}</p></div>
                   <div><Label className="text-muted-foreground">E-mail</Label><p className="font-medium">{viewingEstablishment.user?.email || viewingEstablishment.email || '-'}</p></div>
-                  <div><Label className="text-muted-foreground">Gerente</Label><p className="font-medium">{viewingEstablishment.manager_name || '-'}</p></div>
+                  <div><Label className="text-muted-foreground">Gerente</Label><p className="font-medium">{viewingEstablishment.manager_name || viewingEstablishment.manager?.user?.name || '-'}</p></div>
                   <div><Label className="text-muted-foreground">Vendas</Label><p className="font-medium text-primary">{formatCurrency(viewingEstablishment.total_sales || 0)}</p></div>
                   <div><Label className="text-muted-foreground">Comissão</Label><p className="font-medium text-primary">{formatCurrency(viewingEstablishment.total_commission || 0)}</p></div>
                   <div><Label className="text-muted-foreground">Status KYC</Label><Badge variant={viewingEstablishment.kyc_status === 'approved' ? 'default' : viewingEstablishment.kyc_status === 'pending' ? 'secondary' : 'destructive'}>{viewingEstablishment.kyc_status === 'approved' ? 'Aprovado' : viewingEstablishment.kyc_status === 'pending' ? 'Pendente' : 'Reprovado'}</Badge></div>
