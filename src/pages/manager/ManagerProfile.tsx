@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -18,7 +18,7 @@ interface ProfileState {
   address: string;
   pixKeyType: string;
   pixKey: string;
-  kycStatus: 'approved' | 'pending' | 'rejected';
+  kycStatus: 'approved' | 'pending' | 'rejected' | string;
   bankCode: string;
   agency: string;
   account: string;
@@ -27,12 +27,49 @@ interface ProfileState {
 }
 
 export default function ManagerProfile() {
+  const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState<ProfileState>({
-    fullName: 'Carlos Gerente', cpf: '123.456.789-00', whatsapp: '11999999999', email: 'carlos@email.com',
-    address: 'Rua das Flores, 123 - Centro, São Paulo - SP',
-    pixKeyType: 'cpf', pixKey: '12345678900', kycStatus: 'approved',
+    fullName: '', cpf: '', whatsapp: '', email: '',
+    address: '',
+    pixKeyType: 'cpf', pixKey: '', kycStatus: 'pending',
     bankCode: '', agency: '', account: '', accountType: 'CHECKING', birthDate: ''
   });
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const loadData = async () => {
+    try {
+      setLoading(true);
+      const response = await apiService.getCurrentManager();
+      if (response.ok) {
+        const data = response.data;
+        // Asaas data is already flattened or nested in asaas_data, but getCurrentManager flattens it in api.ts
+        // Let's verify mapping: fullName -> name
+        setProfile({
+          fullName: data.name || '',
+          cpf: data.cpf || '',
+          whatsapp: data.whatsapp || '',
+          email: data.email || '',
+          address: data.address || '',
+          pixKeyType: data.pixKeyType || 'cpf',
+          pixKey: data.pixKey || '',
+          kycStatus: data.kyc_status || 'pending',
+          bankCode: data.bankCode || '',
+          agency: data.agency || '',
+          account: data.account || '',
+          accountType: data.accountType || 'CHECKING',
+          birthDate: data.birthDate || ''
+        });
+      }
+    } catch (error) {
+      console.error('Error loading profile:', error);
+      toast({ title: 'Erro', description: 'Erro ao carregar perfil.', variant: 'destructive' });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleSave = async () => {
     try {
@@ -42,7 +79,8 @@ export default function ManagerProfile() {
         account: profile.account,
         accountType: profile.accountType,
         pixKey: profile.pixKey,
-        birthDate: profile.birthDate
+        birthDate: profile.birthDate,
+        // Also update basic info if API supports it, though updateAsaasData targets asaas_data field
       });
 
       if (response.ok) {
@@ -55,8 +93,16 @@ export default function ManagerProfile() {
     }
   };
 
+  if (loading) {
+    return (
+      <DashboardLayout userType="manager" userName="Carregando..." notifications={0}>
+        <div className="flex items-center justify-center p-8">Carregando perfil...</div>
+      </DashboardLayout>
+    );
+  }
+
   return (
-    <DashboardLayout userType="manager" userName="Carlos Gerente" notifications={3}>
+    <DashboardLayout userType="manager" userName={profile.fullName || 'Gerente'} notifications={3}>
       <div className="space-y-6">
         <div><h2 className="text-2xl font-bold text-foreground">Meu Perfil</h2><p className="text-muted-foreground">Gerencie suas informações pessoais e financeiras</p></div>
 

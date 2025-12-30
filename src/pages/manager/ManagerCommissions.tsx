@@ -18,6 +18,8 @@ export default function ManagerCommissions() {
   const [transactions, setTransactions] = useState<any[]>([]);
   const [withdrawAmount, setWithdrawAmount] = useState('');
 
+  const [manager, setManager] = useState<any>(null);
+
   useEffect(() => {
     loadData();
   }, []);
@@ -25,13 +27,26 @@ export default function ManagerCommissions() {
   const loadData = async () => {
     try {
       setLoading(true);
-      const [statsRes, transRes] = await Promise.all([
+      const [statsRes, transRes, mgrRes] = await Promise.all([
         apiService.getManagerStats(),
-        apiService.getManagerTransactions()
+        apiService.getManagerTransactions(),
+        apiService.getCurrentManager()
       ]);
 
       if (statsRes.ok) setStats(statsRes.data);
-      if (transRes.ok) setTransactions(transRes.data || []);
+      if (mgrRes.ok) setManager(mgrRes.data);
+      if (transRes.ok) {
+        // Map withdrawals to transaction format
+        const formatted = (transRes.data || []).map((t: any) => ({
+          id: t.id,
+          description: `Solicitação de Saque`,
+          amount: t.amount,
+          type: 'withdrawal',
+          created_at: t.created_at,
+          status: t.status
+        }));
+        setTransactions(formatted);
+      }
     } catch (error) {
       console.error('Error loading manager commissions:', error);
     } finally {
@@ -88,7 +103,7 @@ export default function ManagerCommissions() {
   }
 
   return (
-    <DashboardLayout userType="manager" userName="Gerente" notifications={3}>
+    <DashboardLayout userType="manager" userName={manager?.name || 'Gerente'} notifications={3}>
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div>
@@ -114,10 +129,10 @@ export default function ManagerCommissions() {
 
         {/* Stats */}
         <div className="grid md:grid-cols-4 gap-4">
-          <StatCard title="Total de Comissões" value={formatCurrency(stats?.total_commission || 0)} icon={Wallet} />
+          <StatCard title="Total de Comissões" value={formatCurrency(stats?.commission || 0)} icon={Wallet} />
           <StatCard title="Pendente" value={formatCurrency(stats?.pending_commission || 0)} icon={DollarSign} />
           <StatCard title="Saldo Disponível" value={formatCurrency(stats?.balance || 0)} icon={TrendingUp} className="bg-primary/5 border-primary/20" />
-          <StatCard title="Estabelecimentos" value={stats?.establishment_count || 0} icon={Building2} />
+          <StatCard title="Estabelecimentos" value={stats?.establishments || 0} icon={Building2} />
         </div>
 
         {/* Table & Withdrawal */}

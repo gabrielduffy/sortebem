@@ -47,8 +47,9 @@ export default function ManagerDashboard() {
       if (statsResponse.ok) {
         setStats(statsResponse.data);
       }
+
       // 4. Get round history
-      const roundRes = await apiService.getRoundHistorySummary();
+      const roundRes = await apiService.getManagerRoundHistory();
       if (roundRes.ok) {
         setRoundHistory(roundRes.data || []);
       }
@@ -66,16 +67,16 @@ export default function ManagerDashboard() {
 
   const columns = [
     { key: 'tradeName', label: 'Estabelecimento' },
-    { key: 'total_sales', label: 'Vendas (total)', render: (e: any) => `R$ ${(e.total_sales || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` },
-    { key: 'total_commission', label: 'Sua Comissão', render: (e: any) => `R$ ${(e.total_commission || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` },
+    { key: 'sales', label: 'Vendas (total)', render: (e: any) => `R$ ${(e.sales || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` },
+    { key: 'commission', label: 'Sua Comissão', render: (e: any) => `R$ ${(e.commission || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` },
     {
-      key: 'kyc_status', label: 'KYC', render: (e: any) => (
-        <Badge variant={e.kyc_status === 'approved' ? 'default' : e.kyc_status === 'pending' ? 'secondary' : 'destructive'}>
-          {e.kyc_status === 'approved' ? 'Aprovado' : e.kyc_status === 'pending' ? 'Pendente' : 'Reprovado'}
+      key: 'kycStatus', label: 'KYC', render: (e: any) => (
+        <Badge variant={e.kycStatus === 'approved' ? 'default' : e.kycStatus === 'pending' ? 'secondary' : 'destructive'}>
+          {e.kycStatus === 'approved' ? 'Aprovado' : e.kycStatus === 'pending' ? 'Pendente' : 'Reprovado'}
         </Badge>
       )
     },
-    { key: 'is_active', label: 'Status', render: (e: any) => <Badge variant={e.is_active ? 'default' : 'outline'}>{e.is_active ? 'Ativo' : 'Inativo'}</Badge> },
+    { key: 'isActive', label: 'Status', render: (e: any) => <Badge variant={e.isActive ? 'default' : 'outline'}>{e.isActive ? 'Ativo' : 'Inativo'}</Badge> },
   ];
 
   const roundColumns = [
@@ -92,13 +93,14 @@ export default function ManagerDashboard() {
     }
   ];
 
+  const currentMonth = new Date().toLocaleString('pt-BR', { month: 'short' });
   const chartData = [
     { name: 'Jan', vendas: 0, comissoes: 0 },
     { name: 'Fev', vendas: 0, comissoes: 0 },
     { name: 'Mar', vendas: 0, comissoes: 0 },
     { name: 'Abr', vendas: 0, comissoes: 0 },
     { name: 'Mai', vendas: 0, comissoes: 0 },
-    { name: 'Jun', vendas: stats.totalRevenue, comissoes: stats.commission },
+    { name: currentMonth, vendas: stats.totalRevenue, comissoes: stats.commission }, // Showing accumulated total in current month for simplicity
   ];
 
   if (loading) {

@@ -1,19 +1,20 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from '@/hooks/use-toast';
 import { Building2, User, MapPin, Wallet, Phone, Mail, FileText, CheckCircle, ArrowRight } from 'lucide-react';
+import { apiService } from '@/services/api';
 
 export default function ManagerRegisterEstablishment() {
   const navigate = useNavigate();
   const [step, setStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [manager, setManager] = useState<any>(null);
   const [form, setForm] = useState({
     // Dados da empresa
     cnpj: '',
@@ -38,6 +39,12 @@ export default function ManagerRegisterEstablishment() {
     pixKey: '',
   });
 
+  useEffect(() => {
+    apiService.getCurrentManager().then(res => {
+      if (res.ok) setManager(res.data);
+    });
+  }, []);
+
   const handleChange = (field: string, value: string) => {
     setForm(prev => ({ ...prev, [field]: value }));
   };
@@ -52,13 +59,25 @@ export default function ManagerRegisterEstablishment() {
 
   const handleSubmit = async () => {
     setIsSubmitting(true);
-    await new Promise(r => setTimeout(r, 2000));
+
+    // API call
+    const response = await apiService.registerEstablishment(form);
+
     setIsSubmitting(false);
-    toast({
-      title: 'Estabelecimento cadastrado!',
-      description: 'O estabelecimento foi enviado para análise de KYC.',
-    });
-    navigate('/gerente/rede');
+
+    if (response.ok) {
+      toast({
+        title: 'Estabelecimento cadastrado!',
+        description: 'O estabelecimento foi enviado para análise de KYC.',
+      });
+      navigate('/gerente/rede');
+    } else {
+      toast({
+        title: 'Erro no cadastro',
+        description: response.error || 'Verifique os dados e tente novamente.',
+        variant: 'destructive',
+      });
+    }
   };
 
   const isStepValid = (stepNum: number) => {
@@ -77,7 +96,7 @@ export default function ManagerRegisterEstablishment() {
   };
 
   return (
-    <DashboardLayout userType="manager" userName="Carlos Gerente" notifications={3}>
+    <DashboardLayout userType="manager" userName={manager?.name || 'Gerente'} notifications={3}>
       <div className="max-w-3xl mx-auto space-y-6">
         <div>
           <h2 className="text-2xl font-bold text-foreground">Cadastrar Estabelecimento</h2>

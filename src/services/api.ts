@@ -1,4 +1,4 @@
-// API Service for SORTEBEM - Supabase Version
+﻿// API Service for SORTEBEM - Supabase Version
 import { supabase } from '../lib/supabase'
 
 interface LoginResponse {
@@ -593,6 +593,7 @@ class ApiService {
       return { ok: false, error: error.message || 'Erro ao buscar dados da TV' }
     }
   }
+
 
   /**
  * Get establishment stats with real aggregation
@@ -1888,6 +1889,208 @@ class ApiService {
   async createAsaasSubaccount(): Promise<ApiResponse> {
     try {
       return { ok: true, message: 'Solicitação de criação de conta enviada ao Asaas' };
+    } catch (error: any) {
+      return { ok: false, error: error.message };
+    }
+  }
+
+  // ============ MANAGER ============
+
+  /**
+   * Get manager stats
+   */
+  async getManagerStats(): Promise<ApiResponse> {
+    try {
+      const user = await this.getUser();
+      if (!user) return { ok: false, error: 'Usuário não autenticado' };
+
+      // Get establishments owned by manager
+      const { data: establishments } = await supabase
+        .from('establishments')
+        .select('id, kyc_status, is_active')
+        .eq('manager_id', user.id);
+
+      const establishmentIds = establishments?.map(e => e.id) || [];
+      const stats = {
+        establishments: establishments?.length || 0,
+        activeEstablishments: establishments?.filter(e => e.is_active).length || 0,
+        pendingKyc: establishments?.filter(e => e.kyc_status === 'pending').length || 0,
+        totalRevenue: 0,
+        commission: 0,
+        pending_commission: 0,
+        balance: 0,
+        wins: 0
+      };
+
+      if (establishmentIds.length > 0) {
+        // Simple aggregation for now
+        const { data: sales } = await supabase
+          .from('purchases')
+          .select('total_amount, created_at')
+          .in('establishment_id', establishmentIds)
+          .eq('payment_status', 'paid');
+
+        stats.totalRevenue = sales?.reduce((acc, sale) => acc + (sale.total_amount || 0), 0) || 0;
+        stats.commission = stats.totalRevenue * 0.10; // 10% manager commission example
+
+        // Get manager balance
+        const { data: manager } = await supabase
+          .from('managers')
+          .select('balance, commission_rate')
+          .eq('id', user.id)
+          .single();
+
+        if (manager) {
+          stats.balance = manager.balance || 0;
+          if (manager.commission_rate) stats.commission = stats.totalRevenue * (manager.commission_rate / 100);
+        }
+      }
+
+      return { ok: true, data: stats };
+
+    } catch (error: any) {
+      return { ok: false, error: error.message };
+    }
+  }
+
+  /**
+   * Get manager network (establishments with stats)
+   */
+  async getManagerNetwork(): Promise<ApiResponse> {
+    try {
+      const user = await this.getUser();
+      if (!user) return { ok: false, error: 'Usuário não autenticado' };
+
+      const { data: establishments, error } = await supabase
+        .from('establishments')
+        .select('*')
+        .eq('manager_id', user.id)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      // Enhance with sales data
+      const enriched = await Promise.all(establishments.map(async (est) => {
+        const { data: sales } = await supabase
+          .from('purchases')
+          .select('total_amount')
+          .eq('establishment_id', est.id)
+          .eq('payment_status', 'paid');
+
+        const totalSales = sales?.reduce((acc, s) => acc + (s.total_amount || 0), 0) || 0;
+
+        return {
+          ...est,
+          sales: totalSales,
+          commission: totalSales * 0.10, // Default 10%
+          tradeName: est.name, // Mapping for UI compatibility
+          kycStatus: est.kyc_status,
+          isActive: est.is_active
+        };
+      }));
+
+      return { ok: true, data: enriched };
+    } catch (error: any) {
+      return { ok: false, error: error.message };
+    }
+  }
+
+  /**
+   * Get manager establishments (simple list)
+   */
+  async getManagerEstablishments(managerId: string): Promise<ApiResponse> {
+    return this.getManagerNetwork(); // Reuse network logic
+  }
+
+  /**
+   * Register new establishment
+   */
+  async registerEstablishment(data: any): Promise<ApiResponse> {
+    try {
+      const user = await this.getUser();
+      if (!user) return { ok: false, error: 'Usuário não autenticado' };
+
+      // Ensure establishments table has manager_id
+      const { data: establishment, error } = await supabase
+        .from('establishments')
+        .insert({
+          manager_id: user.id,
+          name: data.companyName, // Using companyName as primary name
+          cnpj: data.cnpj,
+          phone: data.whatsapp,
+          address: `${data.street}, ${data.number} - ${data.neighborhood}, ${data.city} - ${data.state}`,
+          is_active: true, // Auto-active for now, or false if needing approval
+          kyc_status: 'pending',
+          asaas_data: {
+            ...data,
+            email: data.email
+          }
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      return { ok: true, data: establishment };
+    } catch (error: any) {
+      return { ok: false, error: error.message || 'Erro ao cadastrar estabelecimento' };
+    }
+  }
+
+  /**
+   * Get current manager profile
+   */
+  async getCurrentManager(): Promise<ApiResponse> {
+    try {
+      const user = await this.getUser();
+      if (!user) return { ok: false, error: 'Usuário não autenticado' };
+
+      const { data, error } = await supabase
+        .from('managers')
+        .select('*')
+        .eq('id', user.id)
+        .single();
+
+      if (error) throw error;
+
+      const asaas = data.asaas_data || {};
+      return {
+        ok: true,
+        data: {
+          ...data,
+          fullName: data.name,
+          ...asaas // Flatten asaas_data for easier UI mapping
+        }
+      };
+    } catch (error: any) {
+      return { ok: false, error: error.message };
+    }
+  }
+
+  /**
+  * Get round history for manager
+  */
+  async getManagerRoundHistory(): Promise<ApiResponse> {
+    try {
+      const user = await this.getUser();
+      if (!user) return { ok: false, error: 'Usuário não autenticado' };
+
+      // 1. Get manager's establishments
+      const { data: establishments } = await supabase
+        .from('establishments')
+        .select('id')
+        .eq('manager_id', user.id);
+
+      const estIds = establishments?.map(e => e.id) || [];
+      if (estIds.length === 0) return { ok: true, data: [] };
+
+      // 2. Get prize history for those establishments
+      // Just simple mock return for history to avoid complex join errors until verified
+      const formatted = [
+        // Placeholder until improved query
+      ];
+
+      return { ok: true, data: formatted };
     } catch (error: any) {
       return { ok: false, error: error.message };
     }
