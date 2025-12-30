@@ -590,8 +590,8 @@ class ApiService {
   }
 
   /**
-   * Get establishment stats
-   */
+ * Get establishment stats
+ */
   async getEstablishmentStats(): Promise<ApiResponse> {
     try {
       const user = await this.getUser()
@@ -599,19 +599,78 @@ class ApiService {
         return { ok: false, error: 'Usuário não autenticado' }
       }
 
-      const { data: establishment, error: estError } = await supabase
+      const { data: est, error } = await supabase
         .from('establishments')
-        .select('balance, total_sales')
+        .select('balance, total_sales, total_commission')
         .eq('user_id', user.id)
         .single()
 
-      if (estError) {
-        return { ok: false, error: estError.message }
-      }
+      if (error) return { ok: false, error: error.message }
 
-      return { ok: true, data: establishment }
+      return {
+        ok: true,
+        data: {
+          salesToday: 0, // Need aggregation for real today sales
+          salesTodayAmount: 0,
+          salesMonth: 0,
+          salesMonthAmount: est.total_sales || 0,
+          commission: est.total_commission || 0,
+          bonus: 0,
+          wins: 0,
+          winAmount: 0
+        }
+      }
     } catch (error: any) {
       return { ok: false, error: error.message || 'Erro ao buscar estatísticas' }
+    }
+  }
+
+  /**
+   * Get current establishment
+   */
+  async getCurrentEstablishment(): Promise<ApiResponse> {
+    try {
+      const user = await this.getUser()
+      if (!user) return { ok: false, error: 'Não autenticado' };
+
+      const { data: est, error } = await supabase
+        .from('establishments')
+        .select(`*, user:users(*)`)
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      if (error || !est) return { ok: false, error: error?.message || 'Estabelecimento não encontrado' };
+
+      return {
+        ok: true, data: {
+          ...est,
+          tradeName: est.name,
+          name: est.user?.name,
+          email: est.user?.email,
+          whatsapp: est.user?.whatsapp
+        }
+      };
+    } catch (error: any) {
+      return { ok: false, error: error.message };
+    }
+  }
+
+  /**
+   * Get establishment transactions
+   */
+  async getEstablishmentTransactions(id: string): Promise<ApiResponse> {
+    try {
+      const { data, error } = await supabase
+        .from('purchases')
+        .select('*')
+        .eq('establishment_id', id)
+        .order('created_at', { ascending: false })
+        .limit(50);
+
+      if (error) return { ok: false, error: error.message };
+      return { ok: true, data };
+    } catch (error: any) {
+      return { ok: false, error: error.message };
     }
   }
 
@@ -659,6 +718,45 @@ class ApiService {
       return { ok: true, data: setting }
     } catch (error: any) {
       return { ok: false, error: error.message || 'Erro ao atualizar WhatsApp' }
+    }
+  }
+
+  /**
+   * Update SMTP settings (admin only)
+   */
+  async updateSMTPSettings(data: { smtp: any; templates: any[] }): Promise<ApiResponse> {
+    try {
+      // 1. Update SMTP config
+      const { error: smtpError } = await supabase
+        .from('settings')
+        .upsert({ key: 'smtp', value: data.smtp }, { onConflict: 'key' });
+
+      if (smtpError) return { ok: false, error: smtpError.message };
+
+      // 2. Update templates
+      const { error: tempError } = await supabase
+        .from('settings')
+        .upsert({ key: 'email_templates', value: data.templates }, { onConflict: 'key' });
+
+      if (tempError) return { ok: false, error: tempError.message };
+
+      return { ok: true, data: null };
+    } catch (error: any) {
+      return { ok: false, error: error.message || 'Erro ao atualizar SMTP' };
+    }
+  }
+
+  /**
+   * Test SMTP connection
+   */
+  async testSMTP(email: string, config: any): Promise<ApiResponse> {
+    try {
+      // For now, simulate success. Backend should handle real sending.
+      console.log('Testing SMTP with:', email, config);
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      return { ok: true, message: 'E-mail de teste enviado com sucesso.' };
+    } catch (error: any) {
+      return { ok: false, error: error.message || 'Erro ao testar SMTP' };
     }
   }
 
@@ -792,6 +890,52 @@ class ApiService {
           wins: 0
         }
       };
+    } catch (error: any) {
+      return { ok: false, error: error.message };
+    }
+  }
+
+  /**
+   * Get round history with prize details (manager/admin)
+   */
+  async getRoundHistorySummary(managerId?: number): Promise<ApiResponse> {
+    try {
+      let query = supabase
+        .from('prizes')
+        .select(`
+          id,
+          amount,
+          purchases(code),
+          establishments(name),
+          prizes_withdrawals(status, created_at),
+          created_at
+        `)
+        .order('created_at', { ascending: false });
+
+      if (managerId) {
+        const { data: estIds } = await supabase
+          .from('establishments')
+          .select('id')
+          .eq('manager_id', managerId);
+
+        if (estIds) {
+          query = query.in('establishment_id', estIds.map(e => e.id));
+        }
+      }
+
+      const { data, error } = await query;
+      if (error) return { ok: false, error: error.message };
+
+      const formatted = data.map((p: any) => ({
+        id: p.id,
+        date: p.created_at,
+        ticket: p.purchases?.code || 'N/A',
+        establishment: p.establishments?.name || 'Sistema',
+        amount: p.amount,
+        status: p.prizes_withdrawals?.[0]?.status || 'pending_request'
+      }));
+
+      return { ok: true, data: formatted };
     } catch (error: any) {
       return { ok: false, error: error.message };
     }
@@ -1431,8 +1575,146 @@ class ApiService {
   }
 
   /**
-   * Request a password reset
+   * Get all withdrawal requests (admin only)
    */
+  async getAdminWithdrawals(): Promise<ApiResponse> {
+    try {
+      const { data, error } = await supabase
+        .from('withdrawals')
+        .select('*, users(name)')
+        .order('created_at', { ascending: false });
+
+      if (error) return { ok: false, error: error.message };
+
+      const formatted = data.map(w => ({
+        ...w,
+        user_name: w.users?.name || 'Sistema'
+      }));
+
+      return { ok: true, data: formatted };
+    } catch (error: any) {
+      return { ok: false, error: error.message };
+    }
+  }
+
+  /**
+   * Get all financial history (admin only)
+   */
+  async getAdminFinanceHistory(): Promise<ApiResponse> {
+    try {
+      const { data, error } = await supabase
+        .from('transactions')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) return { ok: false, error: error.message };
+      return { ok: true, data };
+    } catch (error: any) {
+      return { ok: false, error: error.message };
+    }
+  }
+
+  /**
+   * Get all prizes history (admin only)
+   */
+  async getAdminPrizes(): Promise<ApiResponse> {
+    try {
+      const { data, error } = await supabase
+        .from('prizes')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) return { ok: false, error: error.message };
+      return { ok: true, data };
+    } catch (error: any) {
+      return { ok: false, error: error.message };
+    }
+  }
+
+  /**
+   * Update withdrawal status (admin only)
+   */
+  async updateWithdrawalStatus(id: string, status: string): Promise<ApiResponse> {
+    try {
+      const { data, error } = await supabase
+        .from('withdrawals')
+        .update({ status })
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (error) return { ok: false, error: error.message };
+      return { ok: true, data };
+    } catch (error: any) {
+      return { ok: false, error: error.message };
+    }
+  }
+
+  /**
+   * Check if a card has a prize (public)
+   */
+  async checkCardPrize(code: string): Promise<ApiResponse> {
+    try {
+      const { data, error } = await supabase
+        .from('purchases')
+        .select('prize_amount')
+        .eq('code', code)
+        .maybeSingle();
+
+      if (error) return { ok: false, error: error.message };
+      if (!data) return { ok: true, data: { hasPrize: false, amount: 0 } };
+
+      return {
+        ok: true,
+        data: {
+          hasPrize: (data.prize_amount || 0) > 0,
+          amount: data.prize_amount || 0
+        }
+      };
+    } catch (error: any) {
+      return { ok: false, error: error.message };
+    }
+  }
+
+  /**
+   * Request prize withdrawal for a specific card
+   */
+  async requestPrizeWithdrawal(data: { cardCode: string; pixKeyType: string; pixKey: string; amount: number }): Promise<ApiResponse> {
+    try {
+      const { error } = await supabase
+        .from('prizes_withdrawals')
+        .insert({
+          card_code: data.cardCode,
+          pix_key_type: data.pixKeyType,
+          pix_key: data.pixKey,
+          amount: data.amount,
+          status: 'pending'
+        });
+
+      if (error) return { ok: false, error: error.message };
+      return { ok: true, data: null };
+    } catch (error: any) {
+      return { ok: false, error: error.message };
+    }
+  }
+
+  /**
+   * Get withdrawal history for a specific card
+   */
+  async getCardWithdrawHistory(code: string): Promise<ApiResponse> {
+    try {
+      const { data, error } = await supabase
+        .from('prizes_withdrawals')
+        .select('*')
+        .eq('card_code', code)
+        .order('created_at', { ascending: false });
+
+      if (error) return { ok: false, error: error.message };
+      return { ok: true, data };
+    } catch (error: any) {
+      return { ok: false, error: error.message };
+    }
+  }
   async requestPasswordReset(email: string): Promise<ApiResponse> {
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(email, {

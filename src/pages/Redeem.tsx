@@ -1,13 +1,13 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { 
-  Trophy, 
-  Search, 
-  Wallet, 
-  CreditCard, 
-  Mail, 
-  Phone, 
-  Hash, 
+import {
+  Trophy,
+  Search,
+  Wallet,
+  CreditCard,
+  Mail,
+  Phone,
+  Hash,
   Check,
   Clock,
   ArrowRight,
@@ -18,7 +18,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { checkCardPrize, requestWithdraw, getWithdrawHistory } from '@/services/mockApi';
+import { apiService } from '@/services/api';
 import { toast } from '@/hooks/use-toast';
 
 type RedeemStep = 'check' | 'withdraw' | 'history';
@@ -44,13 +44,17 @@ const Redeem = () => {
     }
 
     setIsLoading(true);
-    const result = await checkCardPrize(cardCode);
-    setPrizeData(result);
+    const result = await apiService.checkCardPrize(cardCode);
 
-    if (result.hasPrize) {
-      setStep('withdraw');
-      const history = await getWithdrawHistory(cardCode);
-      setWithdrawHistory(history);
+    if (result.ok && result.data) {
+      setPrizeData(result.data);
+      if (result.data.hasPrize) {
+        setStep('withdraw');
+        const historyRes = await apiService.getCardWithdrawHistory(cardCode);
+        if (historyRes.ok) setWithdrawHistory(historyRes.data || []);
+      }
+    } else {
+      setPrizeData({ hasPrize: false, amount: 0 });
     }
 
     setIsLoading(false);
@@ -67,10 +71,20 @@ const Redeem = () => {
     }
 
     setIsLoading(true);
-    await requestWithdraw(cardCode, pixKeyType, pixKey);
-    setWithdrawRequested(true);
+    const res = await apiService.requestPrizeWithdrawal({
+      cardCode,
+      pixKeyType,
+      pixKey,
+      amount: prizeData?.amount || 0
+    });
+
+    if (res.ok) {
+      setWithdrawRequested(true);
+    } else {
+      toast({ title: 'Erro', description: res.error || 'Falha ao solicitar saque.', variant: 'destructive' });
+    }
     setIsLoading(false);
-    
+
     toast({
       title: '✅ Saque solicitado!',
       description: 'Seu prêmio será transferido em até 24 horas.',
@@ -169,7 +183,7 @@ const Redeem = () => {
                     Sem prêmio nesta cartela
                   </h3>
                   <p className="text-muted-foreground">
-                    Esta cartela não foi contemplada. Continue tentando, 
+                    Esta cartela não foi contemplada. Continue tentando,
                     o próximo sorteio acontece em breve!
                   </p>
                 </motion.div>
@@ -178,7 +192,7 @@ const Redeem = () => {
               {/* Info */}
               <div className="bg-secondary rounded-xl p-4">
                 <p className="text-sm text-muted-foreground text-center">
-                  O código da cartela é exibido após a compra e enviado por WhatsApp. 
+                  O código da cartela é exibido após a compra e enviado por WhatsApp.
                   Exemplo: <code className="bg-primary/10 px-2 py-0.5 rounded">SB-A7K3M9P2</code>
                 </p>
               </div>
@@ -207,7 +221,7 @@ const Redeem = () => {
               {!withdrawRequested ? (
                 <div className="bg-card border border-border rounded-2xl p-6 space-y-4">
                   <h3 className="font-semibold text-lg mb-4">Dados para Saque</h3>
-                  
+
                   {/* Pix Key Type */}
                   <div className="space-y-2">
                     <Label>Tipo de Chave Pix</Label>
@@ -295,16 +309,16 @@ const Redeem = () => {
                         </div>
                         <span
                           className={`px-3 py-1 rounded-full text-xs font-medium
-                            ${w.status === 'completed' 
-                              ? 'bg-success/10 text-success' 
-                              : w.status === 'pending' 
+                            ${w.status === 'completed'
+                              ? 'bg-success/10 text-success'
+                              : w.status === 'pending'
                                 ? 'bg-warning/10 text-warning'
                                 : 'bg-muted text-muted-foreground'
                             }`}
                         >
-                          {w.status === 'completed' ? 'Concluído' : 
-                           w.status === 'pending' ? 'Pendente' : 
-                           w.status === 'processing' ? 'Processando' : 'Falhou'}
+                          {w.status === 'completed' ? 'Concluído' :
+                            w.status === 'pending' ? 'Pendente' :
+                              w.status === 'processing' ? 'Processando' : 'Falhou'}
                         </span>
                       </div>
                     ))}

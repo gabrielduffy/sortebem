@@ -42,9 +42,10 @@ import AdminRounds from "./pages/admin/AdminRounds";
 import AdminManagers from "./pages/admin/AdminManagers";
 import AdminEstablishments from "./pages/admin/AdminEstablishments";
 import AdminPOS from "./pages/admin/AdminPOS";
-import AdminLogs from "./pages/admin/AdminLogs";
-import AdminIntegrations from "./pages/admin/AdminIntegrations";
-import AdminProfile from "./pages/admin/AdminProfile";
+import AdminLogs from '@/pages/admin/AdminLogs';
+import AdminIntegrations from '@/pages/admin/AdminIntegrations';
+import AdminFinance from '@/pages/admin/AdminFinance';
+import AdminProfile from '@/pages/admin/AdminProfile';
 
 const queryClient = new QueryClient();
 
@@ -143,6 +144,11 @@ const App = () => (
             <Route path="/admin" element={
               <ProtectedRoute allowedRoles={['admin']}>
                 <AdminDashboard />
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/financeiro" element={
+              <ProtectedRoute allowedRoles={['admin']}>
+                <AdminFinance />
               </ProtectedRoute>
             } />
             <Route path="/admin/configuracoes" element={
