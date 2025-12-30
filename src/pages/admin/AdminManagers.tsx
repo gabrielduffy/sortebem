@@ -114,6 +114,9 @@ export default function AdminManagers() {
     try {
       setSaving(true);
       const response = await apiService.updateManager(editingManager.id, {
+        name: formData.name,
+        email: formData.email,
+        whatsapp: formData.whatsapp,
         cpf: formData.cpf
       });
 

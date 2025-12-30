@@ -134,7 +134,8 @@ export default function AdminEstablishments() {
       const response = await apiService.updateEstablishment(editingEstablishment.id, {
         name: formData.name,
         cnpj: formData.cnpj,
-        phone: formData.phone
+        phone: formData.phone,
+        email: formData.email
       });
 
       if (response.ok) {

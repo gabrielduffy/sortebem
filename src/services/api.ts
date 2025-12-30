@@ -743,7 +743,43 @@ class ApiService {
    * Create manager (admin only)
    */
   async createManager(data: { name: string; cpf: string; whatsapp: string; email: string; password: string }): Promise<ApiResponse> {
-    return { ok: false, error: 'Função não implementada - use o painel admin' }
+    try {
+      // 1. Create user
+      const { data: newUser, error: userError } = await supabase
+        .from('users')
+        .insert({
+          name: data.name,
+          email: data.email,
+          whatsapp: data.whatsapp,
+          role: 'manager',
+          is_active: true
+        })
+        .select()
+
+      if (userError || !newUser || newUser.length === 0) {
+        return { ok: false, error: userError?.message || 'Erro ao criar usuário para o gerente' }
+      }
+
+      const userId = newUser[0].id
+
+      // 2. Create manager entry
+      const { data: manager, error: managerError } = await supabase
+        .from('managers')
+        .insert({
+          user_id: userId,
+          cpf: data.cpf,
+          kyc_status: 'approved' // Auto-approve for manual creation
+        })
+        .select()
+
+      if (managerError) {
+        return { ok: false, error: managerError.message }
+      }
+
+      return { ok: true, data: manager?.[0] }
+    } catch (error: any) {
+      return { ok: false, error: error.message || 'Erro ao criar gerente' }
+    }
   }
 
   /**
@@ -751,18 +787,41 @@ class ApiService {
    */
   async updateManager(id: number, data: any): Promise<ApiResponse> {
     try {
+      // 1. Get manager to find user_id
+      const { data: currentManager } = await supabase
+        .from('managers')
+        .select('user_id')
+        .eq('id', id)
+        .maybeSingle()
+
+      // 2. Update user if needed
+      if (currentManager?.user_id && (data.name || data.email || data.whatsapp)) {
+        await supabase
+          .from('users')
+          .update({
+            name: data.name,
+            email: data.email,
+            whatsapp: data.whatsapp
+          })
+          .eq('id', currentManager.user_id)
+      }
+
+      // 3. Update manager fields (filter out user fields)
+      const managerFields: any = {}
+      if (data.cpf !== undefined) managerFields.cpf = data.cpf
+      if (data.kyc_status !== undefined) managerFields.kyc_status = data.kyc_status
+
       const { data: manager, error } = await supabase
         .from('managers')
-        .update(data)
+        .update(managerFields)
         .eq('id', id)
         .select()
-        .single()
 
       if (error) {
         return { ok: false, error: error.message }
       }
 
-      return { ok: true, data: manager }
+      return { ok: true, data: manager?.[0] }
     } catch (error: any) {
       return { ok: false, error: error.message || 'Erro ao atualizar gerente' }
     }
@@ -798,13 +857,12 @@ class ApiService {
         .update({ kyc_status: status })
         .eq('id', id)
         .select()
-        .single()
 
       if (error) {
         return { ok: false, error: error.message }
       }
 
-      return { ok: true, data }
+      return { ok: true, data: data?.[0] }
     } catch (error: any) {
       return { ok: false, error: error.message || 'Erro ao atualizar KYC' }
     }
@@ -870,12 +928,59 @@ class ApiService {
     phone: string;
     email: string;
     password: string;
-    manager_id: number;
+    manager_id: number | null;
     address: string;
     city: string;
     state: string;
   }): Promise<ApiResponse> {
-    return { ok: false, error: 'Função não implementada - use o painel admin' }
+    try {
+      // 1. Create user
+      const { data: newUser, error: userError } = await supabase
+        .from('users')
+        .insert({
+          name: data.name,
+          email: data.email,
+          whatsapp: data.phone,
+          role: 'establishment',
+          is_active: true
+        })
+        .select()
+
+      if (userError || !newUser || newUser.length === 0) {
+        return { ok: false, error: userError?.message || 'Erro ao criar usuário para o estabelecimento' }
+      }
+
+      const userId = newUser[0].id
+
+      // 2. Generate unique 8-digit code
+      const code = Math.floor(10000000 + Math.random() * 90000000).toString()
+
+      // 3. Create establishment entry
+      const { data: establishment, error: estError } = await supabase
+        .from('establishments')
+        .insert({
+          user_id: userId,
+          manager_id: data.manager_id,
+          name: data.name,
+          cnpj: data.cnpj,
+          phone: data.phone,
+          address: data.address,
+          city: data.city,
+          state: data.state,
+          code: code,
+          slug: data.name.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+          kyc_status: 'approved'
+        })
+        .select()
+
+      if (estError) {
+        return { ok: false, error: estError.message }
+      }
+
+      return { ok: true, data: establishment?.[0] }
+    } catch (error: any) {
+      return { ok: false, error: error.message || 'Erro ao criar estabelecimento' }
+    }
   }
 
   /**
@@ -883,18 +988,40 @@ class ApiService {
    */
   async updateEstablishment(id: number, data: any): Promise<ApiResponse> {
     try {
+      // 1. Get establishment to find user_id
+      const { data: currentEst } = await supabase
+        .from('establishments')
+        .select('user_id')
+        .eq('id', id)
+        .maybeSingle()
+
+      // 2. Update user if name/email/phone changed
+      if (currentEst?.user_id && (data.name || data.email || data.phone)) {
+        await supabase
+          .from('users')
+          .update({
+            name: data.name,
+            email: data.email,
+            whatsapp: data.phone
+          })
+          .eq('id', currentEst.user_id)
+      }
+
+      // 3. Update establishment fields (only those that belong)
+      const estFields: any = { ...data }
+      delete estFields.email // email is in users table
+
       const { data: establishment, error } = await supabase
         .from('establishments')
-        .update(data)
+        .update(estFields)
         .eq('id', id)
         .select()
-        .single()
 
       if (error) {
         return { ok: false, error: error.message }
       }
 
-      return { ok: true, data: establishment }
+      return { ok: true, data: establishment?.[0] }
     } catch (error: any) {
       return { ok: false, error: error.message || 'Erro ao atualizar estabelecimento' }
     }
@@ -930,13 +1057,12 @@ class ApiService {
         .update({ kyc_status: status })
         .eq('id', id)
         .select()
-        .single()
 
       if (error) {
         return { ok: false, error: error.message }
       }
 
-      return { ok: true, data }
+      return { ok: true, data: data?.[0] }
     } catch (error: any) {
       return { ok: false, error: error.message || 'Erro ao atualizar KYC' }
     }
@@ -1002,13 +1128,12 @@ class ApiService {
         .from('charities')
         .insert(data)
         .select()
-        .single()
 
       if (error) {
         return { ok: false, error: error.message }
       }
 
-      return { ok: true, data: charity }
+      return { ok: true, data: charity?.[0] }
     } catch (error: any) {
       return { ok: false, error: error.message || 'Erro ao criar instituição' }
     }
@@ -1024,13 +1149,12 @@ class ApiService {
         .update(data)
         .eq('id', id)
         .select()
-        .single()
 
       if (error) {
         return { ok: false, error: error.message }
       }
 
-      return { ok: true, data: charity }
+      return { ok: true, data: charity?.[0] }
     } catch (error: any) {
       return { ok: false, error: error.message || 'Erro ao atualizar instituição' }
     }
