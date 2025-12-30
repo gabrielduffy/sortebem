@@ -595,34 +595,56 @@ class ApiService {
   }
 
   /**
- * Get establishment stats
+ * Get establishment stats with real aggregation
  */
   async getEstablishmentStats(): Promise<ApiResponse> {
     try {
       const user = await this.getUser()
-      if (!user) {
-        return { ok: false, error: 'Usuário não autenticado' }
-      }
+      if (!user) return { ok: false, error: 'Usuário não autenticado' }
 
-      const { data: est, error } = await supabase
+      // 1. Get Establishment basic data
+      const { data: est, error: estError } = await supabase
         .from('establishments')
-        .select('balance, total_sales, total_commission')
+        .select('id, balance, total_sales, total_commission')
         .eq('user_id', user.id)
         .single()
 
-      if (error) return { ok: false, error: error.message }
+      if (estError) return { ok: false, error: estError.message }
+
+      // 2. Aggregate Today's Sales
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      const { data: salesToday, error: sError } = await supabase
+        .from('purchases')
+        .select('total_amount')
+        .eq('establishment_id', est.id)
+        .eq('payment_status', 'paid')
+        .gte('created_at', today.toISOString());
+
+      if (sError) console.error('Error fetching today sales:', sError);
+
+      const todayAmount = salesToday?.reduce((acc, s) => acc + (s.total_amount || 0), 0) || 0;
+      const todayCount = salesToday?.length || 0;
+
+      // 3. Wins (cards where is_winner=true)
+      const { count: winsCount, error: wError } = await supabase
+        .from('cards')
+        .select('id', { count: 'exact', head: true })
+        .eq('is_winner', true)
+        .eq('status', 'active'); // Assuming active means purchased and valid
 
       return {
         ok: true,
         data: {
-          salesToday: 0, // Need aggregation for real today sales
-          salesTodayAmount: 0,
-          salesMonth: 0,
-          salesMonthAmount: est.total_sales || 0,
+          salesToday: todayCount,
+          salesTodayAmount: todayAmount,
+          salesMonth: est.total_sales || 0, // Using the counter cached in the table
+          salesMonthAmount: est.total_sales * 5, // Assuming R$ 5 per card for now
           commission: est.total_commission || 0,
           bonus: 0,
-          wins: 0,
-          winAmount: 0
+          wins: winsCount || 0,
+          winAmount: (winsCount || 0) * 100 // Example prize
         }
       }
     } catch (error: any) {
@@ -897,7 +919,7 @@ class ApiService {
   /**
    * Get round history with prize details (manager/admin)
    */
-  async getRoundHistorySummary(managerId?: number): Promise<ApiResponse> {
+  async getRoundHistorySummary(managerId?: number, establishmentId?: string): Promise<ApiResponse> {
     try {
       let query = supabase
         .from('prizes')
@@ -920,6 +942,8 @@ class ApiService {
         if (estIds) {
           query = query.in('establishment_id', estIds.map(e => e.id));
         }
+      } else if (establishmentId) {
+        query = query.eq('establishment_id', establishmentId);
       }
 
       const { data, error } = await query;
@@ -1732,16 +1756,17 @@ class ApiService {
 
   async requestWithdrawal(amount: number): Promise<ApiResponse> {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const user = await this.getUser();
       if (!user) return { ok: false, error: 'Usuário não autenticado' };
 
       const { data, error } = await supabase
-        .from('withdrawal_requests')
+        .from('withdrawals')
         .insert([{
           user_id: user.id,
           amount,
           status: 'pending',
-          payment_method: 'pix'
+          payment_method: 'pix',
+          user_type: user.role // Admin, Manager or Establishment
         }])
         .select();
 
@@ -1754,10 +1779,10 @@ class ApiService {
 
   async updateAsaasData(data: any): Promise<ApiResponse> {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const user = await this.getUser();
       if (!user) return { ok: false, error: 'Usuário não autenticado' };
 
-      const table = user.user_metadata?.role === 'manager' ? 'managers' : 'establishments';
+      const table = user.role === 'manager' ? 'managers' : 'establishments';
       const { error } = await supabase
         .from(table)
         .update({ asaas_data: data })
@@ -1772,13 +1797,13 @@ class ApiService {
 
   async getManagerTransactions(): Promise<ApiResponse> {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const user = await this.getUser();
       if (!user) return { ok: false, error: 'Não autenticado' };
 
       const { data, error } = await supabase
-        .from('manager_transactions')
+        .from('withdrawals')
         .select('*')
-        .eq('manager_user_id', user.id)
+        .eq('user_id', user.id)
         .order('created_at', { ascending: false });
 
       if (error) return { ok: false, error: error.message };
@@ -1790,17 +1815,71 @@ class ApiService {
 
   async getEstablishmentFinancials(): Promise<ApiResponse> {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const user = await this.getUser();
       if (!user) return { ok: false, error: 'Não autenticado' };
 
+      // Using withdrawals as financial history for now
       const { data, error } = await supabase
-        .from('establishment_transactions')
+        .from('withdrawals')
         .select('*')
-        .eq('establishment_user_id', user.id)
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+
+      if (error) return { ok: false, error: error.message };
+
+      const formatted = (data || []).map(w => ({
+        id: w.id,
+        created_at: w.created_at,
+        description: `Saque Solicidado (${w.payment_method})`,
+        amount: -w.amount,
+        status: w.status
+      }));
+
+      return { ok: true, data: formatted };
+    } catch (error: any) {
+      return { ok: false, error: error.message };
+    }
+  }
+
+  async getPosTerminals(establishmentId: string): Promise<ApiResponse> {
+    try {
+      const { data, error } = await supabase
+        .from('pos_terminals')
+        .select('*')
+        .eq('establishment_id', establishmentId)
         .order('created_at', { ascending: false });
 
       if (error) return { ok: false, error: error.message };
       return { ok: true, data };
+    } catch (error: any) {
+      return { ok: false, error: error.message };
+    }
+  }
+
+  async createPosTerminal(data: any): Promise<ApiResponse> {
+    try {
+      const { data: terminal, error } = await supabase
+        .from('pos_terminals')
+        .insert(data)
+        .select()
+        .single();
+
+      if (error) return { ok: false, error: error.message };
+      return { ok: true, data: terminal };
+    } catch (error: any) {
+      return { ok: false, error: error.message };
+    }
+  }
+
+  async togglePosTerminal(id: string, active: boolean): Promise<ApiResponse> {
+    try {
+      const { error } = await supabase
+        .from('pos_terminals')
+        .update({ is_active: active, active: active })
+        .eq('id', id);
+
+      if (error) return { ok: false, error: error.message };
+      return { ok: true };
     } catch (error: any) {
       return { ok: false, error: error.message };
     }

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Save, Building2, User, MapPin, CreditCard, Shield } from 'lucide-react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Button } from '@/components/ui/button';
@@ -14,7 +14,6 @@ import {
 } from '@/components/ui/select';
 import { toast } from '@/hooks/use-toast';
 import { apiService } from '@/services/api';
-import { mockEstablishment } from '@/services/mockData';
 
 interface EstablishmentProfileData {
   cnpj: string;
@@ -34,22 +33,60 @@ interface EstablishmentProfileData {
 }
 
 export default function EstablishmentProfile() {
+  const [establishment, setEstablishment] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
   const [formData, setFormData] = useState<EstablishmentProfileData>({
-    cnpj: mockEstablishment.cnpj,
-    companyName: mockEstablishment.companyName,
-    tradeName: mockEstablishment.tradeName,
-    address: mockEstablishment.address,
-    legalRepName: mockEstablishment.legalRepName,
-    legalRepCpf: mockEstablishment.legalRepCpf,
-    whatsapp: mockEstablishment.whatsapp,
-    email: mockEstablishment.email,
-    pixKeyType: mockEstablishment.pixKeyType,
-    pixKey: mockEstablishment.pixKey,
+    cnpj: '',
+    companyName: '',
+    tradeName: '',
+    address: '',
+    legalRepName: '',
+    legalRepCpf: '',
+    whatsapp: '',
+    email: '',
+    pixKeyType: 'cnpj',
+    pixKey: '',
     bankCode: '',
     agency: '',
     accountNumber: '',
     accountType: 'CHECKING'
   });
+
+  useEffect(() => {
+    loadEstablishment();
+  }, []);
+
+  const loadEstablishment = async () => {
+    try {
+      setLoading(true);
+      const result = await apiService.getCurrentEstablishment();
+      if (result.ok && result.data) {
+        setEstablishment(result.data);
+        const asaasData = result.data.asaas_data || {};
+        setFormData({
+          cnpj: result.data.cnpj || '',
+          companyName: result.data.name || '',
+          tradeName: result.data.name || '',
+          address: result.data.address || '',
+          legalRepName: asaasData.legalRepName || '',
+          legalRepCpf: asaasData.legalRepCpf || '',
+          whatsapp: result.data.phone || '',
+          email: asaasData.email || '',
+          pixKeyType: asaasData.pixKeyType || 'cnpj',
+          pixKey: asaasData.pixKey || '',
+          bankCode: asaasData.bankCode || '',
+          agency: asaasData.agency || '',
+          accountNumber: asaasData.accountNumber || '',
+          accountType: asaasData.accountType || 'CHECKING'
+        });
+      }
+    } catch (error) {
+      console.error(error);
+      toast({ title: 'Erro', description: 'Erro ao carregar dados do estabelecimento', variant: 'destructive' });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleSave = async () => {
     try {
@@ -76,7 +113,11 @@ export default function EstablishmentProfile() {
   };
 
   return (
-    <DashboardLayout userType="establishment" userName={mockEstablishment.tradeName} notifications={2}>
+    <DashboardLayout
+      userType="establishment"
+      userName={establishment?.name || 'Estabelecimento'}
+      notifications={2}
+    >
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div>
@@ -90,28 +131,28 @@ export default function EstablishmentProfile() {
       </div>
 
       {/* KYC Status Banner */}
-      <div className={`rounded-xl p-4 mb-6 flex items-center gap-4 ${mockEstablishment.kycStatus === 'approved'
+      <div className={`rounded-xl p-4 mb-6 flex items-center gap-4 ${establishment?.kyc_status === 'approved'
         ? 'bg-green-500/10 border border-green-500/20'
-        : mockEstablishment.kycStatus === 'pending'
+        : establishment?.kyc_status === 'pending'
           ? 'bg-yellow-500/10 border border-yellow-500/20'
           : 'bg-red-500/10 border border-red-500/20'
         }`}>
-        <Shield className={`h-8 w-8 ${mockEstablishment.kycStatus === 'approved' ? 'text-green-600' :
-          mockEstablishment.kycStatus === 'pending' ? 'text-yellow-600' : 'text-red-600'
+        <Shield className={`h-8 w-8 ${establishment?.kyc_status === 'approved' ? 'text-green-600' :
+          establishment?.kyc_status === 'pending' ? 'text-yellow-600' : 'text-red-600'
           }`} />
         <div className="flex-1">
           <p className="font-semibold text-foreground">
             Status KYC: {' '}
             <Badge variant={
-              mockEstablishment.kycStatus === 'approved' ? 'default' :
-                mockEstablishment.kycStatus === 'pending' ? 'secondary' : 'destructive'
+              establishment?.kyc_status === 'approved' ? 'default' :
+                establishment?.kyc_status === 'pending' ? 'secondary' : 'destructive'
             }>
-              {mockEstablishment.kycStatus === 'approved' ? 'Aprovado' :
-                mockEstablishment.kycStatus === 'pending' ? 'Em Análise' : 'Reprovado'}
+              {establishment?.kyc_status === 'approved' ? 'Aprovado' :
+                establishment?.kyc_status === 'pending' ? 'Em Análise' : 'Reprovado'}
             </Badge>
           </p>
           <p className="text-sm text-muted-foreground">
-            {mockEstablishment.kycStatus === 'approved'
+            {establishment?.kyc_status === 'approved'
               ? 'Seu estabelecimento está verificado e habilitado para vendas.'
               : 'Complete todas as informações para aprovação.'}
           </p>

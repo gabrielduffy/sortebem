@@ -20,18 +20,27 @@ export default function EstablishmentFinance() {
     loadData();
   }, []);
 
+  const [establishment, setEstablishment] = useState<any>(null);
+  const [stats, setStats] = useState<any>(null);
+
   const loadData = async () => {
     try {
       setLoading(true);
-      const response = await apiService.getEstablishmentFinancials();
-      if (response.ok) {
-        setTransactions(response.data || []);
-        // Mock summary from transactions for now if no specific endpoint
-        const balance = transactions.reduce((acc, tx) => acc + (tx.amount || 0), 0);
-        setFinancials({ balance });
+      const estRes = await apiService.getCurrentEstablishment();
+      if (estRes.ok && estRes.data) {
+        setEstablishment(estRes.data);
+
+        const statsRes = await apiService.getEstablishmentStats();
+        if (statsRes.ok) setStats(statsRes.data);
+
+        const response = await apiService.getEstablishmentFinancials();
+        if (response.ok) {
+          setTransactions(response.data || []);
+        }
       }
     } catch (error) {
       console.error('Error loading establishment finance:', error);
+      toast({ title: 'Erro', description: 'Erro ao carregar dados financeiros', variant: 'destructive' });
     } finally {
       setLoading(false);
     }
@@ -89,7 +98,11 @@ export default function EstablishmentFinance() {
 
   if (loading) {
     return (
-      <DashboardLayout userType="establishment" userName="Estabelecimento" notifications={0}>
+      <DashboardLayout
+        userType="establishment"
+        userName={establishment?.name || 'Estabelecimento'}
+        notifications={0}
+      >
         <div className="flex items-center justify-center min-h-[400px]">
           <div className="animate-spin w-12 h-12 border-4 border-primary border-t-transparent rounded-full" />
         </div>
@@ -98,7 +111,11 @@ export default function EstablishmentFinance() {
   }
 
   return (
-    <DashboardLayout userType="establishment" userName="Estabelecimento" notifications={2}>
+    <DashboardLayout
+      userType="establishment"
+      userName={establishment?.name || 'Estabelecimento'}
+      notifications={2}
+    >
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div>
@@ -110,27 +127,26 @@ export default function EstablishmentFinance() {
         </Button>
       </div>
 
-      {/* Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <StatCard
           title="Saldo Disponível"
-          value={formatCurrency(financials?.balance || 0)}
+          value={formatCurrency(establishment?.balance || 0)}
           icon={Wallet}
           className="bg-primary/5 border-primary/20"
         />
         <StatCard
           title="Total Vendas"
-          value={formatCurrency(0)} // TODO: Bind to real sales stat
+          value={formatCurrency(stats?.salesMonthAmount || 0)}
           icon={TrendingUp}
         />
         <StatCard
           title="Bônus"
-          value={formatCurrency(0)}
+          value={formatCurrency(stats?.bonus || 0)}
           icon={Gift}
         />
         <StatCard
           title="Total Sacado"
-          value={formatCurrency(0)}
+          value={formatCurrency(Math.abs(transactions.filter(t => t.description.includes('Saque') && t.status === 'completed').reduce((acc, t) => acc + t.amount, 0)))}
           icon={ArrowUpRight}
         />
       </div>

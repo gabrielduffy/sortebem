@@ -13,13 +13,7 @@ import { DataTable } from '@/components/dashboard/DataTable';
 
 // Removed mockDashboardData, using real state instead.
 
-const mockRecentSales = [
-  { id: '1', time: '14:32', quantity: 5, amount: 25, method: 'PIX' },
-  { id: '2', time: '14:28', quantity: 2, amount: 10, method: 'POS' },
-  { id: '3', time: '14:15', quantity: 10, amount: 50, method: 'PIX' },
-  { id: '4', time: '14:02', quantity: 3, amount: 15, method: 'PIX' },
-  { id: '5', time: '13:55', quantity: 8, amount: 40, method: 'POS' },
-];
+// Mocks removed
 
 const chartData = [
   { name: 'Seg', vendas: 85, comissoes: 12.75 },
@@ -57,17 +51,25 @@ export default function EstablishmentDashboard() {
       if (estRes.ok && estRes.data) {
         setEstablishment(estRes.data);
 
-        // 2. Stats
+        // 1. Stats
         const statsRes = await apiService.getEstablishmentStats();
         if (statsRes.ok) setStats(statsRes.data);
 
-        // 3. Round History
-        const roundRes = await apiService.getRoundHistorySummary();
+        // 2. Round History (filtered by establishment)
+        const roundRes = await apiService.getRoundHistorySummary(undefined, estRes.data.id);
         if (roundRes.ok) setRoundHistory(roundRes.data || []);
 
-        // 4. Recent Sales
+        // 3. Recent Sales
         const salesRes = await apiService.getEstablishmentTransactions(estRes.data.id);
-        if (salesRes.ok) setRecentSales(salesRes.data?.slice(0, 5) || []);
+        if (salesRes.ok) {
+          setRecentSales((salesRes.data || []).slice(0, 5).map((s: any) => ({
+            id: s.id,
+            created_at: s.created_at,
+            quantity: s.quantity || 1,
+            amount: s.total_amount,
+            payment_method: s.payment_method?.toUpperCase() || 'PIX'
+          })));
+        }
       }
     } catch (error) {
       console.error('Error loading establishment dashboard:', error);
@@ -100,7 +102,11 @@ export default function EstablishmentDashboard() {
   ];
 
   return (
-    <DashboardLayout userType="establishment" userName={establishment.tradeName} notifications={2}>
+    <DashboardLayout
+      userType="establishment"
+      userName={establishment?.name || 'Estabelecimento'}
+      notifications={2}
+    >
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <StatCard title="Vendas Hoje" value={stats.salesToday} subtitle={`R$ ${stats.salesTodayAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} icon={ShoppingCart} />
         <StatCard title="Vendas do Mês" value={stats.salesMonth} subtitle={`R$ ${stats.salesMonthAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} icon={TrendingUp} />

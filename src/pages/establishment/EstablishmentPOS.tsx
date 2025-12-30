@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Plus, Monitor, Trash2, RefreshCw, Copy, Eye, EyeOff } from 'lucide-react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { DataTable } from '@/components/dashboard/DataTable';
@@ -16,7 +16,7 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { toast } from '@/hooks/use-toast';
-import { mockEstablishment } from '@/services/mockData';
+import { apiService } from '@/services/api';
 
 interface PosTerminal {
   id: string;
@@ -38,74 +38,91 @@ interface PosSale {
   method: 'card' | 'pix';
 }
 
-const mockTerminals: PosTerminal[] = [
-  { 
-    id: '1', 
-    terminalId: 'POS-001-PDJ', 
-    apiKey: 'sk_live_abc123xyz789...', 
-    isActive: true, 
-    lastActivity: '2024-12-28 14:32',
-    createdAt: '2024-11-15',
-    salesCount: 234
-  },
-  { 
-    id: '2', 
-    terminalId: 'POS-002-PDJ', 
-    apiKey: 'sk_live_def456uvw012...', 
-    isActive: true, 
-    lastActivity: '2024-12-28 13:45',
-    createdAt: '2024-11-20',
-    salesCount: 189
-  },
-  { 
-    id: '3', 
-    terminalId: 'POS-003-PDJ', 
-    apiKey: 'sk_live_ghi789rst345...', 
-    isActive: false, 
-    createdAt: '2024-12-01',
-    salesCount: 0
-  },
-];
-
-const mockPosSales: PosSale[] = [
-  { id: '1', terminalId: 'POS-001-PDJ', date: '2024-12-28', time: '14:32', quantity: 3, amount: 15, method: 'card' },
-  { id: '2', terminalId: 'POS-002-PDJ', date: '2024-12-28', time: '13:45', quantity: 5, amount: 25, method: 'pix' },
-  { id: '3', terminalId: 'POS-001-PDJ', date: '2024-12-28', time: '12:20', quantity: 2, amount: 10, method: 'card' },
-  { id: '4', terminalId: 'POS-001-PDJ', date: '2024-12-27', time: '18:15', quantity: 8, amount: 40, method: 'pix' },
-  { id: '5', terminalId: 'POS-002-PDJ', date: '2024-12-27', time: '16:30', quantity: 4, amount: 20, method: 'card' },
-];
+// Types moved to state
 
 export default function EstablishmentPOS() {
-  const [terminals, setTerminals] = useState(mockTerminals);
+  const [establishment, setEstablishment] = useState<any>(null);
+  const [terminals, setTerminals] = useState<PosTerminal[]>([]);
+  const [posSales, setPosSales] = useState<PosSale[]>([]);
+  const [loading, setLoading] = useState(true);
   const [newTerminalId, setNewTerminalId] = useState('');
+  const [newTerminalName, setNewTerminalName] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [showApiKey, setShowApiKey] = useState<{ [key: string]: boolean }>({});
 
-  const handleAddTerminal = () => {
-    if (!newTerminalId.trim()) {
-      toast({ title: "Erro", description: "Informe o ID do terminal", variant: "destructive" });
-      return;
+  const loadData = async () => {
+    setLoading(true);
+    try {
+      const { data: est } = await apiService.getCurrentEstablishment();
+      if (est) {
+        setEstablishment(est);
+        const { data: terms } = await apiService.getPosTerminals(est.id);
+        if (terms) {
+          setTerminals(terms.map((t: any) => ({
+            id: t.id,
+            terminalId: t.terminal_code,
+            apiKey: t.api_key,
+            isActive: t.is_active || t.active,
+            createdAt: new Date(t.created_at).toLocaleDateString(),
+            salesCount: 0 // In a real app, this would be aggregated
+          })));
+        }
+      }
+    } catch (error) {
+      console.error(error);
+      toast({ title: "Erro", description: "Falha ao carregar terminais", variant: "destructive" });
+    } finally {
+      setLoading(false);
     }
-    
-    const newTerminal: PosTerminal = {
-      id: String(terminals.length + 1),
-      terminalId: newTerminalId,
-      apiKey: `sk_live_${Math.random().toString(36).substring(2, 15)}...`,
-      isActive: true,
-      createdAt: new Date().toISOString().split('T')[0],
-      salesCount: 0,
-    };
-    
-    setTerminals([...terminals, newTerminal]);
-    setNewTerminalId('');
-    setDialogOpen(false);
-    toast({ title: "Terminal cadastrado!", description: "API Key gerada com sucesso." });
   };
 
-  const toggleTerminal = (id: string) => {
-    setTerminals(terminals.map(t => 
-      t.id === id ? { ...t, isActive: !t.isActive } : t
-    ));
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const handleAddTerminal = async () => {
+    if (!newTerminalId.trim() || !newTerminalName.trim()) {
+      toast({ title: "Erro", description: "Preencha todos os campos", variant: "destructive" });
+      return;
+    }
+
+    try {
+      const apiKey = `sk_live_${Math.random().toString(36).substring(2, 11)}${Math.random().toString(36).substring(2, 11)}`;
+      const result = await apiService.createPosTerminal({
+        establishment_id: establishment.id,
+        terminal_code: newTerminalId,
+        name: newTerminalName,
+        api_key: apiKey,
+        is_active: true,
+        active: true
+      });
+
+      if (result.ok) {
+        loadData();
+        setNewTerminalId('');
+        setNewTerminalName('');
+        setDialogOpen(false);
+        toast({ title: "Terminal cadastrado!", description: "API Key gerada com sucesso." });
+      } else {
+        toast({ title: "Erro", description: result.error, variant: "destructive" });
+      }
+    } catch (error) {
+      toast({ title: "Erro", description: "Falha ao criar terminal", variant: "destructive" });
+    }
+  };
+
+  const toggleTerminal = async (id: string, currentStatus: boolean) => {
+    try {
+      const result = await apiService.togglePosTerminal(id, !currentStatus);
+      if (result.ok) {
+        setTerminals(terminals.map(t =>
+          t.id === id ? { ...t, isActive: !t.isActive } : t
+        ));
+        toast({ title: "Status atualizado", description: `Terminal ${!currentStatus ? 'ativado' : 'desativado'} com sucesso.` });
+      }
+    } catch (error) {
+      toast({ title: "Erro", description: "Falha ao atualizar status", variant: "destructive" });
+    }
   };
 
   const copyApiKey = (apiKey: string) => {
@@ -115,21 +132,21 @@ export default function EstablishmentPOS() {
 
   const terminalColumns = [
     { key: 'terminalId', label: 'ID do Terminal' },
-    { 
-      key: 'apiKey', 
+    {
+      key: 'apiKey',
       label: 'API Key',
       render: (terminal: PosTerminal) => (
         <div className="flex items-center gap-2">
           <span className="font-mono text-sm">
             {showApiKey[terminal.id] ? terminal.apiKey : '••••••••••••••••'}
           </span>
-          <button 
+          <button
             onClick={() => setShowApiKey({ ...showApiKey, [terminal.id]: !showApiKey[terminal.id] })}
             className="text-muted-foreground hover:text-foreground"
           >
             {showApiKey[terminal.id] ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
           </button>
-          <button 
+          <button
             onClick={() => copyApiKey(terminal.apiKey)}
             className="text-muted-foreground hover:text-foreground"
           >
@@ -138,14 +155,14 @@ export default function EstablishmentPOS() {
         </div>
       )
     },
-    { 
-      key: 'isActive', 
+    {
+      key: 'isActive',
       label: 'Status',
       render: (terminal: PosTerminal) => (
         <div className="flex items-center gap-2">
-          <Switch 
-            checked={terminal.isActive} 
-            onCheckedChange={() => toggleTerminal(terminal.id)}
+          <Switch
+            checked={terminal.isActive}
+            onCheckedChange={() => toggleTerminal(terminal.id, terminal.isActive)}
           />
           <Badge variant={terminal.isActive ? 'default' : 'secondary'}>
             {terminal.isActive ? 'Ativo' : 'Inativo'}
@@ -153,8 +170,8 @@ export default function EstablishmentPOS() {
         </div>
       )
     },
-    { 
-      key: 'lastActivity', 
+    {
+      key: 'lastActivity',
       label: 'Última Atividade',
       render: (terminal: PosTerminal) => terminal.lastActivity || 'Nunca'
     },
@@ -163,8 +180,8 @@ export default function EstablishmentPOS() {
 
   const salesColumns = [
     { key: 'terminalId', label: 'Terminal' },
-    { 
-      key: 'date', 
+    {
+      key: 'date',
       label: 'Data/Hora',
       render: (sale: PosSale) => (
         <div>
@@ -174,13 +191,13 @@ export default function EstablishmentPOS() {
       )
     },
     { key: 'quantity', label: 'Cartelas' },
-    { 
-      key: 'amount', 
+    {
+      key: 'amount',
       label: 'Valor',
       render: (sale: PosSale) => `R$ ${sale.amount.toFixed(2)}`
     },
-    { 
-      key: 'method', 
+    {
+      key: 'method',
       label: 'Método',
       render: (sale: PosSale) => (
         <Badge variant="outline">
@@ -191,7 +208,11 @@ export default function EstablishmentPOS() {
   ];
 
   return (
-    <DashboardLayout userType="establishment" userName={mockEstablishment.tradeName} notifications={2}>
+    <DashboardLayout
+      userType="establishment"
+      userName={establishment?.name || 'Estabelecimento'}
+      notifications={2}
+    >
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div>
@@ -214,7 +235,16 @@ export default function EstablishmentPOS() {
             </DialogHeader>
             <div className="space-y-4 py-4">
               <div className="space-y-2">
-                <Label htmlFor="terminalId">ID do Terminal</Label>
+                <Label htmlFor="terminalName">Nome do Terminal</Label>
+                <Input
+                  id="terminalName"
+                  placeholder="Ex: Balcão Principal"
+                  value={newTerminalName}
+                  onChange={(e) => setNewTerminalName(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="terminalId">ID do Terminal (SN)</Label>
                 <Input
                   id="terminalId"
                   placeholder="Ex: POS-004-PDJ"
@@ -273,7 +303,7 @@ export default function EstablishmentPOS() {
       <div>
         <h3 className="font-semibold text-foreground mb-4">Vendas via POS</h3>
         <DataTable
-          data={mockPosSales}
+          data={posSales}
           columns={salesColumns}
           pageSize={10}
           emptyMessage="Nenhuma venda via POS ainda."
