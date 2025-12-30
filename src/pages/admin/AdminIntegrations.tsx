@@ -10,8 +10,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from '@/hooks/use-toast';
-import { Save, Eye, EyeOff, Copy, Check, Plug, MessageCircle, Webhook, CreditCard, Mail, Send, FileText, Trash2, Plus } from 'lucide-react';
+import { Save, Eye, EyeOff, Copy, Check, Plug, MessageCircle, Webhook, CreditCard, Mail, Send, FileText, Trash2, Plus, Info } from 'lucide-react';
 import { apiService } from '@/services/api';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 
 export default function AdminIntegrations() {
   const [loading, setLoading] = useState(true);
@@ -65,9 +66,11 @@ export default function AdminIntegrations() {
   const [showSmtpPassword, setShowSmtpPassword] = useState(false);
   const [testEmail, setTestEmail] = useState('');
   const [emailTemplates, setEmailTemplates] = useState([
-    { id: '1', name: 'Recuperação de Senha', subject: 'Recuperação de Senha - Sortebem', content: 'Olá, clique aqui para resetar sua senha...' },
-    { id: '2', name: 'Boas-vindas', subject: 'Bem-vindo ao Sortebem!', content: 'Olá, seja bem-vindo...' }
+    { id: '1', name: 'Recuperação de Senha', subject: 'Recuperação de Senha - Sortebem', content: 'Olá {{nome_cliente}}, clique aqui para resetar sua senha...' },
+    { id: '2', name: 'Boas-vindas', subject: 'Bem-vindo ao Sortebem!', content: 'Olá {{nome_cliente}}, seja bem-vindo ao Sortebem...' }
   ]);
+  const [previewTemplate, setPreviewTemplate] = useState<any>(null);
+  const [showPreview, setShowPreview] = useState(false);
 
   useEffect(() => {
     loadSettings();
@@ -80,17 +83,16 @@ export default function AdminIntegrations() {
         const settings = response.data;
 
         // Load gateway settings
-        if (settings.asaas) {
-          setAsaasConfig(settings.asaas);
-        }
-        if (settings.pagseguro) {
-          setPagseguroConfig(settings.pagseguro);
-        }
-        if (settings.default_pix_gateway || settings.default_card_gateway) {
-          setDefaultGateway({
-            pix: settings.default_pix_gateway || 'asaas',
-            card: settings.default_card_gateway || 'pagseguro'
-          });
+        if (settings.gateway) {
+          const g = settings.gateway;
+          if (g.asaas) setAsaasConfig(g.asaas);
+          if (g.pagseguro) setPagseguroConfig(g.pagseguro);
+          if (g.default_pix_gateway || g.default_card_gateway) {
+            setDefaultGateway({
+              pix: g.default_pix_gateway || 'asaas',
+              card: g.default_card_gateway || 'pagseguro'
+            });
+          }
         }
 
         // Load WhatsApp settings
@@ -102,8 +104,8 @@ export default function AdminIntegrations() {
         if (settings.smtp) {
           setSmtpConfig(settings.smtp);
         }
-        if (settings.emailTemplates) {
-          setEmailTemplates(settings.emailTemplates);
+        if (settings.email_templates) {
+          setEmailTemplates(settings.email_templates);
         }
       }
     } catch (error) {
@@ -232,6 +234,39 @@ export default function AdminIntegrations() {
     setCopiedUrl(url);
     setTimeout(() => setCopiedUrl(null), 2000);
     toast({ title: 'Copiado!', description: 'URL do webhook copiada.' });
+  };
+
+  const handleAddTemplate = () => {
+    const newId = (emailTemplates.length + 1).toString();
+    const newTemplate = {
+      id: newId,
+      name: `Novo Template ${newId}`,
+      subject: 'Assunto do E-mail',
+      content: 'Digite o conteúdo aqui...'
+    };
+    setEmailTemplates([...emailTemplates, newTemplate]);
+    toast({ title: 'Template adicionado', description: 'Não esqueça de salvar as alterações.' });
+  };
+
+  const handleDeleteTemplate = (id: string) => {
+    setEmailTemplates(emailTemplates.filter(t => t.id !== id));
+    toast({ title: 'Template removido', description: 'O template foi removido da lista.' });
+  };
+
+  const handlePreviewTemplate = (template: any) => {
+    setPreviewTemplate(template);
+    setShowPreview(true);
+  };
+
+  const renderPreviewContent = (content: string) => {
+    if (!content) return '';
+    return content
+      .replace(/{{nome_cliente}}/g, 'Gabriel Duffy')
+      .replace(/{{codigo_cartela}}/g, 'SB-A1B2C3D4')
+      .replace(/{{valor_premio}}/g, 'R$ 5.000,00')
+      .replace(/{{data_sorteio}}/g, new Date().toLocaleDateString('pt-BR'))
+      .replace(/{{link_resgate}}/g, 'https://sortebem.com.br/resgatar')
+      .replace(/{{email_suporte}}/g, 'suporte@sortebem.com.br');
   };
 
   if (loading) {
@@ -813,19 +848,51 @@ export default function AdminIntegrations() {
                   <CardDescription>Gerencie o conteúdo dos e-mails enviados</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="space-y-2">
+                  <div className="bg-primary/5 border border-primary/20 rounded-lg p-3 flex gap-3 items-start mb-4">
+                    <Info className="w-5 h-5 text-primary shrink-0 mt-0.5" />
+                    <div className="text-xs space-y-1">
+                      <p className="font-semibold text-primary">Variáveis Disponíveis:</p>
+                      <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-muted-foreground">
+                        <code>{`{{nome_cliente}}`}</code>
+                        <code>{`{{codigo_cartela}}`}</code>
+                        <code>{`{{valor_premio}}`}</code>
+                        <code>{`{{data_sorteio}}`}</code>
+                        <code>{`{{link_resgate}}`}</code>
+                        <code>{`{{email_suporte}}`}</code>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
                     {emailTemplates.map((template, idx) => (
-                      <div key={template.id} className="p-4 border border-border rounded-lg bg-muted/30 group">
-                        <div className="flex justify-between items-start mb-2">
-                          <div>
-                            <p className="font-semibold text-foreground text-sm">{template.name}</p>
-                            <p className="text-xs text-muted-foreground">{template.subject}</p>
+                      <div key={template.id} className="p-4 border border-border rounded-lg bg-muted/30 group space-y-3">
+                        <div className="flex justify-between items-start">
+                          <div className="flex-1 space-y-2">
+                            <Input
+                              value={template.name}
+                              onChange={(e) => {
+                                const newTemplates = [...emailTemplates];
+                                newTemplates[idx].name = e.target.value;
+                                setEmailTemplates(newTemplates);
+                              }}
+                              className="h-8 font-semibold bg-transparent border-none p-0 focus-visible:ring-0"
+                            />
+                            <Input
+                              placeholder="Assunto do E-mail"
+                              value={template.subject}
+                              onChange={(e) => {
+                                const newTemplates = [...emailTemplates];
+                                newTemplates[idx].subject = e.target.value;
+                                setEmailTemplates(newTemplates);
+                              }}
+                              className="h-7 text-xs bg-background/50"
+                            />
                           </div>
-                          <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <Button variant="ghost" size="icon" className="h-8 w-8">
-                              <Save className="h-4 w-4" />
+                          <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity ml-2">
+                            <Button variant="ghost" size="icon" className="h-8 w-8 text-primary" onClick={() => handlePreviewTemplate(template)} title="Visualizar">
+                              <Eye className="h-4 w-4" />
                             </Button>
-                            <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive">
+                            <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => handleDeleteTemplate(template.id)} title="Excluir">
                               <Trash2 className="h-4 w-4" />
                             </Button>
                           </div>
@@ -841,13 +908,41 @@ export default function AdminIntegrations() {
                         />
                       </div>
                     ))}
-                    <Button variant="outline" className="w-full border-dashed">
+                    <Button variant="outline" className="w-full border-dashed" onClick={handleAddTemplate}>
                       <Plus className="w-4 h-4 mr-2" />
                       Novo Template
                     </Button>
                   </div>
                 </CardContent>
               </Card>
+
+              <Dialog open={showPreview} onOpenChange={setShowPreview}>
+                <DialogContent className="max-w-2xl">
+                  <DialogHeader>
+                    <DialogTitle>Visualização do Template</DialogTitle>
+                    <DialogDescription>
+                      Como o destinatário verá este e-mail (exemplo com dados fictícios).
+                    </DialogDescription>
+                  </DialogHeader>
+                  {previewTemplate && (
+                    <div className="space-y-4">
+                      <div className="border border-border rounded-lg overflow-hidden">
+                        <div className="bg-muted p-3 border-b border-border space-y-1">
+                          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Assunto:</p>
+                          <p className="text-sm font-medium">{renderPreviewContent(previewTemplate.subject)}</p>
+                        </div>
+                        <div
+                          className="p-6 bg-white text-gray-800 min-h-[200px] font-sans overflow-auto"
+                          dangerouslySetInnerHTML={{ __html: renderPreviewContent(previewTemplate.content).replace(/\n/g, '<br/>') }}
+                        />
+                      </div>
+                    </div>
+                  )}
+                  <DialogFooter>
+                    <Button onClick={() => setShowPreview(false)}>Fechar</Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
             </div>
           </TabsContent>
         </Tabs>

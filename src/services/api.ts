@@ -475,8 +475,8 @@ class ApiService {
   }
 
   /**
-   * Get all settings (admin only)
-   */
+ * Get all settings (admin only)
+ */
   async getSettings(): Promise<ApiResponse> {
     try {
       const { data, error } = await supabase
@@ -487,7 +487,12 @@ class ApiService {
         return { ok: false, error: error.message }
       }
 
-      return { ok: true, data }
+      const settingsMap: any = {};
+      data.forEach((s: any) => {
+        settingsMap[s.key] = s.value;
+      });
+
+      return { ok: true, data: settingsMap }
     } catch (error: any) {
       return { ok: false, error: error.message || 'Erro ao buscar configurações' }
     }
@@ -678,44 +683,38 @@ class ApiService {
   // ============ INTEGRATIONS ============
 
   /**
-   * Update gateway settings (admin only)
-   */
+ * Update gateway settings (admin only)
+ */
   async updateGatewaySettings(data: any): Promise<ApiResponse> {
     try {
-      const { data: setting, error } = await supabase
+      const { error } = await supabase
         .from('settings')
-        .update({ value: data })
-        .eq('key', 'gateway')
-        .select()
-        .single()
+        .upsert({ key: 'gateway', value: data }, { onConflict: 'key' });
 
       if (error) {
         return { ok: false, error: error.message }
       }
 
-      return { ok: true, data: setting }
+      return { ok: true, data: null }
     } catch (error: any) {
       return { ok: false, error: error.message || 'Erro ao atualizar gateway' }
     }
   }
 
   /**
-   * Update WhatsApp settings (admin only)
-   */
+ * Update WhatsApp settings (admin only)
+ */
   async updateWhatsAppSettings(data: any): Promise<ApiResponse> {
     try {
-      const { data: setting, error } = await supabase
+      const { error } = await supabase
         .from('settings')
-        .update({ value: data })
-        .eq('key', 'whatsapp')
-        .select()
-        .single()
+        .upsert({ key: 'whatsapp', value: data }, { onConflict: 'key' });
 
       if (error) {
         return { ok: false, error: error.message }
       }
 
-      return { ok: true, data: setting }
+      return { ok: true, data: null }
     } catch (error: any) {
       return { ok: false, error: error.message || 'Erro ao atualizar WhatsApp' }
     }
