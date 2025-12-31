@@ -1,0 +1,61 @@
+name: Run Supabase Migrations
+
+on:
+  # Permite executar manualmente via GitHub Actions UI
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Digite "migrate" para confirmar execução'
+        required: true
+        type: string
+
+  # Ou automaticamente após merge na main (comentado por segurança)
+  # push:
+  #   branches: [main]
+  #   paths:
+  #     - 'supabase/migrations/**'
+
+jobs:
+  migrate:
+    name: Execute Database Migrations
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Validate confirmation
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          if [ "${{ github.event.inputs.confirm }}" != "migrate" ]; then
+            echo "❌ Confirmação inválida. Digite 'migrate' para prosseguir."
+            exit 1
+          fi
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run migrations
+        env:
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: npm run migrate
+
+      - name: Notify success
+        if: success()
+        run: |
+          echo "✅ Migrations executadas com sucesso!"
+          echo "📅 Data: $(date)"
+          echo "🔗 Projeto: https://app.supabase.com/project/ctjdbnvcqcyitpydnmdt"
+
+      - name: Notify failure
+        if: failure()
+        run: |
+          echo "❌ Erro ao executar migrations!"
+          echo "Verifique os logs acima para mais detalhes."
+          exit 1
