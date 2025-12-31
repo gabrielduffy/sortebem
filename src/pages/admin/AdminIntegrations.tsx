@@ -10,8 +10,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from '@/hooks/use-toast';
-import { Save, Eye, EyeOff, Copy, Check, Plug, MessageCircle, Webhook, CreditCard, Mail, Send, FileText, Trash2, Plus, Info } from 'lucide-react';
+import { Save, Eye, EyeOff, Copy, Check, Plug, MessageCircle, Webhook, CreditCard, Mail, Send, FileText, Trash2, Plus, Info, Brain, Zap, BarChart3 } from 'lucide-react';
 import { apiService } from '@/services/api';
+import { groqService } from '@/services/groqService';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 
 export default function AdminIntegrations() {
@@ -72,8 +73,24 @@ export default function AdminIntegrations() {
   const [previewTemplate, setPreviewTemplate] = useState<any>(null);
   const [showPreview, setShowPreview] = useState(false);
 
+  // Groq AI state
+  const [groqConfig, setGroqConfig] = useState({
+    enabled: false,
+    apiKey: ''
+  });
+  const [showGroqKey, setShowGroqKey] = useState(false);
+  const [groqPrompts, setGroqPrompts] = useState<any[]>([]);
+  const [selectedPrompt, setSelectedPrompt] = useState<string>('');
+  const [testPromptVars, setTestPromptVars] = useState<Record<string, string>>({});
+  const [testModel, setTestModel] = useState('llama-3.1-70b-versatile');
+  const [testTemperature, setTestTemperature] = useState(0.7);
+  const [testResult, setTestResult] = useState<string>('');
+  const [testLoading, setTestLoading] = useState(false);
+  const [groqStats, setGroqStats] = useState<any[]>([]);
+
   useEffect(() => {
     loadSettings();
+    loadGroqPrompts();
   }, []);
 
   const loadSettings = async () => {
@@ -107,6 +124,11 @@ export default function AdminIntegrations() {
         if (settings.email_templates) {
           setEmailTemplates(settings.email_templates);
         }
+
+        // Load Groq settings
+        if (settings.groq_config) {
+          setGroqConfig(settings.groq_config);
+        }
       }
     } catch (error) {
       console.error('Error loading settings:', error);
@@ -117,6 +139,18 @@ export default function AdminIntegrations() {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadGroqPrompts = async () => {
+    try {
+      const prompts = await groqService.listPrompts();
+      setGroqPrompts(prompts);
+      if (prompts.length > 0) {
+        setSelectedPrompt(prompts[0].name);
+      }
+    } catch (error) {
+      console.error('Error loading Groq prompts:', error);
     }
   };
 
@@ -269,6 +303,79 @@ export default function AdminIntegrations() {
       .replace(/{{email_suporte}}/g, 'suporte@sortebem.com.br');
   };
 
+  const handleSaveGroq = async () => {
+    setSaving(true);
+    try {
+      const response = await apiService.updateSettings({
+        groq_config: groqConfig
+      });
+
+      if (response.ok) {
+        toast({ title: 'Sucesso!', description: 'Configurações do Groq AI salvas.' });
+      } else {
+        toast({ title: 'Erro', description: response.error || 'Erro ao salvar.', variant: 'destructive' });
+      }
+    } catch (error) {
+      toast({ title: 'Erro', description: 'Não foi possível salvar as configurações.', variant: 'destructive' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleTestGroqPrompt = async () => {
+    if (!selectedPrompt) {
+      toast({ title: 'Selecione um prompt', description: 'Escolha um prompt para testar.', variant: 'destructive' });
+      return;
+    }
+
+    setTestLoading(true);
+    setTestResult('');
+
+    try {
+      const result = await groqService.testPrompt({
+        promptName: selectedPrompt,
+        variables: testPromptVars,
+        model: testModel,
+        temperature: testTemperature
+      });
+
+      if (result.success) {
+        setTestResult(result.content || '');
+        toast({
+          title: 'Sucesso!',
+          description: `Prompt executado (${result.usage?.total_tokens} tokens, ${result.duration_ms}ms)`
+        });
+      } else {
+        setTestResult(`Erro: ${result.error}`);
+        toast({ title: 'Erro', description: result.error, variant: 'destructive' });
+      }
+    } catch (error: any) {
+      setTestResult(`Erro: ${error.message}`);
+      toast({ title: 'Erro', description: 'Não foi possível testar o prompt.', variant: 'destructive' });
+    } finally {
+      setTestLoading(false);
+    }
+  };
+
+  const handleLoadGroqStats = async () => {
+    try {
+      const stats = await groqService.getUsageStats(30);
+      setGroqStats(stats);
+    } catch (error) {
+      console.error('Error loading Groq stats:', error);
+    }
+  };
+
+  const getCurrentPrompt = () => {
+    return groqPrompts.find(p => p.name === selectedPrompt);
+  };
+
+  const extractVariablesFromTemplate = (template: string): string[] => {
+    const matches = template.match(/{{(.*?)}}/g);
+    if (!matches) return [];
+    return matches.map(m => m.replace(/{{|}}/g, ''));
+  };
+
   if (loading) {
     return (
       <DashboardLayout userType="admin" userName="Administrador" notifications={0}>
@@ -288,7 +395,7 @@ export default function AdminIntegrations() {
         </div>
 
         <Tabs defaultValue="gateway" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="gateway">
               <CreditCard className="w-4 h-4 mr-2" />
               Pagamentos
@@ -300,6 +407,10 @@ export default function AdminIntegrations() {
             <TabsTrigger value="smtp">
               <Mail className="w-4 h-4 mr-2" />
               E-mail (SMTP)
+            </TabsTrigger>
+            <TabsTrigger value="groq">
+              <Brain className="w-4 h-4 mr-2" />
+              Groq AI
             </TabsTrigger>
             <TabsTrigger value="webhooks">
               <Webhook className="w-4 h-4 mr-2" />
@@ -676,7 +787,251 @@ export default function AdminIntegrations() {
             </div>
           </TabsContent>
 
-          {/* ABA 3: Webhooks */}
+          {/* ABA 4: Groq AI */}
+          <TabsContent value="groq" className="space-y-4">
+            <div className="grid md:grid-cols-2 gap-4">
+              {/* Configurações */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Brain className="w-5 h-5 text-primary" />
+                    Configurações Groq AI
+                  </CardTitle>
+                  <CardDescription>Configure a integração com Groq AI para geração de conteúdo</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <Label>Ativado</Label>
+                      <p className="text-sm text-muted-foreground">Habilitar Groq AI no sistema</p>
+                    </div>
+                    <Switch
+                      checked={groqConfig.enabled}
+                      onCheckedChange={(checked) => setGroqConfig({ ...groqConfig, enabled: checked })}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>API Key</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        type={showGroqKey ? 'text' : 'password'}
+                        value={groqConfig.apiKey}
+                        onChange={(e) => setGroqConfig({ ...groqConfig, apiKey: e.target.value })}
+                        placeholder="Sua API Key do Groq"
+                      />
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={() => setShowGroqKey(!showGroqKey)}
+                      >
+                        {showGroqKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </Button>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Obtenha sua API key em: <a href="https://console.groq.com/keys" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">console.groq.com/keys</a>
+                    </p>
+                  </div>
+
+                  <div className="bg-primary/10 border border-primary/20 rounded-lg p-4">
+                    <h4 className="font-semibold text-foreground mb-2 flex items-center gap-2">
+                      <Zap className="w-4 h-4" />
+                      O que é Groq AI?
+                    </h4>
+                    <p className="text-sm text-muted-foreground">
+                      Groq oferece inferência ultra-rápida de modelos LLM (Llama 3, Mixtral, etc) para:
+                    </p>
+                    <ul className="space-y-1 text-sm text-muted-foreground mt-2 ml-4">
+                      <li>• Gerar nomes de jogadores automaticamente</li>
+                      <li>• Análises de performance de rodadas</li>
+                      <li>• Sugestões de preços otimizados</li>
+                      <li>• Geração de conteúdo para marketing</li>
+                    </ul>
+                  </div>
+
+                  <Button variant="hero" onClick={handleSaveGroq} disabled={saving}>
+                    <Save className="w-4 h-4 mr-2" />
+                    {saving ? 'Salvando...' : 'Salvar Configurações'}
+                  </Button>
+                </CardContent>
+              </Card>
+
+              {/* Testador de Prompts */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Zap className="w-5 h-5 text-primary" />
+                    Testar Prompts
+                  </CardTitle>
+                  <CardDescription>Teste os prompts configurados no sistema</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    <Label>Prompt</Label>
+                    <Select value={selectedPrompt} onValueChange={setSelectedPrompt}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione um prompt" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {groqPrompts.map(prompt => (
+                          <SelectItem key={prompt.name} value={prompt.name}>
+                            {prompt.description || prompt.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {getCurrentPrompt() && (
+                    <>
+                      <div className="bg-muted rounded-lg p-3 space-y-2">
+                        <p className="text-xs font-semibold text-muted-foreground">CATEGORIA</p>
+                        <Badge>{getCurrentPrompt()?.category}</Badge>
+                      </div>
+
+                      {extractVariablesFromTemplate(getCurrentPrompt()?.user_prompt_template || '').length > 0 && (
+                        <div className="space-y-2">
+                          <Label>Variáveis do Prompt</Label>
+                          {extractVariablesFromTemplate(getCurrentPrompt()?.user_prompt_template || '').map(varName => (
+                            <div key={varName} className="space-y-1">
+                              <Label className="text-xs text-muted-foreground">{varName}</Label>
+                              <Input
+                                placeholder={`Valor para ${varName}`}
+                                value={testPromptVars[varName] || ''}
+                                onChange={(e) => setTestPromptVars({ ...testPromptVars, [varName]: e.target.value })}
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label>Modelo</Label>
+                          <Select value={testModel} onValueChange={setTestModel}>
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="llama-3.1-70b-versatile">Llama 3.1 70B</SelectItem>
+                              <SelectItem value="llama-3.1-8b-instant">Llama 3.1 8B</SelectItem>
+                              <SelectItem value="mixtral-8x7b-32768">Mixtral 8x7B</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label>Temperature: {testTemperature}</Label>
+                          <input
+                            type="range"
+                            min="0"
+                            max="2"
+                            step="0.1"
+                            value={testTemperature}
+                            onChange={(e) => setTestTemperature(parseFloat(e.target.value))}
+                            className="w-full"
+                          />
+                        </div>
+                      </div>
+
+                      <Button
+                        variant="hero"
+                        className="w-full"
+                        onClick={handleTestGroqPrompt}
+                        disabled={testLoading || !groqConfig.enabled}
+                      >
+                        <Zap className="w-4 h-4 mr-2" />
+                        {testLoading ? 'Executando...' : 'Testar Prompt'}
+                      </Button>
+
+                      {testResult && (
+                        <div className="space-y-2">
+                          <Label>Resultado</Label>
+                          <div className="bg-muted rounded-lg p-4 max-h-[300px] overflow-auto">
+                            <pre className="text-sm text-foreground whitespace-pre-wrap">{testResult}</pre>
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Estatísticas de Uso */}
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="flex items-center gap-2">
+                      <BarChart3 className="w-5 h-5 text-primary" />
+                      Estatísticas de Uso (Últimos 30 dias)
+                    </CardTitle>
+                    <CardDescription>Monitoramento de tokens e custos da API Groq</CardDescription>
+                  </div>
+                  <Button variant="outline" size="sm" onClick={handleLoadGroqStats}>
+                    Atualizar
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {groqStats.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <Brain className="w-12 h-12 mx-auto mb-2 opacity-50" />
+                    <p>Nenhum uso registrado ainda</p>
+                    <p className="text-xs mt-1">Execute alguns prompts para ver estatísticas aqui</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-4 gap-4">
+                      <div className="bg-muted rounded-lg p-3 text-center">
+                        <p className="text-2xl font-bold text-primary">
+                          {groqStats.reduce((sum, s) => sum + (s.total_requests || 0), 0)}
+                        </p>
+                        <p className="text-xs text-muted-foreground">Total Requisições</p>
+                      </div>
+                      <div className="bg-muted rounded-lg p-3 text-center">
+                        <p className="text-2xl font-bold text-success">
+                          {groqStats.reduce((sum, s) => sum + (s.successful_requests || 0), 0)}
+                        </p>
+                        <p className="text-xs text-muted-foreground">Sucesso</p>
+                      </div>
+                      <div className="bg-muted rounded-lg p-3 text-center">
+                        <p className="text-2xl font-bold text-destructive">
+                          {groqStats.reduce((sum, s) => sum + (s.failed_requests || 0), 0)}
+                        </p>
+                        <p className="text-xs text-muted-foreground">Falhas</p>
+                      </div>
+                      <div className="bg-muted rounded-lg p-3 text-center">
+                        <p className="text-2xl font-bold text-primary">
+                          {(groqStats.reduce((sum, s) => sum + (s.total_tokens || 0), 0) / 1000).toFixed(1)}K
+                        </p>
+                        <p className="text-xs text-muted-foreground">Total Tokens</p>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Por Prompt</Label>
+                      {groqStats.slice(0, 10).map((stat, idx) => (
+                        <div key={idx} className="bg-muted rounded-lg p-3 flex items-center justify-between">
+                          <div>
+                            <p className="font-medium text-foreground text-sm">{stat.prompt_name || 'N/A'}</p>
+                            <p className="text-xs text-muted-foreground">{stat.model}</p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-sm font-semibold text-foreground">{stat.total_requests} req</p>
+                            <p className="text-xs text-muted-foreground">{(stat.total_tokens / 1000).toFixed(1)}K tokens</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* ABA 5: Webhooks */}
           <TabsContent value="webhooks" className="space-y-4">
             <Card>
               <CardHeader>
