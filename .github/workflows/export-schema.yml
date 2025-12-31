@@ -1,0 +1,59 @@
+name: Export Supabase Schema
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - 'supabase_schema.sql'
+  schedule:
+    - cron: '0 3 * * 1'
+
+permissions:
+  contents: write
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      
+      - name: Login no Supabase
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: npx supabase@latest login --token $SUPABASE_ACCESS_TOKEN
+      
+      - name: Link ao projeto
+        run: npx supabase@latest link --project-ref ctjdbnvcqcyitpydnmdt
+      
+      - name: Exportar Schema Completo
+        run: |
+          echo "📦 Exportando estrutura completa do banco..."
+          npx supabase@latest db dump -f supabase_schema.sql
+          echo ""
+          echo "✅ Schema exportado com sucesso!"
+          echo "Arquivo gerado:"
+          ls -lh supabase_schema.sql
+      
+      - name: Commit e Push
+        run: |
+          git config user.name "GitHub Actions Bot"
+          git config user.email "actions@github.com"
+          git add supabase_schema.sql
+          if git diff --staged --quiet; then
+            echo "ℹ️ Nenhuma alteração detectada no schema"
+          else
+            git commit -m "chore: atualizar schema do Supabase [skip ci]"
+            git push
+            echo "✅ Schema commitado e enviado ao repositório!"
+          fi

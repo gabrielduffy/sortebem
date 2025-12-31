@@ -1,214 +1,208 @@
-import { useState } from 'react';
-import { Download, Wallet, TrendingUp, Gift, ArrowUpRight, ArrowDownRight } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Download, Wallet, TrendingUp, Gift, ArrowUpRight, DollarSign } from 'lucide-react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { StatCard } from '@/components/dashboard/StatCard';
 import { DataTable } from '@/components/dashboard/DataTable';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { mockEstablishment } from '@/services/mockData';
-
-interface Transaction {
-  id: string;
-  date: string;
-  type: 'commission' | 'bonus' | 'withdrawal';
-  description: string;
-  amount: number;
-  status: 'completed' | 'pending' | 'processing';
-}
-
-const mockTransactions: Transaction[] = [
-  { id: '1', date: '2024-12-28', type: 'commission', description: 'Comissão de vendas - 127 cartelas', amount: 95.25, status: 'completed' },
-  { id: '2', date: '2024-12-28', type: 'bonus', description: 'Bônus pool especial', amount: 150.00, status: 'completed' },
-  { id: '3', date: '2024-12-27', type: 'commission', description: 'Comissão de vendas - 89 cartelas', amount: 66.75, status: 'completed' },
-  { id: '4', date: '2024-12-27', type: 'withdrawal', description: 'Saque via PIX', amount: -500.00, status: 'completed' },
-  { id: '5', date: '2024-12-26', type: 'commission', description: 'Comissão de vendas - 156 cartelas', amount: 117.00, status: 'completed' },
-  { id: '6', date: '2024-12-26', type: 'bonus', description: 'Bônus meta semanal', amount: 200.00, status: 'completed' },
-  { id: '7', date: '2024-12-25', type: 'commission', description: 'Comissão de vendas - 203 cartelas', amount: 152.25, status: 'completed' },
-  { id: '8', date: '2024-12-24', type: 'withdrawal', description: 'Saque via PIX', amount: -300.00, status: 'processing' },
-];
-
-const mockFinancialSummary = {
-  balance: 2135.25,
-  pendingWithdrawal: 300.00,
-  totalCommissions: 5847.50,
-  totalBonus: 1250.00,
-  totalWithdrawals: 4962.25,
-};
+import { Input } from '@/components/ui/input';
+import { apiService } from '@/services/api';
+import { toast } from '@/hooks/use-toast';
 
 export default function EstablishmentFinance() {
+  const [loading, setLoading] = useState(true);
+  const [financials, setFinancials] = useState<any>(null);
+  const [transactions, setTransactions] = useState<any[]>([]);
   const [withdrawAmount, setWithdrawAmount] = useState('');
 
-  const columns = [
-    { 
-      key: 'date', 
-      label: 'Data',
-      render: (tx: Transaction) => new Date(tx.date).toLocaleDateString('pt-BR')
-    },
-    { 
-      key: 'type', 
-      label: 'Tipo',
-      render: (tx: Transaction) => {
-        const types = {
-          commission: { label: 'Comissão', variant: 'default' },
-          bonus: { label: 'Bônus', variant: 'secondary' },
-          withdrawal: { label: 'Saque', variant: 'outline' },
-        };
-        const t = types[tx.type];
-        return <Badge variant={t.variant as any}>{t.label}</Badge>;
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const [establishment, setEstablishment] = useState<any>(null);
+  const [stats, setStats] = useState<any>(null);
+
+  const loadData = async () => {
+    try {
+      setLoading(true);
+      const estRes = await apiService.getCurrentEstablishment();
+      if (estRes.ok && estRes.data) {
+        setEstablishment(estRes.data);
+
+        const statsRes = await apiService.getEstablishmentStats();
+        if (statsRes.ok) setStats(statsRes.data);
+
+        const response = await apiService.getEstablishmentFinancials();
+        if (response.ok) {
+          setTransactions(response.data || []);
+        }
       }
+    } catch (error) {
+      console.error('Error loading establishment finance:', error);
+      toast({ title: 'Erro', description: 'Erro ao carregar dados financeiros', variant: 'destructive' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleWithdraw = async () => {
+    const amount = parseFloat(withdrawAmount);
+    if (isNaN(amount) || amount <= 0) {
+      toast({ title: 'Valor inválido', description: 'Informe um valor para o saque.', variant: 'destructive' });
+      return;
+    }
+
+    try {
+      const response = await apiService.requestWithdrawal(amount);
+      if (response.ok) {
+        toast({ title: 'Sucesso!', description: 'Solicitação de saque enviada.' });
+        setWithdrawAmount('');
+        loadData();
+      } else {
+        toast({ title: 'Erro', description: response.error, variant: 'destructive' });
+      }
+    } catch (error) {
+      toast({ title: 'Erro', description: 'Erro ao solicitar saque.', variant: 'destructive' });
+    }
+  };
+
+  const formatCurrency = (val: number) => `R$ ${val.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
+
+  const columns = [
+    {
+      key: 'created_at',
+      label: 'Data',
+      render: (tx: any) => new Date(tx.created_at).toLocaleDateString('pt-BR')
     },
     { key: 'description', label: 'Descrição' },
-    { 
-      key: 'amount', 
+    {
+      key: 'amount',
       label: 'Valor',
-      render: (tx: Transaction) => (
-        <span className={tx.amount < 0 ? 'text-red-600' : 'text-green-600'}>
-          {tx.amount < 0 ? '-' : '+'} R$ {Math.abs(tx.amount).toFixed(2)}
+      render: (tx: any) => (
+        <span className={tx.amount < 0 ? 'text-destructive' : 'text-success font-semibold'}>
+          {formatCurrency(tx.amount)}
         </span>
       )
     },
-    { 
-      key: 'status', 
+    {
+      key: 'status',
       label: 'Status',
-      render: (tx: Transaction) => {
-        const statuses = {
-          completed: { label: 'Concluído', variant: 'default' },
-          pending: { label: 'Pendente', variant: 'secondary' },
-          processing: { label: 'Processando', variant: 'outline' },
-        };
-        const s = statuses[tx.status];
-        return <Badge variant={s.variant as any}>{s.label}</Badge>;
-      }
+      render: (tx: any) => (
+        <Badge variant={tx.status === 'completed' ? 'default' : 'secondary'}>
+          {tx.status === 'completed' ? 'Concluído' : 'Pendente'}
+        </Badge>
+      )
     },
   ];
 
+  if (loading) {
+    return (
+      <DashboardLayout
+        userType="establishment"
+        userName={establishment?.name || 'Estabelecimento'}
+        notifications={0}
+      >
+        <div className="flex items-center justify-center min-h-[400px]">
+          <div className="animate-spin w-12 h-12 border-4 border-primary border-t-transparent rounded-full" />
+        </div>
+      </DashboardLayout>
+    );
+  }
+
   return (
-    <DashboardLayout userType="establishment" userName={mockEstablishment.tradeName} notifications={2}>
+    <DashboardLayout
+      userType="establishment"
+      userName={establishment?.name || 'Estabelecimento'}
+      notifications={2}
+    >
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div>
           <h2 className="text-2xl font-bold text-foreground">Financeiro</h2>
           <p className="text-muted-foreground">Extrato e gestão de comissões</p>
         </div>
-        <Button variant="outline">
-          <Download className="h-4 w-4 mr-2" />
-          Exportar
+        <Button variant="outline" onClick={() => loadData()}>
+          Atualizar
         </Button>
       </div>
 
-      {/* Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <StatCard
           title="Saldo Disponível"
-          value={`R$ ${mockFinancialSummary.balance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
+          value={formatCurrency(establishment?.balance || 0)}
           icon={Wallet}
-          className="bg-gradient-to-br from-primary/10 to-transparent"
+          className="bg-primary/5 border-primary/20"
         />
         <StatCard
-          title="Comissões do Mês"
-          value={`R$ ${mockFinancialSummary.totalCommissions.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
+          title="Total Vendas"
+          value={formatCurrency(stats?.salesMonthAmount || 0)}
           icon={TrendingUp}
-          trend={{ value: 15, isPositive: true }}
         />
         <StatCard
-          title="Bônus do Mês"
-          value={`R$ ${mockFinancialSummary.totalBonus.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
+          title="Bônus"
+          value={formatCurrency(stats?.bonus || 0)}
           icon={Gift}
         />
         <StatCard
           title="Total Sacado"
-          value={`R$ ${mockFinancialSummary.totalWithdrawals.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
-          subtitle="Este mês"
+          value={formatCurrency(Math.abs(transactions.filter(t => t.description.includes('Saque') && t.status === 'completed').reduce((acc, t) => acc + t.amount, 0)))}
           icon={ArrowUpRight}
         />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Transactions */}
         <div className="lg:col-span-2">
-          <DataTable
-            data={mockTransactions}
-            columns={columns}
-            pageSize={10}
-            emptyMessage="Nenhuma transação encontrada."
-          />
+          <Card>
+            <CardHeader>
+              <CardTitle>Extrato de Transações</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <DataTable
+                data={transactions}
+                columns={columns}
+                emptyMessage="Nenhuma transação encontrada."
+              />
+            </CardContent>
+          </Card>
         </div>
 
-        {/* Withdrawal Card */}
-        <div className="space-y-6">
-          <div className="bg-card rounded-xl border border-border p-6">
-            <h3 className="font-semibold text-foreground mb-4">Solicitar Saque</h3>
-            
-            <div className="p-4 bg-muted/50 rounded-lg mb-4">
+        <Card>
+          <CardHeader>
+            <CardTitle>Solicitar Saque</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="p-4 bg-muted/50 rounded-lg">
               <p className="text-sm text-muted-foreground">Saldo disponível</p>
               <p className="text-2xl font-bold text-foreground">
-                R$ {mockFinancialSummary.balance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                {formatCurrency(financials?.balance || 0)}
               </p>
             </div>
 
-            {mockFinancialSummary.pendingWithdrawal > 0 && (
-              <div className="p-4 bg-yellow-500/10 rounded-lg mb-4 border border-yellow-500/20">
-                <p className="text-sm text-yellow-700">Saque em processamento</p>
-                <p className="font-semibold text-yellow-700">
-                  R$ {mockFinancialSummary.pendingWithdrawal.toFixed(2)}
-                </p>
-              </div>
-            )}
-
-            <div className="space-y-4">
-              <div>
-                <label className="text-sm font-medium text-foreground">Valor do saque</label>
-                <div className="relative mt-1">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">R$</span>
-                  <input
-                    type="number"
-                    value={withdrawAmount}
-                    onChange={(e) => setWithdrawAmount(e.target.value)}
-                    placeholder="0,00"
-                    className="w-full pl-10 pr-4 py-2 border border-border rounded-lg bg-background"
-                  />
-                </div>
-              </div>
-
-              <div className="p-3 bg-muted/50 rounded-lg">
-                <p className="text-sm text-muted-foreground">Chave PIX cadastrada</p>
-                <p className="font-mono text-foreground">{mockEstablishment.pixKey}</p>
-                <p className="text-xs text-muted-foreground">({mockEstablishment.pixKeyType.toUpperCase()})</p>
-              </div>
-
-              <Button className="w-full">
-                Solicitar Saque
-              </Button>
-
-              <p className="text-xs text-muted-foreground text-center">
-                Saques são processados em até 24 horas úteis
-              </p>
-            </div>
-          </div>
-
-          {/* Commission Info */}
-          <div className="bg-card rounded-xl border border-border p-6">
-            <h3 className="font-semibold text-foreground mb-4">Suas Taxas</h3>
-            <div className="space-y-3">
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Comissão por venda</span>
-                <span className="font-semibold text-primary">15%</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Bônus pool especial</span>
-                <span className="font-semibold text-primary">5%</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Meta semanal</span>
-                <span className="font-semibold text-foreground">500 cartelas</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Bônus meta</span>
-                <span className="font-semibold text-primary">R$ 200,00</span>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Valor do saque</label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">R$</span>
+                <Input
+                  type="number"
+                  value={withdrawAmount}
+                  onChange={(e) => setWithdrawAmount(e.target.value)}
+                  placeholder="0,00"
+                  className="pl-9"
+                />
               </div>
             </div>
-          </div>
-        </div>
+
+            <Button className="w-full" onClick={handleWithdraw}>
+              <DollarSign className="w-4 h-4 mr-2" />
+              Solicitar Saque
+            </Button>
+
+            <p className="text-xs text-muted-foreground text-center">
+              Saques são processados em até 24 horas úteis via Asaas
+            </p>
+          </CardContent>
+        </Card>
       </div>
     </DashboardLayout>
   );

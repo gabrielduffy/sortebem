@@ -10,8 +10,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from '@/hooks/use-toast';
-import { Save, Eye, EyeOff, Copy, Check, Plug, MessageCircle, Webhook, CreditCard } from 'lucide-react';
+import { Save, Eye, EyeOff, Copy, Check, Plug, MessageCircle, Webhook, CreditCard, Mail, Send, FileText, Trash2, Plus, Info } from 'lucide-react';
 import { apiService } from '@/services/api';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 
 export default function AdminIntegrations() {
   const [loading, setLoading] = useState(true);
@@ -51,6 +52,26 @@ export default function AdminIntegrations() {
   const [whatsappStatus, setWhatsappStatus] = useState<'connected' | 'disconnected'>('disconnected');
   const [whatsappLogs, setWhatsappLogs] = useState<any[]>([]);
 
+  // SMTP state
+  const [smtpConfig, setSmtpConfig] = useState({
+    enabled: false,
+    host: '',
+    port: '587',
+    user: '',
+    password: '',
+    fromName: 'Sortebem',
+    fromEmail: '',
+    secure: true
+  });
+  const [showSmtpPassword, setShowSmtpPassword] = useState(false);
+  const [testEmail, setTestEmail] = useState('');
+  const [emailTemplates, setEmailTemplates] = useState([
+    { id: '1', name: 'Recuperação de Senha', subject: 'Recuperação de Senha - Sortebem', content: 'Olá {{nome_cliente}}, clique aqui para resetar sua senha...' },
+    { id: '2', name: 'Boas-vindas', subject: 'Bem-vindo ao Sortebem!', content: 'Olá {{nome_cliente}}, seja bem-vindo ao Sortebem...' }
+  ]);
+  const [previewTemplate, setPreviewTemplate] = useState<any>(null);
+  const [showPreview, setShowPreview] = useState(false);
+
   useEffect(() => {
     loadSettings();
   }, []);
@@ -62,22 +83,29 @@ export default function AdminIntegrations() {
         const settings = response.data;
 
         // Load gateway settings
-        if (settings.asaas) {
-          setAsaasConfig(settings.asaas);
-        }
-        if (settings.pagseguro) {
-          setPagseguroConfig(settings.pagseguro);
-        }
-        if (settings.default_pix_gateway || settings.default_card_gateway) {
-          setDefaultGateway({
-            pix: settings.default_pix_gateway || 'asaas',
-            card: settings.default_card_gateway || 'pagseguro'
-          });
+        if (settings.gateway) {
+          const g = settings.gateway;
+          if (g.asaas) setAsaasConfig(g.asaas);
+          if (g.pagseguro) setPagseguroConfig(g.pagseguro);
+          if (g.default_pix_gateway || g.default_card_gateway) {
+            setDefaultGateway({
+              pix: g.default_pix_gateway || 'asaas',
+              card: g.default_card_gateway || 'pagseguro'
+            });
+          }
         }
 
         // Load WhatsApp settings
         if (settings.whatsapp) {
           setWhatsappConfig(settings.whatsapp);
+        }
+
+        // Load SMTP settings
+        if (settings.smtp) {
+          setSmtpConfig(settings.smtp);
+        }
+        if (settings.email_templates) {
+          setEmailTemplates(settings.email_templates);
         }
       }
     } catch (error) {
@@ -163,11 +191,82 @@ export default function AdminIntegrations() {
     }
   };
 
+  const handleSaveSMTP = async () => {
+    setSaving(true);
+    try {
+      const response = await apiService.updateSMTPSettings({
+        smtp: smtpConfig,
+        templates: emailTemplates
+      });
+
+      if (response.ok) {
+        toast({ title: 'Sucesso!', description: 'Configurações de E-mail (SMTP) salvas.' });
+      } else {
+        toast({ title: 'Erro', description: response.error || 'Erro ao salvar.', variant: 'destructive' });
+      }
+    } catch (error) {
+      toast({ title: 'Erro', description: 'Não foi possível salvar as configurações.', variant: 'destructive' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleTestSMTP = async () => {
+    if (!testEmail) {
+      toast({ title: 'E-mail necessário', description: 'Informe um e-mail para o teste.', variant: 'destructive' });
+      return;
+    }
+    toast({ title: 'Testando...', description: 'Enviando e-mail de teste.' });
+    try {
+      const response = await apiService.testSMTP(testEmail, smtpConfig);
+      if (response.ok) {
+        toast({ title: 'Sucesso!', description: 'E-mail de teste enviado.' });
+      } else {
+        toast({ title: 'Erro', description: response.error || 'Falha no envio.', variant: 'destructive' });
+      }
+    } catch (error) {
+      toast({ title: 'Erro', description: 'Erro ao testar SMTP.', variant: 'destructive' });
+    }
+  };
+
   const handleCopyWebhookUrl = (url: string) => {
     navigator.clipboard.writeText(url);
     setCopiedUrl(url);
     setTimeout(() => setCopiedUrl(null), 2000);
     toast({ title: 'Copiado!', description: 'URL do webhook copiada.' });
+  };
+
+  const handleAddTemplate = () => {
+    const newId = (emailTemplates.length + 1).toString();
+    const newTemplate = {
+      id: newId,
+      name: `Novo Template ${newId}`,
+      subject: 'Assunto do E-mail',
+      content: 'Digite o conteúdo aqui...'
+    };
+    setEmailTemplates([...emailTemplates, newTemplate]);
+    toast({ title: 'Template adicionado', description: 'Não esqueça de salvar as alterações.' });
+  };
+
+  const handleDeleteTemplate = (id: string) => {
+    setEmailTemplates(emailTemplates.filter(t => t.id !== id));
+    toast({ title: 'Template removido', description: 'O template foi removido da lista.' });
+  };
+
+  const handlePreviewTemplate = (template: any) => {
+    setPreviewTemplate(template);
+    setShowPreview(true);
+  };
+
+  const renderPreviewContent = (content: string) => {
+    if (!content) return '';
+    return content
+      .replace(/{{nome_cliente}}/g, 'Gabriel Duffy')
+      .replace(/{{codigo_cartela}}/g, 'SB-A1B2C3D4')
+      .replace(/{{valor_premio}}/g, 'R$ 5.000,00')
+      .replace(/{{data_sorteio}}/g, new Date().toLocaleDateString('pt-BR'))
+      .replace(/{{link_resgate}}/g, 'https://sortebem.com.br/resgatar')
+      .replace(/{{email_suporte}}/g, 'suporte@sortebem.com.br');
   };
 
   if (loading) {
@@ -189,14 +288,18 @@ export default function AdminIntegrations() {
         </div>
 
         <Tabs defaultValue="gateway" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="gateway">
               <CreditCard className="w-4 h-4 mr-2" />
-              Gateway de Pagamento
+              Pagamentos
             </TabsTrigger>
             <TabsTrigger value="whatsapp">
               <MessageCircle className="w-4 h-4 mr-2" />
               WhatsApp
+            </TabsTrigger>
+            <TabsTrigger value="smtp">
+              <Mail className="w-4 h-4 mr-2" />
+              E-mail (SMTP)
             </TabsTrigger>
             <TabsTrigger value="webhooks">
               <Webhook className="w-4 h-4 mr-2" />
@@ -589,14 +692,14 @@ export default function AdminIntegrations() {
                     <Label className="text-sm font-medium">URL Webhook Asaas</Label>
                     <div className="flex items-center gap-2 mt-2">
                       <code className="flex-1 bg-background px-3 py-2 rounded text-sm text-foreground break-all">
-                        https://api.sortebem.com.br/purchases/webhook/asaas
+                        https://sortebem.com.br/api/webhook/asaas
                       </code>
                       <Button
                         variant="outline"
                         size="icon"
-                        onClick={() => handleCopyWebhookUrl('https://api.sortebem.com.br/purchases/webhook/asaas')}
+                        onClick={() => handleCopyWebhookUrl('https://sortebem.com.br/api/webhook/asaas')}
                       >
-                        {copiedUrl === 'https://api.sortebem.com.br/purchases/webhook/asaas' ? (
+                        {copiedUrl === 'https://sortebem.com.br/api/webhook/asaas' ? (
                           <Check className="w-4 h-4" />
                         ) : (
                           <Copy className="w-4 h-4" />
@@ -612,14 +715,14 @@ export default function AdminIntegrations() {
                     <Label className="text-sm font-medium">URL Webhook PagSeguro</Label>
                     <div className="flex items-center gap-2 mt-2">
                       <code className="flex-1 bg-background px-3 py-2 rounded text-sm text-foreground break-all">
-                        https://api.sortebem.com.br/purchases/webhook/pagseguro
+                        https://sortebem.com.br/api/webhook/pagseguro
                       </code>
                       <Button
                         variant="outline"
                         size="icon"
-                        onClick={() => handleCopyWebhookUrl('https://api.sortebem.com.br/purchases/webhook/pagseguro')}
+                        onClick={() => handleCopyWebhookUrl('https://sortebem.com.br/api/webhook/pagseguro')}
                       >
-                        {copiedUrl === 'https://api.sortebem.com.br/purchases/webhook/pagseguro' ? (
+                        {copiedUrl === 'https://sortebem.com.br/api/webhook/pagseguro' ? (
                           <Check className="w-4 h-4" />
                         ) : (
                           <Copy className="w-4 h-4" />
@@ -639,10 +742,225 @@ export default function AdminIntegrations() {
                     <li>• Certifique-se de que os Webhook Tokens estão configurados corretamente</li>
                     <li>• Os webhooks notificam automaticamente sobre mudanças no status de pagamento</li>
                     <li>• É essencial para confirmação automática de compras</li>
+                    <li>• As URLs usam seu domínio personalizado e fazem proxy para as Edge Functions do Supabase</li>
                   </ul>
+                </div>
+                
+                <div className="bg-muted/50 border border-border rounded-lg p-4">
+                  <div className="flex items-start gap-2">
+                    <Info className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
+                    <div className="flex-1">
+                      <h4 className="font-semibold text-sm text-foreground mb-1">URLs Personalizadas</h4>
+                      <p className="text-xs text-muted-foreground">
+                        Estas URLs usam seu domínio personalizado (sortebem.com.br). 
+                        Certifique-se de que seu servidor/nginx está configurado para fazer proxy dessas rotas para as Edge Functions do Supabase:
+                        <br />
+                        <code className="text-xs mt-1 block bg-background px-2 py-1 rounded">/api/webhook/asaas → Supabase Edge Function</code>
+                        <code className="text-xs block bg-background px-2 py-1 rounded">/api/webhook/pagseguro → Supabase Edge Function</code>
+                      </p>
+                    </div>
+                  </div>
                 </div>
               </CardContent>
             </Card>
+          </TabsContent>
+
+          {/* ABA 4: SMTP */}
+          <TabsContent value="smtp" className="space-y-4">
+            <div className="grid md:grid-cols-2 gap-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Mail className="w-5 h-5 text-primary" />
+                    Configurações SMTP
+                  </CardTitle>
+                  <CardDescription>Configure o servidor para envio de e-mails do sistema</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <Label>Ativado</Label>
+                    <Switch
+                      checked={smtpConfig.enabled}
+                      onCheckedChange={(checked) => setSmtpConfig({ ...smtpConfig, enabled: checked })}
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Host SMTP</Label>
+                      <Input
+                        value={smtpConfig.host}
+                        onChange={(e) => setSmtpConfig({ ...smtpConfig, host: e.target.value })}
+                        placeholder="smtp.exemplo.com"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Porta</Label>
+                      <Input
+                        value={smtpConfig.port}
+                        onChange={(e) => setSmtpConfig({ ...smtpConfig, port: e.target.value })}
+                        placeholder="587"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Usuário/E-mail</Label>
+                    <Input
+                      value={smtpConfig.user}
+                      onChange={(e) => setSmtpConfig({ ...smtpConfig, user: e.target.value })}
+                      placeholder="usuario@exemplo.com"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Senha</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        type={showSmtpPassword ? 'text' : 'password'}
+                        value={smtpConfig.password}
+                        onChange={(e) => setSmtpConfig({ ...smtpConfig, password: e.target.value })}
+                        placeholder="Senha do e-mail"
+                      />
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={() => setShowSmtpPassword(!showSmtpPassword)}
+                      >
+                        {showSmtpPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </Button>
+                    </div>
+                  </div>
+
+                  <hr className="my-4 border-border" />
+
+                  <div className="space-y-4">
+                    <Label>Teste de Envio</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        value={testEmail}
+                        onChange={(e) => setTestEmail(e.target.value)}
+                        placeholder="E-mail para teste"
+                      />
+                      <Button variant="outline" onClick={handleTestSMTP}>
+                        <Send className="w-4 h-4 mr-2" />
+                        Enviar
+                      </Button>
+                    </div>
+                  </div>
+
+                  <Button variant="hero" className="w-full" onClick={handleSaveSMTP} disabled={saving}>
+                    <Save className="w-4 h-4 mr-2" />
+                    {saving ? 'Salvando...' : 'Salvar Configurações'}
+                  </Button>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <FileText className="w-5 h-5 text-primary" />
+                    Templates de E-mail
+                  </CardTitle>
+                  <CardDescription>Gerencie o conteúdo dos e-mails enviados</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="bg-primary/5 border border-primary/20 rounded-lg p-3 flex gap-3 items-start mb-4">
+                    <Info className="w-5 h-5 text-primary shrink-0 mt-0.5" />
+                    <div className="text-xs space-y-1">
+                      <p className="font-semibold text-primary">Variáveis Disponíveis:</p>
+                      <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-muted-foreground">
+                        <code>{`{{nome_cliente}}`}</code>
+                        <code>{`{{codigo_cartela}}`}</code>
+                        <code>{`{{valor_premio}}`}</code>
+                        <code>{`{{data_sorteio}}`}</code>
+                        <code>{`{{link_resgate}}`}</code>
+                        <code>{`{{email_suporte}}`}</code>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    {emailTemplates.map((template, idx) => (
+                      <div key={template.id} className="p-4 border border-border rounded-lg bg-muted/30 group space-y-3">
+                        <div className="flex justify-between items-start">
+                          <div className="flex-1 space-y-2">
+                            <Input
+                              value={template.name}
+                              onChange={(e) => {
+                                const newTemplates = [...emailTemplates];
+                                newTemplates[idx].name = e.target.value;
+                                setEmailTemplates(newTemplates);
+                              }}
+                              className="h-8 font-semibold bg-transparent border-none p-0 focus-visible:ring-0"
+                            />
+                            <Input
+                              placeholder="Assunto do E-mail"
+                              value={template.subject}
+                              onChange={(e) => {
+                                const newTemplates = [...emailTemplates];
+                                newTemplates[idx].subject = e.target.value;
+                                setEmailTemplates(newTemplates);
+                              }}
+                              className="h-7 text-xs bg-background/50"
+                            />
+                          </div>
+                          <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity ml-2">
+                            <Button variant="ghost" size="icon" className="h-8 w-8 text-primary" onClick={() => handlePreviewTemplate(template)} title="Visualizar">
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                            <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => handleDeleteTemplate(template.id)} title="Excluir">
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
+                        <Textarea
+                          defaultValue={template.content}
+                          className="text-xs bg-background h-24"
+                          onChange={(e) => {
+                            const newTemplates = [...emailTemplates];
+                            newTemplates[idx].content = e.target.value;
+                            setEmailTemplates(newTemplates);
+                          }}
+                        />
+                      </div>
+                    ))}
+                    <Button variant="outline" className="w-full border-dashed" onClick={handleAddTemplate}>
+                      <Plus className="w-4 h-4 mr-2" />
+                      Novo Template
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Dialog open={showPreview} onOpenChange={setShowPreview}>
+                <DialogContent className="max-w-2xl">
+                  <DialogHeader>
+                    <DialogTitle>Visualização do Template</DialogTitle>
+                    <DialogDescription>
+                      Como o destinatário verá este e-mail (exemplo com dados fictícios).
+                    </DialogDescription>
+                  </DialogHeader>
+                  {previewTemplate && (
+                    <div className="space-y-4">
+                      <div className="border border-border rounded-lg overflow-hidden">
+                        <div className="bg-muted p-3 border-b border-border space-y-1">
+                          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Assunto:</p>
+                          <p className="text-sm font-medium">{renderPreviewContent(previewTemplate.subject)}</p>
+                        </div>
+                        <div
+                          className="p-6 bg-white text-gray-800 min-h-[200px] font-sans overflow-auto"
+                          dangerouslySetInnerHTML={{ __html: renderPreviewContent(previewTemplate.content).replace(/\n/g, '<br/>') }}
+                        />
+                      </div>
+                    </div>
+                  )}
+                  <DialogFooter>
+                    <Button onClick={() => setShowPreview(false)}>Fechar</Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+            </div>
           </TabsContent>
         </Tabs>
       </div>

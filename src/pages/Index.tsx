@@ -7,21 +7,65 @@ import { Button } from '@/components/ui/button';
 import CountdownTimer from '@/components/game/CountdownTimer';
 import CharityHighlight from '@/components/charity/CharityHighlight';
 import RecentWinners from '@/components/game/RecentWinners';
-import { mockCharity, mockRecentWinners, mockCurrentRound, mockSpecialRound } from '@/services/mockData';
+import { apiService } from '@/services/api';
 
 const Index = () => {
-  const [charity, setCharity] = useState(mockCharity);
-  const [currentRound] = useState(mockCurrentRound);
-  const [specialRound] = useState(mockSpecialRound);
+  const [charity, setCharity] = useState<any>(null);
+  const [currentRound, setCurrentRound] = useState<any>(null);
+  const [specialRound, setSpecialRound] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
 
-  // Simulate real-time charity amount increase
   useEffect(() => {
-    const interval = setInterval(() => {
-      setCharity(prev => ({
-        ...prev,
-        totalRaised: prev.totalRaised + Math.random() * 10,
-      }));
-    }, 3000);
+    const loadData = async () => {
+      try {
+        // Load active charity
+        const charityResponse = await apiService.getCharities();
+        if (charityResponse.ok && charityResponse.data) {
+          const activeCharity = charityResponse.data.find((c: any) => c.is_active);
+          if (activeCharity) {
+            setCharity({
+              name: activeCharity.name,
+              logo: activeCharity.logo_url || '/placeholder.svg',
+              description: activeCharity.description,
+              totalRaised: activeCharity.total_received || 0
+            });
+          }
+        }
+
+        // Load current rounds
+        const roundsResponse = await apiService.getRounds();
+        if (roundsResponse.ok && roundsResponse.data) {
+          const regularRound = roundsResponse.data.find((r: any) => r.type === 'regular' && r.is_selling);
+          const specialRound = roundsResponse.data.find((r: any) => r.type === 'special' && r.is_selling);
+
+          if (regularRound) {
+            setCurrentRound({
+              prizePool: (regularRound.cards_sold || 0) * (regularRound.card_price || 5) * 0.4,
+              totalCards: regularRound.cards_sold || 0,
+              startTime: new Date(regularRound.starts_at),
+              endTime: new Date(regularRound.ends_at)
+            });
+          }
+
+          if (specialRound) {
+            setSpecialRound({
+              prizePool: (specialRound.cards_sold || 0) * (specialRound.card_price || 10) * 0.4,
+              startTime: new Date(specialRound.starts_at),
+              endTime: new Date(specialRound.ends_at)
+            });
+          }
+        }
+      } catch (error) {
+        console.error('Error loading data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadData();
+
+    // Reload data every 10 seconds
+    const interval = setInterval(loadData, 10000);
     return () => clearInterval(interval);
   }, []);
 
@@ -54,6 +98,16 @@ const Index = () => {
       currency: 'BRL',
     }).format(value);
   };
+
+  if (loading) {
+    return (
+      <PublicLayout>
+        <div className="min-h-screen flex items-center justify-center">
+          <div className="animate-spin w-12 h-12 border-4 border-primary border-t-transparent rounded-full" />
+        </div>
+      </PublicLayout>
+    );
+  }
 
   return (
     <PublicLayout>
@@ -106,20 +160,22 @@ const Index = () => {
               </div>
 
               {/* Stats */}
-              <div className="flex gap-8 pt-4">
-                <div>
-                  <p className="text-2xl md:text-3xl font-bold text-primary">
-                    {formatCurrency(currentRound.prizePool)}
-                  </p>
-                  <p className="text-sm text-muted-foreground">Pool Atual</p>
+              {currentRound && (
+                <div className="flex gap-8 pt-4">
+                  <div>
+                    <p className="text-2xl md:text-3xl font-bold text-primary">
+                      {formatCurrency(currentRound.prizePool)}
+                    </p>
+                    <p className="text-sm text-muted-foreground">Pool Atual</p>
+                  </div>
+                  <div>
+                    <p className="text-2xl md:text-3xl font-bold text-foreground">
+                      {currentRound.totalCards.toLocaleString()}
+                    </p>
+                    <p className="text-sm text-muted-foreground">Cartelas Vendidas</p>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-2xl md:text-3xl font-bold text-foreground">
-                    {currentRound.totalCards.toLocaleString()}
-                  </p>
-                  <p className="text-sm text-muted-foreground">Cartelas Vendidas</p>
-                </div>
-              </div>
+              )}
             </motion.div>
 
             {/* Right Content - Countdowns */}
@@ -129,65 +185,73 @@ const Index = () => {
               transition={{ duration: 0.6, delay: 0.2 }}
               className="space-y-6"
             >
-              <CountdownTimer
-                targetTime={new Date(Date.now() + 8 * 60 * 1000)}
-                label="Próxima Rodada"
-              />
-              <CountdownTimer
-                targetTime={specialRound.startTime}
-                label="Rodada Especial"
-                variant="special"
-              />
-              
-              {/* Prize Pool Display */}
-              <div className="bg-card border border-border rounded-2xl p-6 text-center">
-                <p className="text-sm text-muted-foreground mb-2">
-                  Prêmio da Rodada Especial
-                </p>
-                <p className="text-4xl md:text-5xl font-bold text-gradient">
-                  {formatCurrency(specialRound.prizePool)}
-                </p>
-              </div>
+              {currentRound && (
+                <CountdownTimer
+                  targetTime={currentRound.endTime}
+                  label="Próxima Rodada"
+                />
+              )}
+              {specialRound && (
+                <>
+                  <CountdownTimer
+                    targetTime={specialRound.endTime}
+                    label="Rodada Especial"
+                    variant="special"
+                  />
+                  
+                  {/* Prize Pool Display */}
+                  <div className="bg-card border border-border rounded-2xl p-6 text-center">
+                    <p className="text-sm text-muted-foreground mb-2">
+                      Prêmio da Rodada Especial
+                    </p>
+                    <p className="text-4xl md:text-5xl font-bold text-gradient">
+                      {formatCurrency(specialRound.prizePool)}
+                    </p>
+                  </div>
+                </>
+              )}
             </motion.div>
           </div>
         </div>
       </section>
 
       {/* Charity Section */}
-      <section className="py-16 md:py-24 bg-secondary">
-        <div className="container mx-auto px-4">
-          <div className="grid lg:grid-cols-2 gap-12 items-center">
-            <CharityHighlight
-              name={charity.name}
-              logo={charity.logo}
-              description={charity.description}
-              totalRaised={charity.totalRaised}
-            />
-            
-            <div className="space-y-6">
-              <h2 className="text-3xl md:text-4xl font-bold text-foreground">
-                Impacto Social Real
-              </h2>
-              <p className="text-lg text-muted-foreground">
-                Cada cartela vendida contribui diretamente para instituições que 
-                transformam vidas. Acompanhe em tempo real o impacto da sua participação.
-              </p>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="bg-card border border-border rounded-xl p-4">
-                  <TrendingUp className="w-8 h-8 text-primary mb-2" />
-                  <p className="text-2xl font-bold text-foreground">20%</p>
-                  <p className="text-sm text-muted-foreground">Para caridade</p>
-                </div>
-                <div className="bg-card border border-border rounded-xl p-4">
-                  <Users className="w-8 h-8 text-primary mb-2" />
-                  <p className="text-2xl font-bold text-foreground">12</p>
-                  <p className="text-sm text-muted-foreground">Instituições apoiadas</p>
+      {charity && (
+        <section className="py-16 md:py-24 bg-secondary">
+          <div className="container mx-auto px-4">
+            <div className="grid lg:grid-cols-2 gap-12 items-center">
+              <CharityHighlight
+                name={charity.name}
+                logo={charity.logo}
+                description={charity.description}
+                totalRaised={charity.totalRaised}
+              />
+              
+              <div className="space-y-6">
+                <h2 className="text-3xl md:text-4xl font-bold text-foreground">
+                  Impacto Social Real
+                </h2>
+                <p className="text-lg text-muted-foreground">
+                  Cada cartela vendida contribui diretamente para instituições que 
+                  transformam vidas. Acompanhe em tempo real o impacto da sua participação.
+                </p>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="bg-card border border-border rounded-xl p-4">
+                    <TrendingUp className="w-8 h-8 text-primary mb-2" />
+                    <p className="text-2xl font-bold text-foreground">20%</p>
+                    <p className="text-sm text-muted-foreground">Para caridade</p>
+                  </div>
+                  <div className="bg-card border border-border rounded-xl p-4">
+                    <Users className="w-8 h-8 text-primary mb-2" />
+                    <p className="text-2xl font-bold text-foreground">12</p>
+                    <p className="text-sm text-muted-foreground">Instituições apoiadas</p>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
-        </div>
-      </section>
+        </section>
+      )}
 
       {/* How It Works */}
       <section className="py-16 md:py-24">
@@ -221,30 +285,6 @@ const Index = () => {
                 <p className="text-muted-foreground">{feature.description}</p>
               </motion.div>
             ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Recent Winners */}
-      <section className="py-16 md:py-24 bg-secondary">
-        <div className="container mx-auto px-4">
-          <div className="grid lg:grid-cols-2 gap-12">
-            <div>
-              <h2 className="text-3xl md:text-4xl font-bold text-foreground mb-4">
-                Ganhadores Recentes
-              </h2>
-              <p className="text-lg text-muted-foreground mb-6">
-                Veja os estabelecimentos vencedores das últimas rodadas. 
-                O próximo pode ser o seu!
-              </p>
-              <Link to="/checkout">
-                <Button variant="hero" size="lg">
-                  Quero Participar
-                  <ArrowRight className="w-5 h-5" />
-                </Button>
-              </Link>
-            </div>
-            <RecentWinners winners={mockRecentWinners} />
           </div>
         </div>
       </section>

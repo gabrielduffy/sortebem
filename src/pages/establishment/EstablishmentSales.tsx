@@ -1,18 +1,19 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Download, Filter, Calendar } from 'lucide-react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { DataTable } from '@/components/dashboard/DataTable';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { 
+import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { mockEstablishment } from '@/services/mockData';
+import { apiService } from '@/services/api';
+import { toast } from '@/hooks/use-toast';
 
 interface Sale {
   id: string;
@@ -25,18 +26,7 @@ interface Sale {
   cardCodes: string[];
 }
 
-const mockSales: Sale[] = [
-  { id: '1', date: '2024-12-28', time: '14:32', quantity: 5, amount: 25, method: 'pix', status: 'confirmed', cardCodes: ['SB-A7K3M9P2', 'SB-B8L4N0Q3'] },
-  { id: '2', date: '2024-12-28', time: '14:28', quantity: 2, amount: 10, method: 'pos_card', status: 'confirmed', cardCodes: ['SB-C9M5O1R4'] },
-  { id: '3', date: '2024-12-28', time: '14:15', quantity: 10, amount: 50, method: 'pix', status: 'confirmed', cardCodes: ['SB-D0N6P2S5'] },
-  { id: '4', date: '2024-12-28', time: '14:02', quantity: 3, amount: 15, method: 'pos_pix', status: 'confirmed', cardCodes: ['SB-E1O7Q3T6'] },
-  { id: '5', date: '2024-12-28', time: '13:55', quantity: 8, amount: 40, method: 'pix', status: 'pending', cardCodes: ['SB-F2P8R4U7'] },
-  { id: '6', date: '2024-12-27', time: '18:42', quantity: 4, amount: 20, method: 'pix', status: 'confirmed', cardCodes: ['SB-G3Q9S5V8'] },
-  { id: '7', date: '2024-12-27', time: '16:20', quantity: 6, amount: 30, method: 'pos_card', status: 'confirmed', cardCodes: ['SB-H4R0T6W9'] },
-  { id: '8', date: '2024-12-27', time: '14:15', quantity: 2, amount: 10, method: 'pix', status: 'failed', cardCodes: [] },
-  { id: '9', date: '2024-12-26', time: '20:30', quantity: 15, amount: 75, method: 'pix', status: 'confirmed', cardCodes: ['SB-I5S1U7X0'] },
-  { id: '10', date: '2024-12-26', time: '19:45', quantity: 7, amount: 35, method: 'pos_pix', status: 'confirmed', cardCodes: ['SB-J6T2V8Y1'] },
-];
+// Mocks removed
 
 const getMethodLabel = (method: string) => {
   switch (method) {
@@ -58,20 +48,57 @@ const getStatusVariant = (status: string) => {
 
 const getStatusLabel = (status: string) => {
   switch (status) {
-    case 'confirmed': return 'Confirmado';
+    case 'confirmed':
+    case 'paid': return 'Confirmado';
     case 'pending': return 'Pendente';
-    case 'failed': return 'Falhou';
+    case 'failed':
+    case 'cancelled': return 'Falhou';
     default: return status;
   }
 };
 
 export default function EstablishmentSales() {
+  const [establishment, setEstablishment] = useState<any>(null);
+  const [sales, setSales] = useState<Sale[]>([]);
+  const [loading, setLoading] = useState(true);
   const [dateFilter, setDateFilter] = useState('all');
   const [methodFilter, setMethodFilter] = useState('all');
 
+  const loadSales = async () => {
+    try {
+      setLoading(true);
+      const estRes = await apiService.getCurrentEstablishment();
+      if (estRes.ok && estRes.data) {
+        setEstablishment(estRes.data);
+        const result = await apiService.getEstablishmentTransactions(estRes.data.id);
+        if (result.ok) {
+          setSales((result.data || []).map((s: any) => ({
+            id: s.id,
+            date: new Date(s.created_at).toISOString().split('T')[0],
+            time: new Date(s.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+            quantity: s.quantity || 1,
+            amount: s.total_amount,
+            method: s.payment_method?.toLowerCase() === 'credit_card' ? 'pos_card' : 'pix',
+            status: s.payment_status === 'paid' ? 'confirmed' : s.payment_status === 'pending' ? 'pending' : 'failed',
+            cardCodes: s.transaction_code ? [s.transaction_code] : []
+          })));
+        }
+      }
+    } catch (error) {
+      console.error(error);
+      toast({ title: 'Erro', description: 'Erro ao carregar vendas', variant: 'destructive' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadSales();
+  }, []);
+
   const columns = [
-    { 
-      key: 'date', 
+    {
+      key: 'date',
       label: 'Data/Hora',
       render: (sale: Sale) => (
         <div>
@@ -81,20 +108,20 @@ export default function EstablishmentSales() {
       )
     },
     { key: 'quantity', label: 'Qtd. Cartelas' },
-    { 
-      key: 'amount', 
+    {
+      key: 'amount',
       label: 'Valor',
       render: (sale: Sale) => `R$ ${sale.amount.toFixed(2)}`
     },
-    { 
-      key: 'method', 
+    {
+      key: 'method',
       label: 'Método',
       render: (sale: Sale) => (
         <Badge variant="outline">{getMethodLabel(sale.method)}</Badge>
       )
     },
-    { 
-      key: 'status', 
+    {
+      key: 'status',
       label: 'Status',
       render: (sale: Sale) => (
         <Badge variant={getStatusVariant(sale.status) as any}>
@@ -102,8 +129,8 @@ export default function EstablishmentSales() {
         </Badge>
       )
     },
-    { 
-      key: 'cardCodes', 
+    {
+      key: 'cardCodes',
       label: 'Cartelas',
       render: (sale: Sale) => (
         <span className="text-sm font-mono text-muted-foreground">
@@ -113,16 +140,21 @@ export default function EstablishmentSales() {
     },
   ];
 
-  const filteredSales = mockSales.filter(sale => {
+  const filteredSales = sales.filter(sale => {
     if (methodFilter !== 'all' && sale.method !== methodFilter) return false;
+    // Add date filtering logic here if needed
     return true;
   });
 
-  const totalAmount = filteredSales.reduce((sum, sale) => sum + sale.amount, 0);
-  const totalCards = filteredSales.reduce((sum, sale) => sum + sale.quantity, 0);
+  const totalAmount = filteredSales.reduce((sum, sale) => sum + (sale.status === 'confirmed' ? sale.amount : 0), 0);
+  const totalCards = filteredSales.reduce((sum, sale) => sum + (sale.status === 'confirmed' ? sale.quantity : 0), 0);
 
   return (
-    <DashboardLayout userType="establishment" userName={mockEstablishment.tradeName} notifications={2}>
+    <DashboardLayout
+      userType="establishment"
+      userName={establishment?.name || 'Estabelecimento'}
+      notifications={2}
+    >
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div>

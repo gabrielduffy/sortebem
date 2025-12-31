@@ -12,6 +12,7 @@ import Checkout from "./pages/Checkout";
 import Redeem from "./pages/Redeem";
 import HowItWorks from "./pages/HowItWorks";
 import NotFound from "./pages/NotFound";
+import SejaParceiro from "./pages/SejaParceiro";
 // Demo Pages
 import DemoRodada from "./pages/demo/DemoRodada";
 import DemoCheckout from "./pages/demo/DemoCheckout";
@@ -41,9 +42,10 @@ import AdminRounds from "./pages/admin/AdminRounds";
 import AdminManagers from "./pages/admin/AdminManagers";
 import AdminEstablishments from "./pages/admin/AdminEstablishments";
 import AdminPOS from "./pages/admin/AdminPOS";
-import AdminLogs from "./pages/admin/AdminLogs";
-import AdminIntegrations from "./pages/admin/AdminIntegrations";
-import AdminProfile from "./pages/admin/AdminProfile";
+import AdminLogs from '@/pages/admin/AdminLogs';
+import AdminIntegrations from '@/pages/admin/AdminIntegrations';
+import AdminFinance from '@/pages/admin/AdminFinance';
+import AdminProfile from '@/pages/admin/AdminProfile';
 
 const queryClient = new QueryClient();
 
@@ -58,10 +60,14 @@ const App = () => (
             {/* Public */}
             <Route path="/" element={<Index />} />
             <Route path="/c/:codigo" element={<CardView />} />
-            <Route path="/tv/:slugEstabelecimento" element={<TVMode />} />
             <Route path="/checkout" element={<Checkout />} />
+            <Route path="/est/:code" element={<Checkout />} />
+            <Route path="/comprar" element={<Checkout />} />
+            <Route path="/tv/:code" element={<TVMode />} />
+            <Route path="/tv/:slugEstabelecimento" element={<TVMode />} />
             <Route path="/resgatar" element={<Redeem />} />
             <Route path="/como-funciona" element={<HowItWorks />} />
+            <Route path="/seja-parceiro" element={<SejaParceiro />} />
 
             {/* Demo Pages (public) */}
             <Route path="/demo/rodada" element={<DemoRodada />} />
@@ -138,6 +144,11 @@ const App = () => (
             <Route path="/admin" element={
               <ProtectedRoute allowedRoles={['admin']}>
                 <AdminDashboard />
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/financeiro" element={
+              <ProtectedRoute allowedRoles={['admin']}>
+                <AdminFinance />
               </ProtectedRoute>
             } />
             <Route path="/admin/configuracoes" element={

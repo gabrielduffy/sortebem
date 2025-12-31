@@ -16,6 +16,7 @@ export default function AdminRounds() {
   const [liveRound, setLiveRound] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [viewingRound, setViewingRound] = useState<any>(null);
+  const [currentTime, setCurrentTime] = useState(new Date());
 
   useEffect(() => {
     const loadRounds = async () => {
@@ -43,7 +44,15 @@ export default function AdminRounds() {
     // Poll for updates every 5 seconds
     const interval = setInterval(loadRounds, 5000);
 
-    return () => clearInterval(interval);
+    // Update current time every second
+    const timeInterval = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 1000);
+
+    return () => {
+      clearInterval(interval);
+      clearInterval(timeInterval);
+    };
   }, []);
 
   const upcomingRounds = rounds.filter(r => r.status === 'selling' || r.status === 'scheduled');
@@ -52,6 +61,96 @@ export default function AdminRounds() {
   const handlePause = () => toast({ title: 'Rodada pausada', description: 'O sorteio foi pausado temporariamente.' });
   const handleForceEnd = () => toast({ title: 'Rodada finalizada', description: 'A rodada foi encerrada manualmente.' });
   const formatCurrency = (value: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
+
+  // Função para formatar data corretamente
+  const formatDate = (dateString: string) => {
+    if (!dateString) return 'Data inválida';
+    try {
+      const date = new Date(dateString);
+      return date.toLocaleString('pt-BR', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    } catch {
+      return 'Data inválida';
+    }
+  };
+
+  // Função para formatar apenas hora
+  const formatTime = (dateString: string) => {
+    if (!dateString) return 'Hora inválida';
+    try {
+      const date = new Date(dateString);
+      return date.toLocaleTimeString('pt-BR', {
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    } catch {
+      return 'Hora inválida';
+    }
+  };
+
+  // Calcular tempo restante em formato legível
+  const getTimeRemaining = (endDate: string) => {
+    if (!endDate) return 'Tempo inválido';
+    try {
+      const end = new Date(endDate);
+      const now = currentTime;
+      const diff = end.getTime() - now.getTime();
+
+      if (diff <= 0) return 'Finalizada';
+
+      const minutes = Math.floor(diff / 60000);
+      const seconds = Math.floor((diff % 60000) / 1000);
+
+      if (minutes > 60) {
+        const hours = Math.floor(minutes / 60);
+        const mins = minutes % 60;
+        return `${hours}h ${mins}min`;
+      }
+
+      if (minutes > 0) {
+        return `${minutes}min ${seconds}s`;
+      }
+
+      return `${seconds}s`;
+    } catch {
+      return 'Tempo inválido';
+    }
+  };
+
+  // Calcular tempo restante para VENDA (selling_ends_at)
+  const getSalesTimeRemaining = (sellingEndsAt: string) => {
+    if (!sellingEndsAt) return 'Tempo inválido';
+    try {
+      const end = new Date(sellingEndsAt);
+      const now = currentTime;
+      const diff = end.getTime() - now.getTime();
+
+      if (diff <= 0) return 'Vendas encerradas';
+
+      const minutes = Math.floor(diff / 60000);
+      const seconds = Math.floor((diff % 60000) / 1000);
+
+      if (minutes > 0) {
+        return `${minutes}min ${seconds}s`;
+      }
+
+      return `${seconds}s`;
+    } catch {
+      return 'Tempo inválido';
+    }
+  };
+
+  // Calcular pool estimado (preço da cartela × cartelas vendidas)
+  const calculatePool = (round: any) => {
+    const cardPrice = round.card_price || 0;
+    const cardsSold = round.cards_sold || 0;
+    return cardPrice * cardsSold;
+  };
 
   const historyColumns = [
     { key: 'id', label: 'ID' },
@@ -85,7 +184,7 @@ export default function AdminRounds() {
                   <div className="flex items-center justify-between">
                     <CardTitle className="flex items-center gap-2">
                       <span className="w-3 h-3 rounded-full bg-destructive animate-pulse" />
-                      Rodada #{liveRound.round_number || liveRound.id} - AO VIVO
+                      Rodada #{liveRound.number} - AO VIVO
                     </CardTitle>
                     <div className="flex gap-2">
                       <Button variant="outline" size="sm" onClick={handlePause}>
@@ -104,14 +203,14 @@ export default function AdminRounds() {
                       <Trophy className="w-8 h-8 text-primary mx-auto mb-2" />
                       <p className="text-sm text-muted-foreground">Pool de Prêmios</p>
                       <p className="text-xl font-bold text-foreground">
-                        {formatCurrency(liveRound.prize_pool || 0)}
+                        {formatCurrency(calculatePool(liveRound))}
                       </p>
                     </div>
                     <div className="bg-muted rounded-xl p-4 text-center">
                       <Users className="w-8 h-8 text-primary mx-auto mb-2" />
                       <p className="text-sm text-muted-foreground">Cartelas Vendidas</p>
                       <p className="text-xl font-bold text-foreground">
-                        {(liveRound.sold_cards || 0).toLocaleString()}
+                        {(liveRound.cards_sold || 0).toLocaleString()}
                       </p>
                     </div>
                     <div className="bg-muted rounded-xl p-4 text-center">
@@ -176,22 +275,40 @@ export default function AdminRounds() {
                           <Badge variant={round.type === 'special' ? 'default' : 'secondary'}>
                             {round.type === 'special' ? '⭐ Especial' : 'Regular'}
                           </Badge>
-                          Rodada #{round.round_number || round.id}
+                          Rodada #{round.number}
                         </CardTitle>
                       </div>
                     </CardHeader>
                     <CardContent>
-                      <div className="space-y-2 text-sm">
+                      <div className="space-y-3 text-sm">
                         <div className="flex justify-between">
-                          <span className="text-muted-foreground">Início Previsto:</span>
+                          <span className="text-muted-foreground">Início:</span>
                           <span className="font-medium">
-                            {new Date(round.scheduled_time || round.start_time).toLocaleTimeString('pt-BR')}
+                            {formatTime(round.starts_at)}
                           </span>
                         </div>
                         <div className="flex justify-between">
+                          <span className="text-muted-foreground">Término:</span>
+                          <span className="font-medium">
+                            {formatTime(round.ends_at)}
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-muted-foreground">Tempo restante:</span>
+                          <Badge variant="outline" className="font-mono">
+                            {getTimeRemaining(round.ends_at)}
+                          </Badge>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-muted-foreground">Vendas até:</span>
+                          <Badge variant="secondary" className="font-mono">
+                            {getSalesTimeRemaining(round.selling_ends_at)}
+                          </Badge>
+                        </div>
+                        <div className="flex justify-between pt-2 border-t">
                           <span className="text-muted-foreground">Pool Estimado:</span>
                           <span className="font-medium text-primary">
-                            {formatCurrency(round.prize_pool || 0)}
+                            {formatCurrency(calculatePool(round))}
                           </span>
                         </div>
                       </div>
@@ -222,13 +339,13 @@ export default function AdminRounds() {
                 ) : finishedRounds.length > 0 ? (
                   <DataTable
                     data={finishedRounds.map(r => ({
-                      id: r.number || r.round_number || r.id || '-',
-                      date: new Date(r.finished_at || r.ends_at || r.created_at).toLocaleString('pt-BR'),
+                      id: r.number || '-',
+                      date: formatDate(r.finished_at || r.ends_at || r.created_at),
                       type: r.type === 'special' ? 'Especial' : 'Regular',
                       winner: r.winner_establishment || '-',
-                      prize: formatCurrency(r.prize_pool || r.prize_amount || 0),
-                      soldCards: r.cards_sold || r.sold_cards || 0,
-                      unsoldCards: Math.max(0, (r.max_cards || 10000) - (r.cards_sold || r.sold_cards || 0)),
+                      prize: formatCurrency(calculatePool(r)),
+                      soldCards: r.cards_sold || 0,
+                      unsoldCards: Math.max(0, (r.max_cards || 10000) - (r.cards_sold || 0)),
                       pattern: r.win_pattern || '-',
                       tieBreak: r.tie_break_number || '-',
                       winningCard: r.winning_card_code || '-',
