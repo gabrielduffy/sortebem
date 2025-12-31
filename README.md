@@ -154,6 +154,10 @@ sortebem/
 - `groq_prompts` - Templates de prompts para IA
 - `groq_usage_logs` - Logs de uso da API Groq
 
+#### **Vencedores e Saques (FASE 9)**
+- `payment_splits` - Registro de divisão de pagamentos (comissionamento)
+- `tiebreak_stones` - Pedras sorteadas para desempate
+
 ### **Relacionamentos**
 
 ```
@@ -192,6 +196,13 @@ charities (1) --> (N) establishments
 - `create_manual_round(...)` - Cria rodada manual com validações
 - `update_manual_round(...)` - Atualiza rodada manual
 - `auto_open_scheduled_rounds()` - Abre rodadas agendadas (cron job)
+
+#### **Vencedores e Saques (FASE 9)**
+- `check_winner_card(card_id, round_id, pattern)` - Verifica se uma cartela é vencedora
+- `check_all_cards_for_round(round_id, pattern)` - Verifica todas as cartelas automaticamente
+- `resolve_tiebreak_with_stone(round_id)` - Resolve desempate por Pedra Maior (número maior vence)
+- `process_automatic_withdrawal(winner_id, pix_key)` - Processa saque automático de prêmio
+- `process_payment_split(purchase_id, asaas_payment_id)` - Calcula e registra splits de comissionamento
 
 #### **Otimizações (FASE 5)**
 - `refresh_establishment_stats()` - Atualiza materialized view de estatísticas
@@ -593,6 +604,28 @@ const response = await apiService.generatePix({
 - [x] Status 'scheduled' para rodadas futuras
 - [x] Validação de min/max participantes
 - [x] Constraints para critérios de vitória e desempate
+
+### **✅ FASE 9: Sistema Completo de Vencedores, Desempate e Saques** (Concluída)
+- [x] Colunas em `winners` para desempate por pedra maior
+- [x] Campos Asaas em `establishments` e `managers` (subcontas, KYC, splits)
+- [x] Tabela `payment_splits` para comissionamento automático
+- [x] Tabela `tiebreak_stones` para histórico de desempates
+- [x] Função `check_winner_card()` - Verifica se cartela é vencedora
+- [x] Função `check_all_cards_for_round()` - Verifica todas as cartelas automaticamente
+- [x] Função `resolve_tiebreak_with_stone()` - **Desempate por Pedra Maior (único critério)**
+- [x] Função `process_automatic_withdrawal()` - Saque automático de prêmios
+- [x] Função `process_payment_split()` - Calcula e registra splits
+- [x] Trigger auto-processar split após confirmação de pagamento
+- [x] Views: `v_pending_withdrawals`, `v_pending_splits`
+- [x] Extensão completa do `asaasService.ts`:
+  - [x] Métodos de subcontas e KYC
+  - [x] Métodos de splits de pagamento
+  - [x] Métodos de transferências PIX (saques)
+  - [x] Método `processWinnerWithdrawal()`
+- [x] Componente `WinnerWithdrawalDialog.tsx` - Interface para cliente sacar
+- [x] Página `AdminWinners.tsx` - Gerenciamento de vencedores e desempates
+- [x] Seleção múltipla de estabelecimentos em `CreateManualRoundDialog`
+- [x] Desempate fixado em "Pedra Maior" (quem tira número maior vence)
 
 ---
 
