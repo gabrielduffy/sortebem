@@ -294,6 +294,252 @@ class AsaasService {
       return false;
     }
   }
+
+  /**
+   * SUBCONTAS E KYC
+   */
+
+  /**
+   * Criar subconta Asaas para estabelecimento ou gerente
+   */
+  async createSubAccount(params: {
+    name: string;
+    cpfCnpj: string;
+    email: string;
+    phone?: string;
+    address?: {
+      street: string;
+      number: string;
+      complement?: string;
+      province: string;
+      city: string;
+      state: string;
+      postalCode: string;
+    };
+    birthDate?: string; // YYYY-MM-DD (apenas para CPF)
+    companyType?: 'MEI' | 'LIMITED' | 'INDIVIDUAL' | 'ASSOCIATION'; // Para CNPJ
+  }): Promise<{ success: boolean; accountId?: string; walletId?: string; error?: string }> {
+    try {
+      const response = await this.request('/accounts', 'POST', params);
+
+      return {
+        success: true,
+        accountId: response.id,
+        walletId: response.walletId,
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        error: error.message,
+      };
+    }
+  }
+
+  /**
+   * Obter status de KYC de uma subconta
+   */
+  async getAccountKycStatus(accountId: string): Promise<{
+    status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'AWAITING_DOCUMENT';
+    documentsNeeded?: string[];
+  }> {
+    try {
+      const response = await this.request(`/accounts/${accountId}`, 'GET');
+
+      return {
+        status: response.status,
+        documentsNeeded: response.documentsNeeded,
+      };
+    } catch (error: any) {
+      throw new Error(`Failed to get KYC status: ${error.message}`);
+    }
+  }
+
+  /**
+   * SPLITS DE PAGAMENTO
+   */
+
+  /**
+   * Criar cobrança PIX com split
+   */
+  async createPixChargeWithSplit(params: {
+    customer: string;
+    value: number;
+    dueDate: string;
+    description?: string;
+    externalReference?: string;
+    splits: Array<{
+      walletId: string; // ID da carteira que vai receber
+      percentualValue?: number; // Percentual (0-100)
+      fixedValue?: number; // Valor fixo
+    }>;
+  }): Promise<any> {
+    try {
+      const chargeData: any = {
+        customer: params.customer,
+        billingType: 'PIX',
+        value: params.value,
+        dueDate: params.dueDate,
+        description: params.description,
+        externalReference: params.externalReference,
+      };
+
+      // Adicionar splits se fornecidos
+      if (params.splits && params.splits.length > 0) {
+        chargeData.split = params.splits.map(split => ({
+          walletId: split.walletId,
+          percentualValue: split.percentualValue,
+          fixedValue: split.fixedValue,
+        }));
+      }
+
+      const response = await this.request('/payments', 'POST', chargeData);
+      return response;
+    } catch (error: any) {
+      throw new Error(`Failed to create split charge: ${error.message}`);
+    }
+  }
+
+  /**
+   * TRANSFERÊNCIAS (SAQUES)
+   */
+
+  /**
+   * Criar transferência via PIX
+   */
+  async createPixTransfer(params: {
+    value: number;
+    pixAddressKey: string; // Chave PIX do destinatário
+    description?: string;
+    scheduleDate?: string; // YYYY-MM-DD (opcional, para agendar)
+  }): Promise<{
+    success: boolean;
+    transferId?: string;
+    status?: string;
+    error?: string;
+  }> {
+    try {
+      const response = await this.request('/transfers', 'POST', {
+        value: params.value,
+        pixAddressKey: params.pixAddressKey,
+        description: params.description,
+        scheduleDate: params.scheduleDate,
+      });
+
+      return {
+        success: true,
+        transferId: response.id,
+        status: response.status,
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        error: error.message,
+      };
+    }
+  }
+
+  /**
+   * Verificar status de transferência
+   */
+  async getTransferStatus(transferId: string): Promise<{
+    status: 'PENDING' | 'BANK_PROCESSING' | 'DONE' | 'CANCELLED' | 'FAILED';
+    value?: number;
+    effectiveDate?: string;
+    error?: string;
+  }> {
+    try {
+      const response = await this.request(`/transfers/${transferId}`, 'GET');
+
+      return {
+        status: response.status,
+        value: response.value,
+        effectiveDate: response.effectiveDate,
+      };
+    } catch (error: any) {
+      throw new Error(`Failed to get transfer status: ${error.message}`);
+    }
+  }
+
+  /**
+   * SAQUE AUTOMÁTICO PARA VENCEDOR
+   */
+
+  /**
+   * Processar saque automático de prêmio
+   */
+  async processWinnerWithdrawal(params: {
+    winnerId: number;
+    amount: number;
+    pixKey: string;
+    winnerName: string;
+  }): Promise<{
+    success: boolean;
+    transferId?: string;
+    error?: string;
+  }> {
+    try {
+      // Criar transferência
+      const transferResult = await this.createPixTransfer({
+        value: params.amount,
+        pixAddressKey: params.pixKey,
+        description: `Prêmio SorteBem - Vencedor #${params.winnerId}`,
+      });
+
+      if (!transferResult.success) {
+        // Registrar erro no banco
+        await supabase
+          .from('winners')
+          .update({
+            auto_withdrawal_attempted: true,
+            withdrawal_error: transferResult.error,
+          })
+          .eq('id', params.winnerId);
+
+        return {
+          success: false,
+          error: transferResult.error,
+        };
+      }
+
+      // Atualizar winner com ID da transferência
+      await supabase
+        .from('winners')
+        .update({
+          asaas_transfer_id: transferResult.transferId,
+          status: 'processing',
+          auto_withdrawal_attempted: true,
+        })
+        .eq('id', params.winnerId);
+
+      return {
+        success: true,
+        transferId: transferResult.transferId,
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        error: error.message,
+      };
+    }
+  }
+
+  /**
+   * SALDO E EXTRATO
+   */
+
+  /**
+   * Consultar saldo da conta
+   */
+  async getBalance(): Promise<{ balance: number }> {
+    try {
+      const response = await this.request('/finance/balance', 'GET');
+      return {
+        balance: response.balance,
+      };
+    } catch (error: any) {
+      throw new Error(`Failed to get balance: ${error.message}`);
+    }
+  }
 }
 
 export const asaasService = new AsaasService();
