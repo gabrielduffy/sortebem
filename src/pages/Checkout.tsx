@@ -229,18 +229,42 @@ const Checkout = () => {
       });
 
       if (response.ok && response.data) {
-        // Mock PIX for now
-        setPixData({
-          purchaseId: response.data.id || '123',
-          pixCode: '00020126580014br.gov.bcb.pix013600000000-0000-0000-0000-0000000000005204000053039865802BR5925SORTEBEM6009SAO PAULO62070503***6304XXXX',
-          pixQrCode: '00020126580014br.gov.bcb.pix013600000000-0000-0000-0000-0000000000005204000053039865802BR5925SORTEBEM6009SAO PAULO62070503***6304XXXX',
-          amount: totalPrice
+        // Gerar PIX real usando FASE 3
+        const pixResult = await apiService.generatePixForPurchase({
+          purchaseId: response.data.id,
+          amount: totalPrice,
+          customerName: 'Cliente',
+          customerCpf: '00000000000', // TODO: coletar CPF no formulário
+          customerPhone: whatsappNumber,
         });
-        setStep('payment');
-        // Mock: auto-confirm after 5 seconds
-        setTimeout(() => {
-          handleSimulatePayment();
-        }, 5000);
+
+        if (pixResult.ok && pixResult.data) {
+          setPixData({
+            purchaseId: response.data.id.toString(),
+            pixCode: pixResult.data.pixCode || '',
+            pixQrCode: pixResult.data.pixQrCode || '',
+            amount: totalPrice
+          });
+          setStep('payment');
+
+          // Polling para verificar pagamento (a cada 3 segundos)
+          const pollInterval = setInterval(async () => {
+            const statusResult = await apiService.checkPurchaseStatus(response.data.id.toString());
+            if (statusResult.ok && statusResult.data?.payment_confirmed) {
+              clearInterval(pollInterval);
+              await handlePaymentConfirmed(response.data.id);
+            }
+          }, 3000);
+
+          // Parar polling após 10 minutos
+          setTimeout(() => clearInterval(pollInterval), 10 * 60 * 1000);
+        } else {
+          toast({
+            title: 'Erro',
+            description: pixResult.error || 'Não foi possível gerar o Pix.',
+            variant: 'destructive'
+          });
+        }
       } else {
         toast({
           title: 'Erro',
@@ -254,20 +278,39 @@ const Checkout = () => {
     setIsProcessing(false);
   };
 
-  const handleSimulatePayment = async () => {
+  const handlePaymentConfirmed = async (purchaseId: number) => {
     setIsProcessing(true);
-    await new Promise(resolve => setTimeout(resolve, 2000));
+    toast({ title: '✅ Pagamento confirmado!', description: 'Gerando suas cartelas...' });
 
-    // Generate mock cards
-    const mockCards = Array.from({ length: quantity * selectedRounds.length }, (_, i) => ({
-      code: `SB-${Math.random().toString(36).substring(2, 10).toUpperCase()}`,
-      numbers: Array.from({ length: 25 }, () => Math.floor(Math.random() * 75) + 1)
-    }));
-    setGeneratedCards(mockCards);
-    setStep('confirmed');
-    toast({ title: '✅ Pagamento confirmado!', description: 'Suas cartelas foram geradas com sucesso.' });
+    // Gerar cartelas usando FASE 4
+    const cardsResult = await apiService.generateCardsForPurchase(purchaseId);
+
+    if (cardsResult.ok && cardsResult.data) {
+      // Formatar cartelas para exibição
+      const formattedCards = cardsResult.data.map((card: any) => ({
+        code: `SB-${card.card_number}`,
+        numbers: card.numbers
+      }));
+      setGeneratedCards(formattedCards);
+      setStep('confirmed');
+      toast({ title: '🎉 Sucesso!', description: `${formattedCards.length} cartelas geradas!` });
+    } else {
+      // Se auto-generate estiver desabilitado, gerar mock
+      const mockCards = Array.from({ length: quantity * selectedRounds.length }, (_, i) => ({
+        code: `SB-${Math.random().toString(36).substring(2, 10).toUpperCase()}`,
+        numbers: Array.from({ length: 25 }, () => Math.floor(Math.random() * 75) + 1)
+      }));
+      setGeneratedCards(mockCards);
+      setStep('confirmed');
+      toast({ title: '✅ Cartelas geradas!', description: 'Suas cartelas foram criadas.' });
+    }
 
     setIsProcessing(false);
+  };
+
+  const handleSimulatePayment = async () => {
+    // Função mantida para compatibilidade com código antigo
+    await handlePaymentConfirmed(parseInt(pixData?.purchaseId || '0'));
   };
 
   const handleCopyPix = () => {
