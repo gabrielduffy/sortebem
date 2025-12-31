@@ -63,6 +63,7 @@ SORTEBEM é um sistema completo de loteria digital que permite:
 - **Asaas** - Pagamentos PIX (produção)
 - **PagSeguro** - Pagamentos PIX (fallback)
 - **WhatsApp Business API** - Notificações
+- **Groq AI** - Geração de conteúdo com IA (Llama 3, Mixtral)
 
 ### **DevOps**
 - **GitHub Actions** - CI/CD
@@ -93,13 +94,18 @@ sortebem/
 │   │   ├── authService.ts   # Autenticação com dual auth
 │   │   ├── featureFlagService.ts  # Gerenciamento de feature flags
 │   │   ├── asaasService.ts  # Integração Asaas (PIX)
-│   │   └── cardGeneratorService.ts  # Geração automática de cartelas
+│   │   ├── cardGeneratorService.ts  # Geração automática de cartelas
+│   │   └── groqService.ts   # Integração Groq AI
 │   └── types/               # TypeScript types
 ├── supabase/
 │   └── migrations/          # Migrations SQL
 │       ├── 001_fase1_preparacao.sql    # Feature flags + settings
 │       ├── 002_fase2_seguranca.sql     # bcrypt + dual auth
-│       └── 003_fase3_fase4_pagamentos_cartelas.sql  # Asaas + cartelas
+│       ├── 003_fase3_fase4_pagamentos_cartelas.sql  # Asaas + cartelas
+│       ├── 004_fase5_otimizacoes.sql   # Índices + materialized views
+│       ├── 005_fase6_integracao_groq.sql  # Groq AI integration
+│       ├── 006_fase7_jogadores_bots.sql   # Players/Bots system
+│       └── 007_fase8_criacao_manual_rodadas.sql  # Manual round creation
 ├── scripts/
 │   └── run-migrations.js    # Script automático de migrations
 ├── .github/
@@ -140,6 +146,14 @@ sortebem/
 - `ticker_messages` - Mensagens do letreiro (TV Mode)
 - `logs` - Logs do sistema
 
+#### **Jogadores e Bots (FASE 7)**
+- `players` - Jogadores reais e bots gerados por IA
+- `player_participations` - Participações de jogadores em rodadas
+
+#### **Groq AI (FASE 6)**
+- `groq_prompts` - Templates de prompts para IA
+- `groq_usage_logs` - Logs de uso da API Groq
+
 ### **Relacionamentos**
 
 ```
@@ -156,11 +170,31 @@ charities (1) --> (N) establishments
 
 ### **Funções PostgreSQL**
 
+#### **Autenticação e Segurança**
 - `hash_password(password)` - Gera hash bcrypt
 - `verify_password(password, hash)` - Verifica senha contra hash
 - `authenticate_user(email, password)` - Autenticação com dual auth
 - `migrate_user_password(user_id, password)` - Migração on-the-fly de senhas
+
+#### **Pagamentos e Cartelas**
+- `process_payment_webhook(webhook_id, purchase_id)` - Processa webhook de pagamento
 - `create_next_rounds()` - Cria próximas rodadas automaticamente
+
+#### **Jogadores (FASE 7)**
+- `create_players_batch(establishment_id, names[], is_bot)` - Cria jogadores em lote
+- `add_player_to_round(player_id, round_id, quantity)` - Adiciona jogador à rodada
+
+#### **Groq AI (FASE 6)**
+- `log_groq_usage(...)` - Registra uso da API Groq
+
+#### **Rodadas Manuais (FASE 8)**
+- `validate_round_time_conflict(...)` - Valida conflitos de horário (±30min)
+- `create_manual_round(...)` - Cria rodada manual com validações
+- `update_manual_round(...)` - Atualiza rodada manual
+- `auto_open_scheduled_rounds()` - Abre rodadas agendadas (cron job)
+
+#### **Otimizações (FASE 5)**
+- `refresh_establishment_stats()` - Atualiza materialized view de estatísticas
 - `update_updated_at_column()` - Trigger para atualizar timestamps
 
 ### **Row Level Security (RLS)**
