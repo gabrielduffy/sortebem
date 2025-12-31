@@ -28,22 +28,32 @@ jobs:
       - name: Link ao projeto
         run: npx supabase@latest link --project-ref ctjdbnvcqcyitpydnmdt
       
-      - name: Exportar Schema
+      - name: Exportar Schema (DDL)
         run: |
-          echo "📦 Exportando schema..."
-          npx supabase@latest db dump --schema-only -f supabase_schema.sql
+          echo "📦 Exportando estrutura do banco (DDL)..."
+          npx supabase@latest db dump -f supabase_schema.sql
           echo "✅ Schema exportado!"
       
       - name: Exportar dados de settings
         run: |
-          echo "📦 Exportando settings..."
-          npx supabase@latest db dump --data-only --use-copy=false -t settings -f supabase_settings_data.sql
+          echo "📦 Exportando dados da tabela settings..."
+          npx supabase@latest db dump --data-only -t settings -f supabase_settings_data.sql
           echo "✅ Settings exportados!"
+      
+      - name: Exportar dados de ticker_messages
+        run: |
+          echo "📦 Exportando dados da tabela ticker_messages..."
+          npx supabase@latest db dump --data-only -t ticker_messages -f supabase_ticker_data.sql
+          echo "✅ Ticker messages exportados!"
+      
+      - name: Listar arquivos gerados
+        run: ls -lh supabase*.sql
       
       - name: Commit e Push
         run: |
           git config user.name "GitHub Actions Bot"
           git config user.email "actions@github.com"
           git add supabase*.sql
-          git diff --staged --quiet || git commit -m "chore: atualizar schema [skip ci]"
+          git diff --staged --quiet || git commit -m "chore: atualizar schema do Supabase [skip ci]"
           git push
+          echo "✅ Arquivos commitados e enviados!"
