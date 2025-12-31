@@ -237,7 +237,7 @@ class ApiService {
         customer_email: data.customer?.email || null,
         customer_phone: data.customer?.phone || null,
         customer_cpf: data.customer?.cpf || null,
-        status: 'pending',
+        payment_status: 'pending',
       };
 
       const { data: purchase, error } = await supabase
