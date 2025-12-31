@@ -343,13 +343,13 @@ class ApiService {
   }
 
   /**
-   * Check purchase status
+   * Check purchase status (ATUALIZADO FASE 3)
    */
   async checkPurchaseStatus(purchaseId: string): Promise<ApiResponse> {
     try {
       const { data, error } = await supabase
         .from('purchases')
-        .select('payment_status, pix_code, pix_qrcode')
+        .select('payment_confirmed, pix_qr_code, paid_at, cards_generated')
         .eq('id', purchaseId)
         .single();
 
