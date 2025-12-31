@@ -5,9 +5,11 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from '@/hooks/use-toast';
 import { supabase } from '@/lib/supabase';
-import { CalendarClock, DollarSign, Users } from 'lucide-react';
+import { CalendarClock, DollarSign, Users, Building2 } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 
 interface CreateManualRoundDialogProps {
   open: boolean;
@@ -20,13 +22,14 @@ export function CreateManualRoundDialog({ open, onOpenChange, onSuccess }: Creat
   const [establishments, setEstablishments] = useState<any[]>([]);
 
   // Form state
-  const [establishmentId, setEstablishmentId] = useState('');
+  const [selectedEstablishments, setSelectedEstablishments] = useState<string[]>([]);
+  const [selectAll, setSelectAll] = useState(false);
   const [drawDate, setDrawDate] = useState('');
   const [drawTime, setDrawTime] = useState('');
   const [prize, setPrize] = useState('');
   const [cardPrice, setCardPrice] = useState('');
   const [winnerCriteria, setWinnerCriteria] = useState('full_card');
-  const [tiebreakRule, setTiebreakRule] = useState('first_marked');
+  const [tiebreakRule, setTiebreakRule] = useState('stone');
   const [minParticipants, setMinParticipants] = useState('');
   const [maxParticipants, setMaxParticipants] = useState('');
   const [roundType, setRoundType] = useState('regular');
@@ -53,19 +56,36 @@ export function CreateManualRoundDialog({ open, onOpenChange, onSuccess }: Creat
 
       if (data) {
         setEstablishments(data);
-        if (data.length > 0) {
-          setEstablishmentId(data[0].id.toString());
-        }
       }
     } catch (error) {
       console.error('Error loading establishments:', error);
     }
   };
 
+  const toggleEstablishment = (establishmentId: string) => {
+    setSelectedEstablishments(prev => {
+      if (prev.includes(establishmentId)) {
+        return prev.filter(id => id !== establishmentId);
+      } else {
+        return [...prev, establishmentId];
+      }
+    });
+    setSelectAll(false);
+  };
+
+  const handleSelectAll = (checked: boolean) => {
+    setSelectAll(checked);
+    if (checked) {
+      setSelectedEstablishments(establishments.map(e => e.id.toString()));
+    } else {
+      setSelectedEstablishments([]);
+    }
+  };
+
   const handleSubmit = async () => {
     // Validation
-    if (!establishmentId) {
-      toast({ title: 'Selecione um estabelecimento', variant: 'destructive' });
+    if (selectedEstablishments.length === 0 && !selectAll) {
+      toast({ title: 'Selecione pelo menos um estabelecimento', variant: 'destructive' });
       return;
     }
 
@@ -87,64 +107,91 @@ export function CreateManualRoundDialog({ open, onOpenChange, onSuccess }: Creat
     setLoading(true);
 
     try {
-      // Call create_manual_round function
-      const { data, error } = await supabase.rpc('create_manual_round', {
-        p_establishment_id: parseInt(establishmentId),
-        p_draw_date: drawDate,
-        p_draw_time: drawTime,
-        p_prize: parseFloat(prize),
-        p_card_price: parseFloat(cardPrice),
-        p_winner_criteria: winnerCriteria,
-        p_tiebreak_rule: tiebreakRule,
-        p_min_participants: minParticipants ? parseInt(minParticipants) : null,
-        p_max_participants: maxParticipants ? parseInt(maxParticipants) : null,
-        p_type: roundType,
-        p_description: description || null,
-        p_created_by: null
-      });
+      const establishmentsToCreate = selectAll
+        ? establishments.map(e => e.id)
+        : selectedEstablishments.map(id => parseInt(id));
 
-      if (error) {
-        throw error;
+      let successCount = 0;
+      let errorCount = 0;
+      const errors: string[] = [];
+
+      // Criar rodada para cada estabelecimento selecionado
+      for (const estId of establishmentsToCreate) {
+        try {
+          const { data, error } = await supabase.rpc('create_manual_round', {
+            p_establishment_id: estId,
+            p_draw_date: drawDate,
+            p_draw_time: drawTime,
+            p_prize: parseFloat(prize),
+            p_card_price: parseFloat(cardPrice),
+            p_winner_criteria: winnerCriteria,
+            p_tiebreak_rule: tiebreakRule,
+            p_min_participants: minParticipants ? parseInt(minParticipants) : null,
+            p_max_participants: maxParticipants ? parseInt(maxParticipants) : null,
+            p_type: roundType,
+            p_description: description || null,
+            p_created_by: null
+          });
+
+          if (error) {
+            errorCount++;
+            errors.push(`Estabelecimento ${estId}: ${error.message}`);
+            continue;
+          }
+
+          if (data && !data.success) {
+            errorCount++;
+            if (data.conflicting_rounds && Array.isArray(data.conflicting_rounds)) {
+              errors.push(`Estabelecimento ${estId}: Conflito de horário`);
+            } else {
+              errors.push(`Estabelecimento ${estId}: ${data.error || 'Erro desconhecido'}`);
+            }
+            continue;
+          }
+
+          successCount++;
+        } catch (err: any) {
+          errorCount++;
+          errors.push(`Estabelecimento ${estId}: ${err.message}`);
+        }
       }
 
-      if (data && !data.success) {
-        // Check for conflicts
-        if (data.conflicting_rounds && Array.isArray(data.conflicting_rounds)) {
-          toast({
-            title: 'Conflito de horário',
-            description: `Já existe(m) ${data.conflicting_rounds.length} rodada(s) neste horário (±30min)`,
-            variant: 'destructive'
-          });
-          return;
-        }
-
+      // Mostrar resultado
+      if (successCount > 0 && errorCount === 0) {
         toast({
-          title: 'Erro ao criar rodada',
-          description: data.error || 'Erro desconhecido',
+          title: `${successCount} rodada(s) criada(s) com sucesso!`,
+          description: `Rodadas agendadas para ${new Date(drawDate + ' ' + drawTime).toLocaleString('pt-BR')}`
+        });
+
+        // Reset form
+        setPrize('');
+        setCardPrice('');
+        setDescription('');
+        setMinParticipants('');
+        setMaxParticipants('');
+        setSelectedEstablishments([]);
+        setSelectAll(false);
+
+        onSuccess();
+        onOpenChange(false);
+      } else if (successCount > 0 && errorCount > 0) {
+        toast({
+          title: `${successCount} rodada(s) criada(s), ${errorCount} erro(s)`,
+          description: errors.slice(0, 3).join('; '),
           variant: 'destructive'
         });
-        return;
+      } else {
+        toast({
+          title: 'Erro ao criar rodadas',
+          description: errors.slice(0, 3).join('; '),
+          variant: 'destructive'
+        });
       }
-
-      toast({
-        title: 'Rodada criada com sucesso!',
-        description: `Rodada agendada para ${new Date(drawDate + ' ' + drawTime).toLocaleString('pt-BR')}`
-      });
-
-      // Reset form
-      setPrize('');
-      setCardPrice('');
-      setDescription('');
-      setMinParticipants('');
-      setMaxParticipants('');
-
-      onSuccess();
-      onOpenChange(false);
     } catch (error: any) {
-      console.error('Error creating round:', error);
+      console.error('Error creating rounds:', error);
       toast({
         title: 'Erro',
-        description: error.message || 'Não foi possível criar a rodada',
+        description: error.message || 'Não foi possível criar as rodadas',
         variant: 'destructive'
       });
     } finally {
@@ -154,33 +201,66 @@ export function CreateManualRoundDialog({ open, onOpenChange, onSuccess }: Creat
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <CalendarClock className="w-5 h-5" />
             Criar Rodada Manual
           </DialogTitle>
           <DialogDescription>
-            Configure os detalhes da rodada. O sistema valida conflitos de horário automaticamente.
+            Configure os detalhes da rodada. Você pode criar para um ou mais estabelecimentos simultaneamente.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
-          {/* Establishment */}
+          {/* Establishments Selection */}
           <div className="space-y-2">
-            <Label>Estabelecimento *</Label>
-            <Select value={establishmentId} onValueChange={setEstablishmentId}>
-              <SelectTrigger>
-                <SelectValue placeholder="Selecione" />
-              </SelectTrigger>
-              <SelectContent>
-                {establishments.map(est => (
-                  <SelectItem key={est.id} value={est.id.toString()}>
-                    {est.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Label>Estabelecimentos *</Label>
+
+            <div className="flex items-center space-x-2 mb-2">
+              <Checkbox
+                id="select-all"
+                checked={selectAll}
+                onCheckedChange={handleSelectAll}
+              />
+              <Label htmlFor="select-all" className="cursor-pointer font-semibold">
+                Selecionar Todos ({establishments.length})
+              </Label>
+            </div>
+
+            {!selectAll && (
+              <div className="border rounded-lg p-3 max-h-48 overflow-y-auto space-y-2">
+                {establishments.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">Nenhum estabelecimento ativo encontrado</p>
+                ) : (
+                  establishments.map(est => (
+                    <div key={est.id} className="flex items-center space-x-2">
+                      <Checkbox
+                        id={`est-${est.id}`}
+                        checked={selectedEstablishments.includes(est.id.toString())}
+                        onCheckedChange={() => toggleEstablishment(est.id.toString())}
+                      />
+                      <Label htmlFor={`est-${est.id}`} className="cursor-pointer flex-1">
+                        {est.name}
+                      </Label>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
+
+            {selectedEstablishments.length > 0 && !selectAll && (
+              <div className="flex flex-wrap gap-1 mt-2">
+                {selectedEstablishments.map(id => {
+                  const est = establishments.find(e => e.id.toString() === id);
+                  return (
+                    <Badge key={id} variant="secondary" className="text-xs">
+                      {est?.name}
+                    </Badge>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           {/* Date and Time */}
@@ -275,17 +355,17 @@ export function CreateManualRoundDialog({ open, onOpenChange, onSuccess }: Creat
 
             <div className="space-y-2">
               <Label>Regra de Desempate</Label>
-              <Select value={tiebreakRule} onValueChange={setTiebreakRule}>
+              <Select value={tiebreakRule} onValueChange={setTiebreakRule} disabled>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="first_marked">Primeiro a Marcar</SelectItem>
-                  <SelectItem value="split_prize">Dividir Prêmio</SelectItem>
-                  <SelectItem value="draw">Sorteio</SelectItem>
-                  <SelectItem value="fastest_time">Tempo Mais Rápido</SelectItem>
+                  <SelectItem value="stone">Pedra Maior</SelectItem>
                 </SelectContent>
               </Select>
+              <p className="text-xs text-muted-foreground">
+                Desempate sempre por Pedra Maior (quem tirar o número maior vence)
+              </p>
             </div>
           </div>
 
@@ -339,7 +419,7 @@ export function CreateManualRoundDialog({ open, onOpenChange, onSuccess }: Creat
             Cancelar
           </Button>
           <Button onClick={handleSubmit} disabled={loading}>
-            {loading ? 'Criando...' : 'Criar Rodada'}
+            {loading ? 'Criando...' : selectAll ? `Criar para Todos (${establishments.length})` : `Criar Rodada${selectedEstablishments.length > 1 ? 's' : ''} (${selectedEstablishments.length})`}
           </Button>
         </DialogFooter>
       </DialogContent>
