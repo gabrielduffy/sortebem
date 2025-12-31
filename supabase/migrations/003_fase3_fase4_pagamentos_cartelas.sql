@@ -66,7 +66,7 @@ BEGIN
   -- Marcar purchase como paga
   UPDATE purchases
   SET
-    status = 'confirmed',
+    payment_status = 'confirmed',
     paid_at = NOW(),
     payment_confirmed = true,
     updated_at = NOW()
