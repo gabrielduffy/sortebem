@@ -692,14 +692,14 @@ export default function AdminIntegrations() {
                     <Label className="text-sm font-medium">URL Webhook Asaas</Label>
                     <div className="flex items-center gap-2 mt-2">
                       <code className="flex-1 bg-background px-3 py-2 rounded text-sm text-foreground break-all">
-                        https://api.sortebem.com.br/purchases/webhook/asaas
+                        https://sortebem.com.br/api/webhook/asaas
                       </code>
                       <Button
                         variant="outline"
                         size="icon"
-                        onClick={() => handleCopyWebhookUrl('https://api.sortebem.com.br/purchases/webhook/asaas')}
+                        onClick={() => handleCopyWebhookUrl('https://sortebem.com.br/api/webhook/asaas')}
                       >
-                        {copiedUrl === 'https://api.sortebem.com.br/purchases/webhook/asaas' ? (
+                        {copiedUrl === 'https://sortebem.com.br/api/webhook/asaas' ? (
                           <Check className="w-4 h-4" />
                         ) : (
                           <Copy className="w-4 h-4" />
@@ -715,14 +715,14 @@ export default function AdminIntegrations() {
                     <Label className="text-sm font-medium">URL Webhook PagSeguro</Label>
                     <div className="flex items-center gap-2 mt-2">
                       <code className="flex-1 bg-background px-3 py-2 rounded text-sm text-foreground break-all">
-                        https://api.sortebem.com.br/purchases/webhook/pagseguro
+                        https://sortebem.com.br/api/webhook/pagseguro
                       </code>
                       <Button
                         variant="outline"
                         size="icon"
-                        onClick={() => handleCopyWebhookUrl('https://api.sortebem.com.br/purchases/webhook/pagseguro')}
+                        onClick={() => handleCopyWebhookUrl('https://sortebem.com.br/api/webhook/pagseguro')}
                       >
-                        {copiedUrl === 'https://api.sortebem.com.br/purchases/webhook/pagseguro' ? (
+                        {copiedUrl === 'https://sortebem.com.br/api/webhook/pagseguro' ? (
                           <Check className="w-4 h-4" />
                         ) : (
                           <Copy className="w-4 h-4" />
@@ -742,7 +742,24 @@ export default function AdminIntegrations() {
                     <li>• Certifique-se de que os Webhook Tokens estão configurados corretamente</li>
                     <li>• Os webhooks notificam automaticamente sobre mudanças no status de pagamento</li>
                     <li>• É essencial para confirmação automática de compras</li>
+                    <li>• As URLs usam seu domínio personalizado e fazem proxy para as Edge Functions do Supabase</li>
                   </ul>
+                </div>
+                
+                <div className="bg-muted/50 border border-border rounded-lg p-4">
+                  <div className="flex items-start gap-2">
+                    <Info className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
+                    <div className="flex-1">
+                      <h4 className="font-semibold text-sm text-foreground mb-1">URLs Personalizadas</h4>
+                      <p className="text-xs text-muted-foreground">
+                        Estas URLs usam seu domínio personalizado (sortebem.com.br). 
+                        Certifique-se de que seu servidor/nginx está configurado para fazer proxy dessas rotas para as Edge Functions do Supabase:
+                        <br />
+                        <code className="text-xs mt-1 block bg-background px-2 py-1 rounded">/api/webhook/asaas → Supabase Edge Function</code>
+                        <code className="text-xs block bg-background px-2 py-1 rounded">/api/webhook/pagseguro → Supabase Edge Function</code>
+                      </p>
+                    </div>
+                  </div>
                 </div>
               </CardContent>
             </Card>

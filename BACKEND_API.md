@@ -1,79 +1,109 @@
-# SORTEBEM - Documentação da API Backend
+# SORTEBEM - Documentação da Arquitetura
 
-## URL Base
-https://api.sortebem.com.br
+## ⚠️ IMPORTANTE - Arquitetura Atual
 
-## Padrão de Resposta
-Todas as respostas seguem o formato:
-```json
-{
-  "ok": true,
-  "data": { ... }
-}
-```
-Ou em caso de erro:
-```json
-{
-  "ok": false,
-  "error": "Mensagem de erro"
-}
-```
+**O backend agora funciona 100% através do Supabase. Não há mais API separada em api.sortebem.com.br**
 
-## Autenticação
-Header: `Authorization: Bearer <token>`
-Token obtido via POST /auth/login
+- **Banco de Dados**: Supabase (PostgreSQL)
+- **Client**: Supabase JS Client (usado diretamente no frontend)
+- **Autenticação**: JWT simples armazenado no localStorage
+- **Webhooks**: Supabase Edge Functions (se configurados)
 
 ---
 
-## ENDPOINTS PRINCIPAIS
+## Estrutura de Dados e Serviços
+
+Toda a comunicação com o banco de dados é feita através do `ApiService` (`src/services/api.ts`) que utiliza o cliente Supabase diretamente.
+
+### Padrão de Resposta
+Todas as funções do ApiService retornam:
+```typescript
+interface ApiResponse {
+  ok: boolean;
+  data?: any;
+  error?: string;
+  message?: string;
+}
+```
+
+---
+
+## Funcionalidades Principais (via Supabase)
 
 ### Autenticação
-- POST /auth/login - { email, password } → { token, user }
-- POST /auth/register - { name, email, whatsapp, password } → { token, user }
+- `apiService.login(email, password)` - Login com email/senha
+- `apiService.loginWhatsApp(whatsapp, password)` - Login com WhatsApp
+- Tokens JWT são armazenados no localStorage
 
-### Gerentes (/managers)
-- GET /managers - Lista gerentes (Admin)
-- POST /managers - Cria gerente (Admin)
-  Body: { name, email, whatsapp, password, cpf, commission_rate }
-- PUT /managers/:id/kyc - Atualiza KYC { kyc_status: 'approved'|'rejected' }
+### Gerentes
+- `apiService.getManagers()` - Lista gerentes (Admin)
+- `apiService.createManager(data)` - Cria gerente (Admin)
+- `apiService.updateManagerKyc(id, kyc_status)` - Atualiza KYC
 
-### Estabelecimentos (/establishments)
-- GET /establishments - Lista estabelecimentos (Admin)
-- POST /establishments - Cria estabelecimento (Admin)
-  Body: { name, email, whatsapp, password, establishment_name, cnpj, phone, address, city, state, manager_id }
+### Estabelecimentos
+- `apiService.getEstablishments()` - Lista estabelecimentos (Admin)
+- `apiService.createEstablishment(data)` - Cria estabelecimento (Admin)
+- `apiService.getEstablishmentByCode(code)` - Busca por código
 
-### Instituições (/charities)
-- GET /charities - Lista instituições (Admin)
-- GET /charities/active - Instituição ativa do mês (Público)
-- POST /charities - Cria instituição (Admin)
-  Body: { name, description, logo_url, pix_key }
-- POST /charities/:id/activate - Ativa para o mês { month, year }
+### Instituições (Charities)
+- `apiService.getCharities()` - Lista instituições
+- `apiService.getActiveCharity()` - Instituição ativa do mês
+- `apiService.createCharity(data)` - Cria instituição (Admin)
+- `apiService.activateCharity(id, month, year)` - Ativa para mês/ano
 
-### Rodadas (/rounds)
-- GET /rounds - Lista rodadas ativas
-- GET /rounds/current - Rodada atual em venda
-- GET /rounds/live - Rodada em sorteio
-- GET /rounds/:id/numbers - Números sorteados
-- POST /rounds - Cria rodada (Admin) { type: 'regular'|'special' }
+### Rodadas (Rounds)
+- `apiService.getRounds()` - Lista rodadas em venda
+- `apiService.getLiveRound()` - Rodada atual em sorteio
+- `apiService.getRound(id)` - Busca rodada por ID
+- `apiService.getDrawnNumbers(roundId)` - Números sorteados
+- `apiService.createRound(type)` - Cria rodada (Admin)
 
-### Compras (/purchases)
-- POST /purchases - Cria compra
-  Body PIX: { round_id, quantity, payment_method: 'pix', customer: { name, email, phone, cpf } }
-  Body Cartão: { round_id, quantity, payment_method: 'credit_card', card_token, installments, customer, card_holder }
-- GET /purchases/:id/status - Verifica status
-- GET /purchases/:id/cards - Lista cartelas (após pago)
+### Compras (Purchases)
+- `apiService.createPurchase(data)` - Cria compra
+- `apiService.checkPurchaseStatus(purchaseId)` - Verifica status
+- `apiService.getPurchaseCards(purchaseId)` - Lista cartelas da compra
 
-### Cartelas (/cards)
-- GET /cards/:code - Busca cartela por código
+### Cartelas (Cards)
+- `apiService.getCardByCode(code)` - Busca cartela por código
 
-### Configurações (/settings)
-- GET /settings - Todas as configurações (Admin)
-- GET /settings/public - Configurações públicas
-- PUT /settings/:key - Atualiza configuração { value: ... }
+### Configurações (Settings)
+- `apiService.getSettings()` - Todas as configurações (Admin)
+- `apiService.getPublicSettings()` - Configurações públicas
+- `apiService.updateSetting(key, value)` - Atualiza configuração
 
-### Estatísticas (/stats)
-- GET /stats/admin - Estatísticas gerais (Admin)
-- GET /stats/tv - Dados para modo TV (Público)
+### Estatísticas
+- `apiService.getAdminStats()` - Estatísticas gerais (Admin)
+- `apiService.getTVData(slug)` - Dados para modo TV
+
+---
+
+## Webhooks
+
+Os webhooks de pagamento usam URLs personalizadas com o domínio sortebem.com.br:
+
+- **Webhook Asaas**: `https://sortebem.com.br/api/webhook/asaas`
+- **Webhook PagSeguro**: `https://sortebem.com.br/api/webhook/pagseguro`
+
+### Configuração de Proxy
+
+Essas URLs fazem proxy para as Supabase Edge Functions. É necessário configurar no Nginx/servidor:
+
+```nginx
+# Exemplo de configuração Nginx
+location /api/webhook/asaas {
+    proxy_pass https://ctjdbnvcqcyitpydnmdt.supabase.co/functions/v1/webhook-asaas;
+    proxy_set_header Host ctjdbnvcqcyitpydnmdt.supabase.co;
+    proxy_set_header Authorization "Bearer YOUR_SUPABASE_ANON_KEY";
+}
+
+location /api/webhook/pagseguro {
+    proxy_pass https://ctjdbnvcqcyitpydnmdt.supabase.co/functions/v1/webhook-pagseguro;
+    proxy_set_header Host ctjdbnvcqcyitpydnmdt.supabase.co;
+    proxy_set_header Authorization "Bearer YOUR_SUPABASE_ANON_KEY";
+}
+```
+
+**Nota**: Verifique no painel do Supabase se essas Edge Functions estão configuradas. Caso contrário, os webhooks precisam ser implementados.
 
 ---
 
