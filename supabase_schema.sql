@@ -59,6 +59,73 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp" WITH SCHEMA "extensions";
 
 
 
+CREATE OR REPLACE FUNCTION "public"."authenticate_user"("p_email" "text", "p_password" "text") RETURNS TABLE("success" boolean, "user_id" bigint, "user_name" "text", "user_email" "text", "user_role" "text", "message" "text")
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    AS $$
+DECLARE
+  v_user RECORD;
+  v_authenticated BOOLEAN := false;
+  v_flag_enabled BOOLEAN := false;
+BEGIN
+  -- Buscar usuário
+  SELECT * INTO v_user
+  FROM users
+  WHERE email = LOWER(p_email)
+    AND is_active = true;
+
+  IF NOT FOUND THEN
+    RETURN QUERY SELECT false, NULL::BIGINT, NULL::TEXT, NULL::TEXT, NULL::TEXT, 'Credenciais inválidas'::TEXT;
+    RETURN;
+  END IF;
+
+  -- Verificar se feature flag de bcrypt está habilitada
+  SELECT enabled INTO v_flag_enabled
+  FROM feature_flags
+  WHERE key = 'use_bcrypt_auth'
+  LIMIT 1;
+
+  -- DUAL AUTH: Tenta novo sistema primeiro, fallback para antigo
+  IF v_flag_enabled AND v_user.password_migrated AND v_user.password_hash_new IS NOT NULL THEN
+    -- Sistema NOVO: Verificar senha com bcrypt
+    v_authenticated := verify_password(p_password, v_user.password_hash_new);
+  ELSE
+    -- Sistema ANTIGO: Aceita qualquer senha (compatibilidade)
+    v_authenticated := true;
+
+    -- Aproveita para migrar on-the-fly
+    IF v_flag_enabled THEN
+      PERFORM migrate_user_password(v_user.id, p_password);
+    END IF;
+  END IF;
+
+  IF v_authenticated THEN
+    RETURN QUERY SELECT
+      true,
+      v_user.id,
+      v_user.name,
+      v_user.email,
+      v_user.role,
+      'Login bem-sucedido'::TEXT;
+  ELSE
+    RETURN QUERY SELECT
+      false,
+      NULL::BIGINT,
+      NULL::TEXT,
+      NULL::TEXT,
+      NULL::TEXT,
+      'Credenciais inválidas'::TEXT;
+  END IF;
+END;
+$$;
+
+
+ALTER FUNCTION "public"."authenticate_user"("p_email" "text", "p_password" "text") OWNER TO "postgres";
+
+
+COMMENT ON FUNCTION "public"."authenticate_user"("p_email" "text", "p_password" "text") IS 'Autentica usuário com suporte a migração gradual de bcrypt';
+
+
+
 CREATE OR REPLACE FUNCTION "public"."create_next_rounds"() RETURNS "void"
     LANGUAGE "plpgsql"
     AS $$
@@ -200,6 +267,71 @@ COMMENT ON FUNCTION "public"."create_next_rounds"() IS 'Cria rodadas automaticam
 
 
 
+CREATE OR REPLACE FUNCTION "public"."hash_password"("password" "text") RETURNS "text"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    AS $$
+BEGIN
+  -- Gera hash bcrypt com 10 rounds (bom balance entre segurança e performance)
+  RETURN crypt(password, gen_salt('bf', 10));
+END;
+$$;
+
+
+ALTER FUNCTION "public"."hash_password"("password" "text") OWNER TO "postgres";
+
+
+COMMENT ON FUNCTION "public"."hash_password"("password" "text") IS 'Gera hash bcrypt de uma senha (10 rounds)';
+
+
+
+CREATE OR REPLACE FUNCTION "public"."migrate_user_password"("p_user_id" bigint, "p_new_password" "text") RETURNS boolean
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    AS $$
+DECLARE
+  new_hash TEXT;
+BEGIN
+  -- Gerar hash bcrypt da nova senha
+  SELECT hash_password(p_new_password) INTO new_hash;
+
+  -- Atualizar usuário
+  UPDATE users
+  SET
+    password_hash_new = new_hash,
+    password_migrated = true,
+    updated_at = NOW()
+  WHERE id = p_user_id;
+
+  IF FOUND THEN
+    RAISE NOTICE 'Password migrated for user %', p_user_id;
+    RETURN true;
+  ELSE
+    RAISE NOTICE 'User % not found', p_user_id;
+    RETURN false;
+  END IF;
+END;
+$$;
+
+
+ALTER FUNCTION "public"."migrate_user_password"("p_user_id" bigint, "p_new_password" "text") OWNER TO "postgres";
+
+
+COMMENT ON FUNCTION "public"."migrate_user_password"("p_user_id" bigint, "p_new_password" "text") IS 'Migra a senha de um usuário específico para o novo sistema bcrypt';
+
+
+
+CREATE OR REPLACE FUNCTION "public"."update_feature_flags_updated_at"() RETURNS "trigger"
+    LANGUAGE "plpgsql"
+    AS $$
+BEGIN
+  NEW.updated_at = NOW();
+  RETURN NEW;
+END;
+$$;
+
+
+ALTER FUNCTION "public"."update_feature_flags_updated_at"() OWNER TO "postgres";
+
+
 CREATE OR REPLACE FUNCTION "public"."update_ticker_messages_updated_at"() RETURNS "trigger"
     LANGUAGE "plpgsql"
     AS $$
@@ -224,6 +356,23 @@ $$;
 
 
 ALTER FUNCTION "public"."update_updated_at_column"() OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."verify_password"("password" "text", "hash" "text") RETURNS boolean
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    AS $$
+BEGIN
+  -- Compara senha com hash usando bcrypt
+  RETURN hash = crypt(password, hash);
+END;
+$$;
+
+
+ALTER FUNCTION "public"."verify_password"("password" "text", "hash" "text") OWNER TO "postgres";
+
+
+COMMENT ON FUNCTION "public"."verify_password"("password" "text", "hash" "text") IS 'Verifica se uma senha corresponde ao hash bcrypt';
+
 
 SET default_tablespace = '';
 
@@ -387,6 +536,33 @@ ALTER SEQUENCE "public"."establishments_id_seq" OWNER TO "postgres";
 
 
 ALTER SEQUENCE "public"."establishments_id_seq" OWNED BY "public"."establishments"."id";
+
+
+
+CREATE TABLE IF NOT EXISTS "public"."feature_flags" (
+    "key" "text" NOT NULL,
+    "enabled" boolean DEFAULT false NOT NULL,
+    "description" "text",
+    "updated_at" timestamp with time zone DEFAULT "now"()
+);
+
+
+ALTER TABLE "public"."feature_flags" OWNER TO "postgres";
+
+
+COMMENT ON TABLE "public"."feature_flags" IS 'Controle de feature flags para rollout gradual de funcionalidades';
+
+
+
+COMMENT ON COLUMN "public"."feature_flags"."key" IS 'Identificador único da feature';
+
+
+
+COMMENT ON COLUMN "public"."feature_flags"."enabled" IS 'Se a feature está habilitada (true) ou desabilitada (false)';
+
+
+
+COMMENT ON COLUMN "public"."feature_flags"."description" IS 'Descrição do que a feature faz';
 
 
 
@@ -614,6 +790,28 @@ ALTER SEQUENCE "public"."rounds_id_seq" OWNED BY "public"."rounds"."id";
 
 
 
+CREATE TABLE IF NOT EXISTS "public"."schema_migrations" (
+    "version" integer NOT NULL,
+    "description" "text" NOT NULL,
+    "executed_at" timestamp with time zone DEFAULT "now"()
+);
+
+
+ALTER TABLE "public"."schema_migrations" OWNER TO "postgres";
+
+
+COMMENT ON TABLE "public"."schema_migrations" IS 'Histórico de migrações executadas no banco de dados';
+
+
+
+COMMENT ON COLUMN "public"."schema_migrations"."version" IS 'Número sequencial da migração';
+
+
+
+COMMENT ON COLUMN "public"."schema_migrations"."description" IS 'Descrição do que a migração fez';
+
+
+
 CREATE TABLE IF NOT EXISTS "public"."settings" (
     "id" bigint NOT NULL,
     "key" "text" NOT NULL,
@@ -693,6 +891,8 @@ CREATE TABLE IF NOT EXISTS "public"."users" (
     "is_active" boolean DEFAULT true NOT NULL,
     "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
     "updated_at" timestamp with time zone DEFAULT "now"(),
+    "password_migrated" boolean DEFAULT false,
+    "password_hash_new" "text",
     CONSTRAINT "users_role_check" CHECK (("role" = ANY (ARRAY['admin'::"text", 'manager'::"text", 'establishment'::"text", 'user'::"text"])))
 );
 
@@ -701,6 +901,14 @@ ALTER TABLE "public"."users" OWNER TO "postgres";
 
 
 COMMENT ON TABLE "public"."users" IS 'Usuários do sistema (admin, gerentes, estabelecimentos, clientes)';
+
+
+
+COMMENT ON COLUMN "public"."users"."password_migrated" IS 'Indica se a senha do usuário já foi migrada para bcrypt';
+
+
+
+COMMENT ON COLUMN "public"."users"."password_hash_new" IS 'Hash bcrypt da senha (novo sistema)';
 
 
 
@@ -890,6 +1098,11 @@ ALTER TABLE ONLY "public"."establishments"
 
 
 
+ALTER TABLE ONLY "public"."feature_flags"
+    ADD CONSTRAINT "feature_flags_pkey" PRIMARY KEY ("key");
+
+
+
 ALTER TABLE ONLY "public"."logs"
     ADD CONSTRAINT "logs_pkey" PRIMARY KEY ("id");
 
@@ -942,6 +1155,11 @@ ALTER TABLE ONLY "public"."rounds"
 
 ALTER TABLE ONLY "public"."rounds"
     ADD CONSTRAINT "rounds_pkey" PRIMARY KEY ("id");
+
+
+
+ALTER TABLE ONLY "public"."schema_migrations"
+    ADD CONSTRAINT "schema_migrations_pkey" PRIMARY KEY ("version");
 
 
 
@@ -1154,6 +1372,10 @@ CREATE INDEX "idx_users_email" ON "public"."users" USING "btree" ("email");
 
 
 
+CREATE INDEX "idx_users_password_migrated" ON "public"."users" USING "btree" ("password_migrated") WHERE ("password_migrated" = false);
+
+
+
 CREATE INDEX "idx_users_role" ON "public"."users" USING "btree" ("role");
 
 
@@ -1183,6 +1405,10 @@ CREATE INDEX "idx_withdrawals_status" ON "public"."withdrawals" USING "btree" ("
 
 
 CREATE INDEX "idx_withdrawals_user_id" ON "public"."withdrawals" USING "btree" ("user_id");
+
+
+
+CREATE OR REPLACE TRIGGER "trigger_update_feature_flags_updated_at" BEFORE UPDATE ON "public"."feature_flags" FOR EACH ROW EXECUTE FUNCTION "public"."update_feature_flags_updated_at"();
 
 
 
@@ -1310,6 +1536,10 @@ CREATE POLICY "Anyone can create purchase" ON "public"."purchases" FOR INSERT WI
 
 
 CREATE POLICY "Anyone can create purchases" ON "public"."purchases" FOR INSERT WITH CHECK (true);
+
+
+
+CREATE POLICY "Anyone can read feature flags" ON "public"."feature_flags" FOR SELECT USING (true);
 
 
 
@@ -1449,6 +1679,10 @@ COMMENT ON POLICY "Rounds are viewable by everyone" ON "public"."rounds" IS 'Rod
 
 
 
+CREATE POLICY "Service role can modify feature flags" ON "public"."feature_flags" TO "service_role" USING (true);
+
+
+
 CREATE POLICY "System can insert logs" ON "public"."logs" FOR INSERT WITH CHECK (true);
 
 
@@ -1491,6 +1725,9 @@ ALTER TABLE "public"."draws" ENABLE ROW LEVEL SECURITY;
 
 
 ALTER TABLE "public"."establishments" ENABLE ROW LEVEL SECURITY;
+
+
+ALTER TABLE "public"."feature_flags" ENABLE ROW LEVEL SECURITY;
 
 
 ALTER TABLE "public"."logs" ENABLE ROW LEVEL SECURITY;
@@ -1709,9 +1946,33 @@ GRANT USAGE ON SCHEMA "public" TO "service_role";
 
 
 
+GRANT ALL ON FUNCTION "public"."authenticate_user"("p_email" "text", "p_password" "text") TO "anon";
+GRANT ALL ON FUNCTION "public"."authenticate_user"("p_email" "text", "p_password" "text") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."authenticate_user"("p_email" "text", "p_password" "text") TO "service_role";
+
+
+
 GRANT ALL ON FUNCTION "public"."create_next_rounds"() TO "anon";
 GRANT ALL ON FUNCTION "public"."create_next_rounds"() TO "authenticated";
 GRANT ALL ON FUNCTION "public"."create_next_rounds"() TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."hash_password"("password" "text") TO "anon";
+GRANT ALL ON FUNCTION "public"."hash_password"("password" "text") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."hash_password"("password" "text") TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."migrate_user_password"("p_user_id" bigint, "p_new_password" "text") TO "anon";
+GRANT ALL ON FUNCTION "public"."migrate_user_password"("p_user_id" bigint, "p_new_password" "text") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."migrate_user_password"("p_user_id" bigint, "p_new_password" "text") TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."update_feature_flags_updated_at"() TO "anon";
+GRANT ALL ON FUNCTION "public"."update_feature_flags_updated_at"() TO "authenticated";
+GRANT ALL ON FUNCTION "public"."update_feature_flags_updated_at"() TO "service_role";
 
 
 
@@ -1724,6 +1985,12 @@ GRANT ALL ON FUNCTION "public"."update_ticker_messages_updated_at"() TO "service
 GRANT ALL ON FUNCTION "public"."update_updated_at_column"() TO "anon";
 GRANT ALL ON FUNCTION "public"."update_updated_at_column"() TO "authenticated";
 GRANT ALL ON FUNCTION "public"."update_updated_at_column"() TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."verify_password"("password" "text", "hash" "text") TO "anon";
+GRANT ALL ON FUNCTION "public"."verify_password"("password" "text", "hash" "text") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."verify_password"("password" "text", "hash" "text") TO "service_role";
 
 
 
@@ -1796,6 +2063,12 @@ GRANT ALL ON SEQUENCE "public"."establishments_id_seq" TO "service_role";
 
 
 
+GRANT ALL ON TABLE "public"."feature_flags" TO "anon";
+GRANT ALL ON TABLE "public"."feature_flags" TO "authenticated";
+GRANT ALL ON TABLE "public"."feature_flags" TO "service_role";
+
+
+
 GRANT ALL ON TABLE "public"."logs" TO "anon";
 GRANT ALL ON TABLE "public"."logs" TO "authenticated";
 GRANT ALL ON TABLE "public"."logs" TO "service_role";
@@ -1859,6 +2132,12 @@ GRANT ALL ON TABLE "public"."rounds" TO "service_role";
 GRANT ALL ON SEQUENCE "public"."rounds_id_seq" TO "anon";
 GRANT ALL ON SEQUENCE "public"."rounds_id_seq" TO "authenticated";
 GRANT ALL ON SEQUENCE "public"."rounds_id_seq" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."schema_migrations" TO "anon";
+GRANT ALL ON TABLE "public"."schema_migrations" TO "authenticated";
+GRANT ALL ON TABLE "public"."schema_migrations" TO "service_role";
 
 
 
