@@ -319,6 +319,55 @@ COMMENT ON FUNCTION "public"."migrate_user_password"("p_user_id" bigint, "p_new_
 
 
 
+CREATE OR REPLACE FUNCTION "public"."process_payment_webhook"("p_webhook_id" bigint, "p_purchase_id" bigint) RETURNS boolean
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    AS $$
+DECLARE
+  v_auto_generate BOOLEAN := false;
+BEGIN
+  -- Marcar purchase como paga
+  UPDATE purchases
+  SET
+    status = 'confirmed',
+    paid_at = NOW(),
+    payment_confirmed = true,
+    updated_at = NOW()
+  WHERE id = p_purchase_id;
+
+  IF NOT FOUND THEN
+    RAISE NOTICE 'Purchase % not found', p_purchase_id;
+    RETURN false;
+  END IF;
+
+  -- Marcar webhook como processado
+  UPDATE payment_webhooks
+  SET
+    processed = true,
+    processed_at = NOW()
+  WHERE id = p_webhook_id;
+
+  -- Verificar feature flag de geração automática
+  SELECT enabled INTO v_auto_generate
+  FROM feature_flags
+  WHERE key = 'auto_generate_cards'
+  LIMIT 1;
+
+  IF v_auto_generate THEN
+    RAISE NOTICE 'Auto-generate flag enabled for purchase %', p_purchase_id;
+  END IF;
+
+  RETURN true;
+END;
+$$;
+
+
+ALTER FUNCTION "public"."process_payment_webhook"("p_webhook_id" bigint, "p_purchase_id" bigint) OWNER TO "postgres";
+
+
+COMMENT ON FUNCTION "public"."process_payment_webhook"("p_webhook_id" bigint, "p_purchase_id" bigint) IS 'Processa webhook de pagamento confirmado';
+
+
+
 CREATE OR REPLACE FUNCTION "public"."update_feature_flags_updated_at"() RETURNS "trigger"
     LANGUAGE "plpgsql"
     AS $$
@@ -648,11 +697,24 @@ CREATE TABLE IF NOT EXISTS "public"."payment_webhooks" (
     "payload" "jsonb" NOT NULL,
     "processed" boolean DEFAULT false,
     "processed_at" timestamp with time zone,
-    "created_at" timestamp with time zone DEFAULT "now"()
+    "created_at" timestamp with time zone DEFAULT "now"(),
+    "error_message" "text"
 );
 
 
 ALTER TABLE "public"."payment_webhooks" OWNER TO "postgres";
+
+
+COMMENT ON COLUMN "public"."payment_webhooks"."processed" IS 'Se o webhook já foi processado';
+
+
+
+COMMENT ON COLUMN "public"."payment_webhooks"."processed_at" IS 'Data/hora de processamento do webhook';
+
+
+
+COMMENT ON COLUMN "public"."payment_webhooks"."error_message" IS 'Mensagem de erro se falhou';
+
 
 
 CREATE TABLE IF NOT EXISTS "public"."pos_terminals" (
@@ -714,6 +776,13 @@ CREATE TABLE IF NOT EXISTS "public"."purchases" (
     "paid_at" timestamp with time zone,
     "created_at" timestamp with time zone DEFAULT "now"(),
     "updated_at" timestamp with time zone DEFAULT "now"(),
+    "asaas_charge_id" "text",
+    "asaas_customer_id" "text",
+    "pix_qr_code" "text",
+    "pix_expiration" timestamp with time zone,
+    "payment_confirmed" boolean DEFAULT false,
+    "cards_generated" boolean DEFAULT false,
+    "cards_generated_at" timestamp with time zone,
     CONSTRAINT "purchases_gateway_check" CHECK (("gateway" = ANY (ARRAY['asaas'::"text", 'pagseguro'::"text"]))),
     CONSTRAINT "purchases_payment_method_check" CHECK (("payment_method" = ANY (ARRAY['pix'::"text", 'credit_card'::"text", 'debit_card'::"text"]))),
     CONSTRAINT "purchases_payment_status_check" CHECK (("payment_status" = ANY (ARRAY['pending'::"text", 'paid'::"text", 'failed'::"text", 'cancelled'::"text", 'refunded'::"text"])))
@@ -724,6 +793,38 @@ ALTER TABLE "public"."purchases" OWNER TO "postgres";
 
 
 COMMENT ON TABLE "public"."purchases" IS 'Compras de cartelas (PIX ou cartão)';
+
+
+
+COMMENT ON COLUMN "public"."purchases"."paid_at" IS 'Data/hora de confirmação do pagamento';
+
+
+
+COMMENT ON COLUMN "public"."purchases"."asaas_charge_id" IS 'ID da cobrança no Asaas';
+
+
+
+COMMENT ON COLUMN "public"."purchases"."asaas_customer_id" IS 'ID do cliente no Asaas';
+
+
+
+COMMENT ON COLUMN "public"."purchases"."pix_qr_code" IS 'Código PIX copia e cola';
+
+
+
+COMMENT ON COLUMN "public"."purchases"."pix_expiration" IS 'Data de expiração do PIX';
+
+
+
+COMMENT ON COLUMN "public"."purchases"."payment_confirmed" IS 'Se o pagamento foi confirmado';
+
+
+
+COMMENT ON COLUMN "public"."purchases"."cards_generated" IS 'Se as cartelas já foram geradas';
+
+
+
+COMMENT ON COLUMN "public"."purchases"."cards_generated_at" IS 'Data/hora de geração das cartelas';
 
 
 
@@ -1292,6 +1393,10 @@ CREATE INDEX "idx_payment_webhooks_gateway" ON "public"."payment_webhooks" USING
 
 
 
+CREATE INDEX "idx_payment_webhooks_processed" ON "public"."payment_webhooks" USING "btree" ("processed") WHERE ("processed" = false);
+
+
+
 CREATE INDEX "idx_payment_webhooks_purchase" ON "public"."payment_webhooks" USING "btree" ("purchase_id");
 
 
@@ -1308,11 +1413,23 @@ CREATE INDEX "idx_pos_terminals_terminal_code" ON "public"."pos_terminals" USING
 
 
 
+CREATE INDEX "idx_purchases_asaas_charge_id" ON "public"."purchases" USING "btree" ("asaas_charge_id") WHERE ("asaas_charge_id" IS NOT NULL);
+
+
+
+CREATE INDEX "idx_purchases_cards_generated" ON "public"."purchases" USING "btree" ("cards_generated") WHERE (("cards_generated" = false) AND ("payment_confirmed" = true));
+
+
+
 CREATE INDEX "idx_purchases_created_at" ON "public"."purchases" USING "btree" ("created_at");
 
 
 
 CREATE INDEX "idx_purchases_establishment_id" ON "public"."purchases" USING "btree" ("establishment_id");
+
+
+
+CREATE INDEX "idx_purchases_payment_confirmed" ON "public"."purchases" USING "btree" ("payment_confirmed") WHERE ("payment_confirmed" = true);
 
 
 
@@ -1967,6 +2084,12 @@ GRANT ALL ON FUNCTION "public"."hash_password"("password" "text") TO "service_ro
 GRANT ALL ON FUNCTION "public"."migrate_user_password"("p_user_id" bigint, "p_new_password" "text") TO "anon";
 GRANT ALL ON FUNCTION "public"."migrate_user_password"("p_user_id" bigint, "p_new_password" "text") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."migrate_user_password"("p_user_id" bigint, "p_new_password" "text") TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."process_payment_webhook"("p_webhook_id" bigint, "p_purchase_id" bigint) TO "anon";
+GRANT ALL ON FUNCTION "public"."process_payment_webhook"("p_webhook_id" bigint, "p_purchase_id" bigint) TO "authenticated";
+GRANT ALL ON FUNCTION "public"."process_payment_webhook"("p_webhook_id" bigint, "p_purchase_id" bigint) TO "service_role";
 
 
 
