@@ -1,5 +1,6 @@
 // API Service for SORTEBEM - Supabase Version
 import { supabase } from '../lib/supabase'
+import { authService } from './authService'
 
 interface LoginResponse {
   ok: boolean;
@@ -8,7 +9,7 @@ interface LoginResponse {
     id: string;
     name: string;
     email?: string;
-    role: 'admin' | 'manager' | 'establishment';
+    role: 'admin' | 'manager' | 'establishment' | 'user';
   };
   error?: string;
 }
@@ -17,7 +18,7 @@ interface User {
   id: string;
   name: string;
   email?: string;
-  role: 'admin' | 'manager' | 'establishment';
+  role: 'admin' | 'manager' | 'establishment' | 'user';
 }
 
 interface ApiResponse {
@@ -29,166 +30,47 @@ interface ApiResponse {
 class ApiService {
   /**
    * Login with email and password
+   * ATUALIZADO: Agora usa authService com dual auth (bcrypt + fallback)
    */
   async login(email: string, password: string): Promise<LoginResponse> {
-    try {
-      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-
-      if (authError) {
-        return {
-          ok: false,
-          error: authError.message || 'Erro ao fazer login',
-        };
-      }
-
-      if (!authData.user || !authData.session) {
-        return {
-          ok: false,
-          error: 'Erro ao fazer login',
-        };
-      }
-
-      // Get user details from users table
-      const { data: userData, error: userError } = await supabase
-        .from('users')
-        .select('id, name, email, role')
-        .eq('id', authData.user.id)
-        .single();
-
-      if (userError || !userData) {
-        return {
-          ok: false,
-          error: 'Erro ao buscar dados do usuário',
-        };
-      }
-
-      const user: User = {
-        id: userData.id,
-        name: userData.name,
-        email: userData.email,
-        role: userData.role,
-      };
-
-      // Store user in localStorage for compatibility
-      localStorage.setItem('auth_user', JSON.stringify(user));
-      localStorage.setItem('auth_token', authData.session.access_token);
-
-      return {
-        ok: true,
-        token: authData.session.access_token,
-        user,
-      };
-    } catch (error) {
-      console.error('Login error:', error);
-      return {
-        ok: false,
-        error: 'Erro ao conectar com o servidor. Tente novamente.',
-      };
-    }
+    // Usar novo authService que implementa dual auth
+    return authService.login(email, password);
   }
 
   /**
    * Login with WhatsApp and password
+   * ATUALIZADO: Agora usa authService com dual auth
    */
   async loginWhatsApp(whatsapp: string, password: string): Promise<LoginResponse> {
-    try {
-      // Find user by WhatsApp
-      const { data: users, error: searchError } = await supabase
-        .from('users')
-        .select('email')
-        .eq('whatsapp', whatsapp)
-        .limit(1);
-
-      if (searchError || !users || users.length === 0) {
-        return {
-          ok: false,
-          error: 'WhatsApp não encontrado',
-        };
-      }
-
-      // Use email to login
-      return this.login(users[0].email, password);
-    } catch (error) {
-      console.error('Login WhatsApp error:', error);
-      return {
-        ok: false,
-        error: 'Erro ao conectar com o servidor. Tente novamente.',
-      };
-    }
+    return authService.loginWhatsApp(whatsapp, password);
   }
 
   /**
    * Check if user is authenticated
    */
   async isAuthenticated(): Promise<boolean> {
-    const { data: { session } } = await supabase.auth.getSession();
-    return session !== null;
+    return authService.isAuthenticated();
   }
 
   /**
    * Get current authenticated user
    */
   async getUser(): Promise<User | null> {
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-
-      if (!session) {
-        return null;
-      }
-
-      // Try to get from localStorage first for performance
-      const userStr = localStorage.getItem('auth_user');
-      if (userStr) {
-        try {
-          return JSON.parse(userStr) as User;
-        } catch {
-          // If parsing fails, fetch from database
-        }
-      }
-
-      // Fetch from database
-      const { data: userData, error } = await supabase
-        .from('users')
-        .select('id, name, email, role')
-        .eq('id', session.user.id)
-        .single();
-
-      if (error || !userData) {
-        return null;
-      }
-
-      const user: User = {
-        id: userData.id,
-        name: userData.name,
-        email: userData.email,
-        role: userData.role,
-      };
-
-      localStorage.setItem('auth_user', JSON.stringify(user));
-      return user;
-    } catch {
-      return null;
-    }
+    return authService.getUser();
   }
 
   /**
-   * Get current token
+   * Get current token (mantido para compatibilidade)
    */
   async getToken(): Promise<string | null> {
-    const { data: { session } } = await supabase.auth.getSession();
-    return session?.access_token || null;
+    return authService.getToken();
   }
 
   /**
    * Logout user
    */
   async logout(): Promise<void> {
-    await supabase.auth.signOut();
-    localStorage.removeItem('auth_token');
-    localStorage.removeItem('auth_user');
+    authService.logout();
   }
 
   /**
