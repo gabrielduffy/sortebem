@@ -59,6 +59,23 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp" WITH SCHEMA "extensions";
 
 
 
+CREATE OR REPLACE FUNCTION "public"."add_player_to_round"("p_player_id" bigint, "p_round_id" bigint, "p_quantity" integer DEFAULT 1, "p_total_amount" numeric DEFAULT 0) RETURNS bigint
+    LANGUAGE "plpgsql"
+    AS $$
+DECLARE v_participation_id BIGINT;
+BEGIN
+  IF EXISTS(SELECT 1 FROM player_participations WHERE player_id = p_player_id AND round_id = p_round_id) THEN
+    RAISE EXCEPTION 'Jogador já está participando desta rodada';
+  END IF;
+  INSERT INTO player_participations (player_id, round_id, quantity, total_amount) VALUES (p_player_id, p_round_id, p_quantity, p_total_amount) RETURNING id INTO v_participation_id;
+  RETURN v_participation_id;
+END;
+$$;
+
+
+ALTER FUNCTION "public"."add_player_to_round"("p_player_id" bigint, "p_round_id" bigint, "p_quantity" integer, "p_total_amount" numeric) OWNER TO "postgres";
+
+
 CREATE OR REPLACE FUNCTION "public"."authenticate_user"("p_email" "text", "p_password" "text") RETURNS TABLE("success" boolean, "user_id" bigint, "user_name" "text", "user_email" "text", "user_role" "text", "message" "text")
     LANGUAGE "plpgsql" SECURITY DEFINER
     AS $$
@@ -124,6 +141,93 @@ ALTER FUNCTION "public"."authenticate_user"("p_email" "text", "p_password" "text
 
 COMMENT ON FUNCTION "public"."authenticate_user"("p_email" "text", "p_password" "text") IS 'Autentica usuário com suporte a migração gradual de bcrypt';
 
+
+
+CREATE OR REPLACE FUNCTION "public"."auto_open_scheduled_rounds"() RETURNS integer
+    LANGUAGE "plpgsql"
+    AS $$
+DECLARE
+  v_opened_count INTEGER := 0;
+BEGIN
+  UPDATE rounds
+  SET status = 'open',
+      updated_at = NOW()
+  WHERE status = 'scheduled'
+    AND draw_time IS NOT NULL;
+
+  GET DIAGNOSTICS v_opened_count = ROW_COUNT;
+  RETURN v_opened_count;
+END;
+$$;
+
+
+ALTER FUNCTION "public"."auto_open_scheduled_rounds"() OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."create_manual_round"("p_establishment_id" bigint, "p_draw_date" "date", "p_draw_time" time without time zone, "p_prize" numeric, "p_card_price" numeric, "p_winner_criteria" "text" DEFAULT 'full_card'::"text", "p_tiebreak_rule" "text" DEFAULT 'first_marked'::"text", "p_min_participants" integer DEFAULT NULL::integer, "p_max_participants" integer DEFAULT NULL::integer, "p_type" "text" DEFAULT 'regular'::"text", "p_description" "text" DEFAULT NULL::"text", "p_created_by" bigint DEFAULT NULL::bigint) RETURNS "jsonb"
+    LANGUAGE "plpgsql"
+    AS $$
+DECLARE
+  v_round_id BIGINT;
+  v_draw_datetime TIMESTAMPTZ;
+BEGIN
+  v_draw_datetime := p_draw_date::TIMESTAMP + p_draw_time;
+
+  -- Validações básicas
+  IF p_prize <= 0 THEN
+    RETURN json_build_object('success', false, 'error', 'Prêmio deve ser maior que zero');
+  END IF;
+
+  IF p_card_price <= 0 THEN
+    RETURN json_build_object('success', false, 'error', 'Preço da cartela deve ser maior que zero');
+  END IF;
+
+  IF p_min_participants IS NOT NULL AND p_max_participants IS NOT NULL THEN
+    IF p_min_participants > p_max_participants THEN
+      RETURN json_build_object('success', false, 'error', 'Mínimo não pode ser maior que máximo');
+    END IF;
+  END IF;
+
+  -- Criar rodada
+  INSERT INTO rounds (
+    prize,
+    card_price,
+    winner_criteria,
+    tiebreak_rule,
+    min_participants,
+    max_participants,
+    draw_time,
+    type,
+    description,
+    status,
+    manual_creation,
+    created_at
+  ) VALUES (
+    p_prize,
+    p_card_price,
+    p_winner_criteria,
+    p_tiebreak_rule,
+    p_min_participants,
+    p_max_participants,
+    p_draw_time,
+    p_type,
+    p_description,
+    'scheduled',
+    true,
+    NOW()
+  )
+  RETURNING id INTO v_round_id;
+
+  RETURN json_build_object(
+    'success', true,
+    'round_id', v_round_id,
+    'draw_datetime', v_draw_datetime
+  );
+END;
+$$;
+
+
+ALTER FUNCTION "public"."create_manual_round"("p_establishment_id" bigint, "p_draw_date" "date", "p_draw_time" time without time zone, "p_prize" numeric, "p_card_price" numeric, "p_winner_criteria" "text", "p_tiebreak_rule" "text", "p_min_participants" integer, "p_max_participants" integer, "p_type" "text", "p_description" "text", "p_created_by" bigint) OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."create_next_rounds"() RETURNS "void"
@@ -267,6 +371,28 @@ COMMENT ON FUNCTION "public"."create_next_rounds"() IS 'Cria rodadas automaticam
 
 
 
+CREATE OR REPLACE FUNCTION "public"."create_players_batch"("p_establishment_id" bigint, "p_names" "text"[], "p_is_bot" boolean DEFAULT true, "p_created_by" bigint DEFAULT NULL::bigint) RETURNS TABLE("id" bigint, "name" "text", "created" boolean)
+    LANGUAGE "plpgsql"
+    AS $$
+DECLARE v_name TEXT; v_player_id BIGINT; v_exists BOOLEAN;
+BEGIN
+  FOREACH v_name IN ARRAY p_names LOOP
+    SELECT EXISTS(SELECT 1 FROM players WHERE establishment_id = p_establishment_id AND LOWER(name) = LOWER(v_name)) INTO v_exists;
+    IF v_exists THEN
+      SELECT p.id INTO v_player_id FROM players p WHERE p.establishment_id = p_establishment_id AND LOWER(p.name) = LOWER(v_name) LIMIT 1;
+      RETURN QUERY SELECT v_player_id, v_name, false;
+    ELSE
+      INSERT INTO players (establishment_id, name, is_bot, created_by) VALUES (p_establishment_id, v_name, p_is_bot, p_created_by) RETURNING players.id INTO v_player_id;
+      RETURN QUERY SELECT v_player_id, v_name, true;
+    END IF;
+  END LOOP;
+END;
+$$;
+
+
+ALTER FUNCTION "public"."create_players_batch"("p_establishment_id" bigint, "p_names" "text"[], "p_is_bot" boolean, "p_created_by" bigint) OWNER TO "postgres";
+
+
 CREATE OR REPLACE FUNCTION "public"."hash_password"("password" "text") RETURNS "text"
     LANGUAGE "plpgsql" SECURITY DEFINER
     AS $$
@@ -282,6 +408,51 @@ ALTER FUNCTION "public"."hash_password"("password" "text") OWNER TO "postgres";
 
 COMMENT ON FUNCTION "public"."hash_password"("password" "text") IS 'Gera hash bcrypt de uma senha (10 rounds)';
 
+
+
+CREATE OR REPLACE FUNCTION "public"."log_groq_usage"("p_prompt_id" bigint, "p_prompt_name" "text", "p_model" "text", "p_user_id" bigint, "p_establishment_id" bigint, "p_request" "jsonb", "p_response" "jsonb", "p_tokens_prompt" integer, "p_tokens_completion" integer, "p_duration_ms" integer, "p_success" boolean, "p_error_message" "text" DEFAULT NULL::"text") RETURNS bigint
+    LANGUAGE "plpgsql"
+    AS $$
+DECLARE
+  v_log_id BIGINT;
+BEGIN
+  INSERT INTO groq_usage_logs (
+    prompt_id,
+    prompt_name,
+    model,
+    user_id,
+    establishment_id,
+    request_payload,
+    response_payload,
+    tokens_prompt,
+    tokens_completion,
+    tokens_total,
+    duration_ms,
+    success,
+    error_message
+  ) VALUES (
+    p_prompt_id,
+    p_prompt_name,
+    p_model,
+    p_user_id,
+    p_establishment_id,
+    p_request,
+    p_response,
+    p_tokens_prompt,
+    p_tokens_completion,
+    COALESCE(p_tokens_prompt, 0) + COALESCE(p_tokens_completion, 0),
+    p_duration_ms,
+    p_success,
+    p_error_message
+  )
+  RETURNING id INTO v_log_id;
+
+  RETURN v_log_id;
+END;
+$$;
+
+
+ALTER FUNCTION "public"."log_groq_usage"("p_prompt_id" bigint, "p_prompt_name" "text", "p_model" "text", "p_user_id" bigint, "p_establishment_id" bigint, "p_request" "jsonb", "p_response" "jsonb", "p_tokens_prompt" integer, "p_tokens_completion" integer, "p_duration_ms" integer, "p_success" boolean, "p_error_message" "text") OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."migrate_user_password"("p_user_id" bigint, "p_new_password" "text") RETURNS boolean
@@ -405,6 +576,40 @@ $$;
 
 
 ALTER FUNCTION "public"."update_updated_at_column"() OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."validate_round_time_conflict"("p_establishment_id" bigint, "p_draw_datetime" timestamp with time zone, "p_exclude_round_id" bigint DEFAULT NULL::bigint) RETURNS TABLE("has_conflict" boolean, "conflicting_rounds" "jsonb")
+    LANGUAGE "plpgsql"
+    AS $$
+DECLARE
+  v_start_time TIMESTAMPTZ;
+  v_end_time TIMESTAMPTZ;
+  v_conflicts JSONB;
+BEGIN
+  v_start_time := p_draw_datetime - INTERVAL '30 minutes';
+  v_end_time := p_draw_datetime + INTERVAL '30 minutes';
+
+  SELECT json_agg(
+    json_build_object(
+      'id', r.id,
+      'prize', r.prize,
+      'status', r.status
+    )
+  ) INTO v_conflicts
+  FROM rounds r
+  WHERE (p_exclude_round_id IS NULL OR r.id != p_exclude_round_id)
+    AND r.status IN ('open', 'in_progress', 'scheduled');
+
+  IF v_conflicts IS NOT NULL THEN
+    RETURN QUERY SELECT true, v_conflicts;
+  ELSE
+    RETURN QUERY SELECT false, '[]'::JSONB;
+  END IF;
+END;
+$$;
+
+
+ALTER FUNCTION "public"."validate_round_time_conflict"("p_establishment_id" bigint, "p_draw_datetime" timestamp with time zone, "p_exclude_round_id" bigint) OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."verify_password"("password" "text", "hash" "text") RETURNS boolean
@@ -615,6 +820,79 @@ COMMENT ON COLUMN "public"."feature_flags"."description" IS 'Descrição do que 
 
 
 
+CREATE TABLE IF NOT EXISTS "public"."groq_prompts" (
+    "id" bigint NOT NULL,
+    "name" "text" NOT NULL,
+    "description" "text",
+    "system_prompt" "text" NOT NULL,
+    "user_prompt_template" "text" NOT NULL,
+    "model" "text" DEFAULT 'llama-3.1-70b-versatile'::"text" NOT NULL,
+    "temperature" numeric(3,2) DEFAULT 0.7,
+    "max_tokens" integer DEFAULT 1024,
+    "is_active" boolean DEFAULT true,
+    "category" "text" DEFAULT 'general'::"text",
+    "created_by" bigint,
+    "created_at" timestamp with time zone DEFAULT "now"(),
+    "updated_at" timestamp with time zone DEFAULT "now"(),
+    CONSTRAINT "groq_prompts_temperature_check" CHECK ((("temperature" >= (0)::numeric) AND ("temperature" <= (2)::numeric)))
+);
+
+
+ALTER TABLE "public"."groq_prompts" OWNER TO "postgres";
+
+
+CREATE SEQUENCE IF NOT EXISTS "public"."groq_prompts_id_seq"
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE "public"."groq_prompts_id_seq" OWNER TO "postgres";
+
+
+ALTER SEQUENCE "public"."groq_prompts_id_seq" OWNED BY "public"."groq_prompts"."id";
+
+
+
+CREATE TABLE IF NOT EXISTS "public"."groq_usage_logs" (
+    "id" bigint NOT NULL,
+    "prompt_id" bigint,
+    "prompt_name" "text",
+    "model" "text" NOT NULL,
+    "user_id" bigint,
+    "establishment_id" bigint,
+    "request_payload" "jsonb" NOT NULL,
+    "response_payload" "jsonb",
+    "tokens_prompt" integer,
+    "tokens_completion" integer,
+    "tokens_total" integer,
+    "duration_ms" integer,
+    "success" boolean DEFAULT true,
+    "error_message" "text",
+    "created_at" timestamp with time zone DEFAULT "now"()
+);
+
+
+ALTER TABLE "public"."groq_usage_logs" OWNER TO "postgres";
+
+
+CREATE SEQUENCE IF NOT EXISTS "public"."groq_usage_logs_id_seq"
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE "public"."groq_usage_logs_id_seq" OWNER TO "postgres";
+
+
+ALTER SEQUENCE "public"."groq_usage_logs_id_seq" OWNED BY "public"."groq_usage_logs"."id";
+
+
+
 CREATE TABLE IF NOT EXISTS "public"."logs" (
     "id" bigint NOT NULL,
     "user_id" bigint,
@@ -714,6 +992,77 @@ COMMENT ON COLUMN "public"."payment_webhooks"."processed_at" IS 'Data/hora de pr
 
 
 COMMENT ON COLUMN "public"."payment_webhooks"."error_message" IS 'Mensagem de erro se falhou';
+
+
+
+CREATE TABLE IF NOT EXISTS "public"."player_participations" (
+    "id" bigint NOT NULL,
+    "player_id" bigint NOT NULL,
+    "round_id" bigint NOT NULL,
+    "purchase_id" bigint,
+    "quantity" integer DEFAULT 1 NOT NULL,
+    "total_amount" numeric(10,2) DEFAULT 0,
+    "is_winner" boolean DEFAULT false,
+    "prize_amount" numeric(10,2),
+    "participated_at" timestamp with time zone DEFAULT "now"(),
+    "created_at" timestamp with time zone DEFAULT "now"(),
+    CONSTRAINT "player_participations_quantity_check" CHECK ((("quantity" > 0) AND ("quantity" <= 100)))
+);
+
+
+ALTER TABLE "public"."player_participations" OWNER TO "postgres";
+
+
+CREATE SEQUENCE IF NOT EXISTS "public"."player_participations_id_seq"
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE "public"."player_participations_id_seq" OWNER TO "postgres";
+
+
+ALTER SEQUENCE "public"."player_participations_id_seq" OWNED BY "public"."player_participations"."id";
+
+
+
+CREATE TABLE IF NOT EXISTS "public"."players" (
+    "id" bigint NOT NULL,
+    "establishment_id" bigint NOT NULL,
+    "name" "text" NOT NULL,
+    "email" "text",
+    "phone" "text",
+    "cpf" "text",
+    "is_bot" boolean DEFAULT false,
+    "avatar_url" "text",
+    "notes" "text",
+    "tags" "text"[] DEFAULT ARRAY[]::"text"[],
+    "metadata" "jsonb" DEFAULT '{}'::"jsonb",
+    "created_by" bigint,
+    "created_at" timestamp with time zone DEFAULT "now"(),
+    "updated_at" timestamp with time zone DEFAULT "now"(),
+    CONSTRAINT "players_cpf_format" CHECK ((("cpf" IS NULL) OR ("cpf" ~ '^\d{11}$'::"text"))),
+    CONSTRAINT "players_phone_format" CHECK ((("phone" IS NULL) OR ("phone" ~ '^\d{10,15}$'::"text")))
+);
+
+
+ALTER TABLE "public"."players" OWNER TO "postgres";
+
+
+CREATE SEQUENCE IF NOT EXISTS "public"."players_id_seq"
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE "public"."players_id_seq" OWNER TO "postgres";
+
+
+ALTER SEQUENCE "public"."players_id_seq" OWNED BY "public"."players"."id";
 
 
 
@@ -864,8 +1213,18 @@ CREATE TABLE IF NOT EXISTS "public"."rounds" (
     "finished_at" timestamp with time zone,
     "created_at" timestamp with time zone DEFAULT "now"(),
     "updated_at" timestamp with time zone DEFAULT "now"(),
+    "manual_creation" boolean DEFAULT false,
+    "winner_criteria" "text" DEFAULT 'full_card'::"text",
+    "tiebreak_rule" "text" DEFAULT 'first_marked'::"text",
+    "min_participants" integer,
+    "max_participants" integer,
+    "draw_time" time without time zone,
+    "allow_late_entry" boolean DEFAULT true,
+    "late_entry_cutoff_minutes" integer DEFAULT 5,
     CONSTRAINT "rounds_status_check" CHECK (("status" = ANY (ARRAY['scheduled'::"text", 'selling'::"text", 'drawing'::"text", 'finished'::"text", 'cancelled'::"text"]))),
-    CONSTRAINT "rounds_type_check" CHECK (("type" = ANY (ARRAY['regular'::"text", 'special'::"text"])))
+    CONSTRAINT "rounds_tiebreak_rule_valid" CHECK (("tiebreak_rule" = ANY (ARRAY['first_marked'::"text", 'split_prize'::"text", 'draw'::"text", 'fastest_time'::"text"]))),
+    CONSTRAINT "rounds_type_check" CHECK (("type" = ANY (ARRAY['regular'::"text", 'special'::"text"]))),
+    CONSTRAINT "rounds_winner_criteria_valid" CHECK (("winner_criteria" = ANY (ARRAY['full_card'::"text", 'line'::"text", 'two_lines'::"text", 'pattern'::"text", 'corners'::"text", 'blackout'::"text"])))
 );
 
 
@@ -1028,6 +1387,54 @@ ALTER SEQUENCE "public"."users_id_seq" OWNED BY "public"."users"."id";
 
 
 
+CREATE OR REPLACE VIEW "public"."v_groq_usage_stats" AS
+ SELECT "date_trunc"('day'::"text", "created_at") AS "date",
+    "prompt_name",
+    "model",
+    "count"(*) AS "total_requests",
+    "count"(*) FILTER (WHERE ("success" = true)) AS "successful_requests",
+    "count"(*) FILTER (WHERE ("success" = false)) AS "failed_requests",
+    "sum"("tokens_total") AS "total_tokens",
+    "avg"("tokens_total") AS "avg_tokens_per_request",
+    "avg"("duration_ms") AS "avg_duration_ms",
+    "min"("created_at") AS "first_request",
+    "max"("created_at") AS "last_request"
+   FROM "public"."groq_usage_logs"
+  GROUP BY ("date_trunc"('day'::"text", "created_at")), "prompt_name", "model"
+  ORDER BY ("date_trunc"('day'::"text", "created_at")) DESC, ("count"(*)) DESC;
+
+
+ALTER VIEW "public"."v_groq_usage_stats" OWNER TO "postgres";
+
+
+CREATE OR REPLACE VIEW "public"."v_player_stats" AS
+ SELECT "p"."id",
+    "p"."establishment_id",
+    "p"."name",
+    "p"."email",
+    "p"."phone",
+    "p"."is_bot",
+    "p"."tags",
+    "p"."created_at",
+    "count"(DISTINCT "pp"."round_id") AS "total_participations",
+    "sum"("pp"."quantity") AS "total_cards_purchased",
+    COALESCE("sum"("pp"."total_amount"), (0)::numeric) AS "total_spent",
+    "count"(*) FILTER (WHERE ("pp"."is_winner" = true)) AS "total_wins",
+    COALESCE("sum"("pp"."prize_amount") FILTER (WHERE ("pp"."is_winner" = true)), (0)::numeric) AS "total_prizes_won",
+    "max"("pp"."participated_at") AS "last_participation",
+    ( SELECT "json_agg"("json_build_object"('round_id', "pp2"."round_id", 'quantity', "pp2"."quantity", 'is_winner', "pp2"."is_winner", 'participated_at', "pp2"."participated_at") ORDER BY "pp2"."participated_at" DESC) AS "json_agg"
+           FROM "public"."player_participations" "pp2"
+          WHERE ("pp2"."player_id" = "p"."id")
+         LIMIT 10) AS "recent_participations"
+   FROM ("public"."players" "p"
+     LEFT JOIN "public"."player_participations" "pp" ON (("pp"."player_id" = "p"."id")))
+  GROUP BY "p"."id", "p"."establishment_id", "p"."name", "p"."email", "p"."phone", "p"."is_bot", "p"."tags", "p"."created_at"
+  ORDER BY ("count"(DISTINCT "pp"."round_id")) DESC;
+
+
+ALTER VIEW "public"."v_player_stats" OWNER TO "postgres";
+
+
 CREATE TABLE IF NOT EXISTS "public"."winners" (
     "id" bigint NOT NULL,
     "round_id" bigint NOT NULL,
@@ -1123,11 +1530,27 @@ ALTER TABLE ONLY "public"."establishments" ALTER COLUMN "id" SET DEFAULT "nextva
 
 
 
+ALTER TABLE ONLY "public"."groq_prompts" ALTER COLUMN "id" SET DEFAULT "nextval"('"public"."groq_prompts_id_seq"'::"regclass");
+
+
+
+ALTER TABLE ONLY "public"."groq_usage_logs" ALTER COLUMN "id" SET DEFAULT "nextval"('"public"."groq_usage_logs_id_seq"'::"regclass");
+
+
+
 ALTER TABLE ONLY "public"."logs" ALTER COLUMN "id" SET DEFAULT "nextval"('"public"."logs_id_seq"'::"regclass");
 
 
 
 ALTER TABLE ONLY "public"."managers" ALTER COLUMN "id" SET DEFAULT "nextval"('"public"."managers_id_seq"'::"regclass");
+
+
+
+ALTER TABLE ONLY "public"."player_participations" ALTER COLUMN "id" SET DEFAULT "nextval"('"public"."player_participations_id_seq"'::"regclass");
+
+
+
+ALTER TABLE ONLY "public"."players" ALTER COLUMN "id" SET DEFAULT "nextval"('"public"."players_id_seq"'::"regclass");
 
 
 
@@ -1204,6 +1627,21 @@ ALTER TABLE ONLY "public"."feature_flags"
 
 
 
+ALTER TABLE ONLY "public"."groq_prompts"
+    ADD CONSTRAINT "groq_prompts_name_key" UNIQUE ("name");
+
+
+
+ALTER TABLE ONLY "public"."groq_prompts"
+    ADD CONSTRAINT "groq_prompts_pkey" PRIMARY KEY ("id");
+
+
+
+ALTER TABLE ONLY "public"."groq_usage_logs"
+    ADD CONSTRAINT "groq_usage_logs_pkey" PRIMARY KEY ("id");
+
+
+
 ALTER TABLE ONLY "public"."logs"
     ADD CONSTRAINT "logs_pkey" PRIMARY KEY ("id");
 
@@ -1231,6 +1669,21 @@ ALTER TABLE ONLY "public"."managers"
 
 ALTER TABLE ONLY "public"."payment_webhooks"
     ADD CONSTRAINT "payment_webhooks_pkey" PRIMARY KEY ("id");
+
+
+
+ALTER TABLE ONLY "public"."player_participations"
+    ADD CONSTRAINT "player_participations_pkey" PRIMARY KEY ("id");
+
+
+
+ALTER TABLE ONLY "public"."player_participations"
+    ADD CONSTRAINT "player_participations_player_id_round_id_key" UNIQUE ("player_id", "round_id");
+
+
+
+ALTER TABLE ONLY "public"."players"
+    ADD CONSTRAINT "players_pkey" PRIMARY KEY ("id");
 
 
 
@@ -1313,7 +1766,15 @@ CREATE INDEX "idx_cards_code" ON "public"."cards" USING "btree" ("code");
 
 
 
+CREATE INDEX "idx_cards_purchase" ON "public"."cards" USING "btree" ("purchase_id");
+
+
+
 CREATE INDEX "idx_cards_purchase_id" ON "public"."cards" USING "btree" ("purchase_id");
+
+
+
+CREATE INDEX "idx_cards_round" ON "public"."cards" USING "btree" ("round_id");
 
 
 
@@ -1345,6 +1806,10 @@ CREATE UNIQUE INDEX "idx_draws_round_number" ON "public"."draws" USING "btree" (
 
 
 
+CREATE INDEX "idx_establishments_active" ON "public"."establishments" USING "btree" ("is_active") WHERE ("is_active" = true);
+
+
+
 CREATE INDEX "idx_establishments_code" ON "public"."establishments" USING "btree" ("code");
 
 
@@ -1358,6 +1823,34 @@ CREATE INDEX "idx_establishments_slug" ON "public"."establishments" USING "btree
 
 
 CREATE INDEX "idx_establishments_user_id" ON "public"."establishments" USING "btree" ("user_id");
+
+
+
+CREATE INDEX "idx_feature_flags_enabled" ON "public"."feature_flags" USING "btree" ("enabled") WHERE ("enabled" = true);
+
+
+
+CREATE INDEX "idx_groq_prompts_active" ON "public"."groq_prompts" USING "btree" ("is_active") WHERE ("is_active" = true);
+
+
+
+CREATE INDEX "idx_groq_prompts_category" ON "public"."groq_prompts" USING "btree" ("category");
+
+
+
+CREATE INDEX "idx_groq_usage_logs_created" ON "public"."groq_usage_logs" USING "btree" ("created_at" DESC);
+
+
+
+CREATE INDEX "idx_groq_usage_logs_establishment" ON "public"."groq_usage_logs" USING "btree" ("establishment_id") WHERE ("establishment_id" IS NOT NULL);
+
+
+
+CREATE INDEX "idx_groq_usage_logs_prompt" ON "public"."groq_usage_logs" USING "btree" ("prompt_id") WHERE ("prompt_id" IS NOT NULL);
+
+
+
+CREATE INDEX "idx_groq_usage_logs_user" ON "public"."groq_usage_logs" USING "btree" ("user_id") WHERE ("user_id" IS NOT NULL);
 
 
 
@@ -1401,6 +1894,42 @@ CREATE INDEX "idx_payment_webhooks_purchase" ON "public"."payment_webhooks" USIN
 
 
 
+CREATE INDEX "idx_player_participations_player" ON "public"."player_participations" USING "btree" ("player_id");
+
+
+
+CREATE INDEX "idx_player_participations_purchase" ON "public"."player_participations" USING "btree" ("purchase_id") WHERE ("purchase_id" IS NOT NULL);
+
+
+
+CREATE INDEX "idx_player_participations_round" ON "public"."player_participations" USING "btree" ("round_id");
+
+
+
+CREATE INDEX "idx_player_participations_winner" ON "public"."player_participations" USING "btree" ("is_winner") WHERE ("is_winner" = true);
+
+
+
+CREATE INDEX "idx_players_created_at" ON "public"."players" USING "btree" ("created_at" DESC);
+
+
+
+CREATE INDEX "idx_players_establishment" ON "public"."players" USING "btree" ("establishment_id");
+
+
+
+CREATE INDEX "idx_players_is_bot" ON "public"."players" USING "btree" ("is_bot") WHERE ("is_bot" = true);
+
+
+
+CREATE INDEX "idx_players_name_search" ON "public"."players" USING "gin" ("to_tsvector"('"portuguese"'::"regconfig", "name"));
+
+
+
+CREATE INDEX "idx_players_tags" ON "public"."players" USING "gin" ("tags");
+
+
+
 CREATE INDEX "idx_pos_terminals_active" ON "public"."pos_terminals" USING "btree" ("is_active");
 
 
@@ -1418,6 +1947,10 @@ CREATE INDEX "idx_purchases_asaas_charge_id" ON "public"."purchases" USING "btre
 
 
 CREATE INDEX "idx_purchases_cards_generated" ON "public"."purchases" USING "btree" ("cards_generated") WHERE (("cards_generated" = false) AND ("payment_confirmed" = true));
+
+
+
+CREATE INDEX "idx_purchases_created" ON "public"."purchases" USING "btree" ("created_at" DESC);
 
 
 
@@ -1445,11 +1978,27 @@ CREATE INDEX "idx_purchases_transaction_code" ON "public"."purchases" USING "btr
 
 
 
+CREATE INDEX "idx_purchases_user" ON "public"."purchases" USING "btree" ("user_id");
+
+
+
 CREATE INDEX "idx_purchases_user_id" ON "public"."purchases" USING "btree" ("user_id");
 
 
 
+CREATE INDEX "idx_rounds_created" ON "public"."rounds" USING "btree" ("created_at" DESC);
+
+
+
+CREATE INDEX "idx_rounds_manual_creation" ON "public"."rounds" USING "btree" ("manual_creation") WHERE ("manual_creation" = true);
+
+
+
 CREATE INDEX "idx_rounds_number" ON "public"."rounds" USING "btree" ("number");
+
+
+
+CREATE INDEX "idx_rounds_scheduled" ON "public"."rounds" USING "btree" ("status") WHERE ("status" = 'scheduled'::"text");
 
 
 
@@ -1644,6 +2193,22 @@ ALTER TABLE ONLY "public"."withdrawals"
 
 
 
+CREATE POLICY "Admin pode gerenciar participações" ON "public"."player_participations" TO "authenticated" USING (true);
+
+
+
+CREATE POLICY "Admin pode gerenciar prompts" ON "public"."groq_prompts" TO "authenticated" USING (true);
+
+
+
+CREATE POLICY "Admin pode gerenciar todos os jogadores" ON "public"."players" TO "authenticated" USING (true);
+
+
+
+CREATE POLICY "Admin pode ler logs Groq" ON "public"."groq_usage_logs" FOR SELECT TO "authenticated" USING (true);
+
+
+
 CREATE POLICY "Allow public read for login" ON "public"."users" FOR SELECT TO "anon" USING (true);
 
 
@@ -1824,6 +2389,18 @@ CREATE POLICY "Users can view own withdrawals" ON "public"."withdrawals" FOR SEL
 
 
 
+CREATE POLICY "Usuários autenticados podem ler jogadores" ON "public"."players" FOR SELECT TO "authenticated" USING (true);
+
+
+
+CREATE POLICY "Usuários autenticados podem ler participações" ON "public"."player_participations" FOR SELECT TO "authenticated" USING (true);
+
+
+
+CREATE POLICY "Usuários autenticados podem ler prompts ativos" ON "public"."groq_prompts" FOR SELECT TO "authenticated" USING (("is_active" = true));
+
+
+
 CREATE POLICY "Winners are viewable by everyone" ON "public"."winners" FOR SELECT USING (true);
 
 
@@ -1847,10 +2424,22 @@ ALTER TABLE "public"."establishments" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "public"."feature_flags" ENABLE ROW LEVEL SECURITY;
 
 
+ALTER TABLE "public"."groq_prompts" ENABLE ROW LEVEL SECURITY;
+
+
+ALTER TABLE "public"."groq_usage_logs" ENABLE ROW LEVEL SECURITY;
+
+
 ALTER TABLE "public"."logs" ENABLE ROW LEVEL SECURITY;
 
 
 ALTER TABLE "public"."managers" ENABLE ROW LEVEL SECURITY;
+
+
+ALTER TABLE "public"."player_participations" ENABLE ROW LEVEL SECURITY;
+
+
+ALTER TABLE "public"."players" ENABLE ROW LEVEL SECURITY;
 
 
 ALTER TABLE "public"."pos_terminals" ENABLE ROW LEVEL SECURITY;
@@ -2063,9 +2652,27 @@ GRANT USAGE ON SCHEMA "public" TO "service_role";
 
 
 
+GRANT ALL ON FUNCTION "public"."add_player_to_round"("p_player_id" bigint, "p_round_id" bigint, "p_quantity" integer, "p_total_amount" numeric) TO "anon";
+GRANT ALL ON FUNCTION "public"."add_player_to_round"("p_player_id" bigint, "p_round_id" bigint, "p_quantity" integer, "p_total_amount" numeric) TO "authenticated";
+GRANT ALL ON FUNCTION "public"."add_player_to_round"("p_player_id" bigint, "p_round_id" bigint, "p_quantity" integer, "p_total_amount" numeric) TO "service_role";
+
+
+
 GRANT ALL ON FUNCTION "public"."authenticate_user"("p_email" "text", "p_password" "text") TO "anon";
 GRANT ALL ON FUNCTION "public"."authenticate_user"("p_email" "text", "p_password" "text") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."authenticate_user"("p_email" "text", "p_password" "text") TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."auto_open_scheduled_rounds"() TO "anon";
+GRANT ALL ON FUNCTION "public"."auto_open_scheduled_rounds"() TO "authenticated";
+GRANT ALL ON FUNCTION "public"."auto_open_scheduled_rounds"() TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."create_manual_round"("p_establishment_id" bigint, "p_draw_date" "date", "p_draw_time" time without time zone, "p_prize" numeric, "p_card_price" numeric, "p_winner_criteria" "text", "p_tiebreak_rule" "text", "p_min_participants" integer, "p_max_participants" integer, "p_type" "text", "p_description" "text", "p_created_by" bigint) TO "anon";
+GRANT ALL ON FUNCTION "public"."create_manual_round"("p_establishment_id" bigint, "p_draw_date" "date", "p_draw_time" time without time zone, "p_prize" numeric, "p_card_price" numeric, "p_winner_criteria" "text", "p_tiebreak_rule" "text", "p_min_participants" integer, "p_max_participants" integer, "p_type" "text", "p_description" "text", "p_created_by" bigint) TO "authenticated";
+GRANT ALL ON FUNCTION "public"."create_manual_round"("p_establishment_id" bigint, "p_draw_date" "date", "p_draw_time" time without time zone, "p_prize" numeric, "p_card_price" numeric, "p_winner_criteria" "text", "p_tiebreak_rule" "text", "p_min_participants" integer, "p_max_participants" integer, "p_type" "text", "p_description" "text", "p_created_by" bigint) TO "service_role";
 
 
 
@@ -2075,9 +2682,21 @@ GRANT ALL ON FUNCTION "public"."create_next_rounds"() TO "service_role";
 
 
 
+GRANT ALL ON FUNCTION "public"."create_players_batch"("p_establishment_id" bigint, "p_names" "text"[], "p_is_bot" boolean, "p_created_by" bigint) TO "anon";
+GRANT ALL ON FUNCTION "public"."create_players_batch"("p_establishment_id" bigint, "p_names" "text"[], "p_is_bot" boolean, "p_created_by" bigint) TO "authenticated";
+GRANT ALL ON FUNCTION "public"."create_players_batch"("p_establishment_id" bigint, "p_names" "text"[], "p_is_bot" boolean, "p_created_by" bigint) TO "service_role";
+
+
+
 GRANT ALL ON FUNCTION "public"."hash_password"("password" "text") TO "anon";
 GRANT ALL ON FUNCTION "public"."hash_password"("password" "text") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."hash_password"("password" "text") TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."log_groq_usage"("p_prompt_id" bigint, "p_prompt_name" "text", "p_model" "text", "p_user_id" bigint, "p_establishment_id" bigint, "p_request" "jsonb", "p_response" "jsonb", "p_tokens_prompt" integer, "p_tokens_completion" integer, "p_duration_ms" integer, "p_success" boolean, "p_error_message" "text") TO "anon";
+GRANT ALL ON FUNCTION "public"."log_groq_usage"("p_prompt_id" bigint, "p_prompt_name" "text", "p_model" "text", "p_user_id" bigint, "p_establishment_id" bigint, "p_request" "jsonb", "p_response" "jsonb", "p_tokens_prompt" integer, "p_tokens_completion" integer, "p_duration_ms" integer, "p_success" boolean, "p_error_message" "text") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."log_groq_usage"("p_prompt_id" bigint, "p_prompt_name" "text", "p_model" "text", "p_user_id" bigint, "p_establishment_id" bigint, "p_request" "jsonb", "p_response" "jsonb", "p_tokens_prompt" integer, "p_tokens_completion" integer, "p_duration_ms" integer, "p_success" boolean, "p_error_message" "text") TO "service_role";
 
 
 
@@ -2108,6 +2727,12 @@ GRANT ALL ON FUNCTION "public"."update_ticker_messages_updated_at"() TO "service
 GRANT ALL ON FUNCTION "public"."update_updated_at_column"() TO "anon";
 GRANT ALL ON FUNCTION "public"."update_updated_at_column"() TO "authenticated";
 GRANT ALL ON FUNCTION "public"."update_updated_at_column"() TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."validate_round_time_conflict"("p_establishment_id" bigint, "p_draw_datetime" timestamp with time zone, "p_exclude_round_id" bigint) TO "anon";
+GRANT ALL ON FUNCTION "public"."validate_round_time_conflict"("p_establishment_id" bigint, "p_draw_datetime" timestamp with time zone, "p_exclude_round_id" bigint) TO "authenticated";
+GRANT ALL ON FUNCTION "public"."validate_round_time_conflict"("p_establishment_id" bigint, "p_draw_datetime" timestamp with time zone, "p_exclude_round_id" bigint) TO "service_role";
 
 
 
@@ -2192,6 +2817,30 @@ GRANT ALL ON TABLE "public"."feature_flags" TO "service_role";
 
 
 
+GRANT ALL ON TABLE "public"."groq_prompts" TO "anon";
+GRANT ALL ON TABLE "public"."groq_prompts" TO "authenticated";
+GRANT ALL ON TABLE "public"."groq_prompts" TO "service_role";
+
+
+
+GRANT ALL ON SEQUENCE "public"."groq_prompts_id_seq" TO "anon";
+GRANT ALL ON SEQUENCE "public"."groq_prompts_id_seq" TO "authenticated";
+GRANT ALL ON SEQUENCE "public"."groq_prompts_id_seq" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."groq_usage_logs" TO "anon";
+GRANT ALL ON TABLE "public"."groq_usage_logs" TO "authenticated";
+GRANT ALL ON TABLE "public"."groq_usage_logs" TO "service_role";
+
+
+
+GRANT ALL ON SEQUENCE "public"."groq_usage_logs_id_seq" TO "anon";
+GRANT ALL ON SEQUENCE "public"."groq_usage_logs_id_seq" TO "authenticated";
+GRANT ALL ON SEQUENCE "public"."groq_usage_logs_id_seq" TO "service_role";
+
+
+
 GRANT ALL ON TABLE "public"."logs" TO "anon";
 GRANT ALL ON TABLE "public"."logs" TO "authenticated";
 GRANT ALL ON TABLE "public"."logs" TO "service_role";
@@ -2219,6 +2868,30 @@ GRANT ALL ON SEQUENCE "public"."managers_id_seq" TO "service_role";
 GRANT ALL ON TABLE "public"."payment_webhooks" TO "anon";
 GRANT ALL ON TABLE "public"."payment_webhooks" TO "authenticated";
 GRANT ALL ON TABLE "public"."payment_webhooks" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."player_participations" TO "anon";
+GRANT ALL ON TABLE "public"."player_participations" TO "authenticated";
+GRANT ALL ON TABLE "public"."player_participations" TO "service_role";
+
+
+
+GRANT ALL ON SEQUENCE "public"."player_participations_id_seq" TO "anon";
+GRANT ALL ON SEQUENCE "public"."player_participations_id_seq" TO "authenticated";
+GRANT ALL ON SEQUENCE "public"."player_participations_id_seq" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."players" TO "anon";
+GRANT ALL ON TABLE "public"."players" TO "authenticated";
+GRANT ALL ON TABLE "public"."players" TO "service_role";
+
+
+
+GRANT ALL ON SEQUENCE "public"."players_id_seq" TO "anon";
+GRANT ALL ON SEQUENCE "public"."players_id_seq" TO "authenticated";
+GRANT ALL ON SEQUENCE "public"."players_id_seq" TO "service_role";
 
 
 
@@ -2291,6 +2964,18 @@ GRANT ALL ON TABLE "public"."users" TO "service_role";
 GRANT ALL ON SEQUENCE "public"."users_id_seq" TO "anon";
 GRANT ALL ON SEQUENCE "public"."users_id_seq" TO "authenticated";
 GRANT ALL ON SEQUENCE "public"."users_id_seq" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."v_groq_usage_stats" TO "anon";
+GRANT ALL ON TABLE "public"."v_groq_usage_stats" TO "authenticated";
+GRANT ALL ON TABLE "public"."v_groq_usage_stats" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."v_player_stats" TO "anon";
+GRANT ALL ON TABLE "public"."v_player_stats" TO "authenticated";
+GRANT ALL ON TABLE "public"."v_player_stats" TO "service_role";
 
 
 
