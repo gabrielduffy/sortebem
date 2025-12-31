@@ -21,36 +21,51 @@ jobs:
           node-version: '20'
       
       - name: Instalar Supabase CLI
-        run: npm install -g supabase
+        run: |
+          curl -sSL https://github.com/supabase/cli/releases/download/v1.150.0/supabase_1.150.0_linux_amd64.tar.gz | tar -xz
+          sudo mv supabase /usr/local/bin/
+          supabase --version
       
       - name: Login no Supabase
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-        run: |
-          echo "Configurando access token..."
-          supabase login --token $SUPABASE_ACCESS_TOKEN
+        run: supabase login --token $SUPABASE_ACCESS_TOKEN
       
       - name: Link ao projeto
         run: supabase link --project-ref ctjdbnvcqcyitpydnmdt
       
-      - name: Exportar Schema
+      - name: Exportar Schema completo
         run: |
-          echo "Exportando schema do banco..."
+          echo "📦 Exportando schema do banco..."
           supabase db dump --schema-only -f supabase_schema.sql
-          echo "✅ Schema exportado com sucesso!"
-      
-      - name: Exportar dados de settings
-        run: |
-          echo "Exportando dados da tabela settings..."
+          echo "✅ Schema exportado!"
+          
+          echo "📦 Exportando dados da tabela settings..."
           supabase db dump --data-only --use-copy=false -t settings -f supabase_settings_data.sql
-          echo "✅ Dados exportados!"
+          echo "✅ Settings exportados!"
+          
+          echo "📦 Exportando sample de outras tabelas..."
+          supabase db dump --data-only --use-copy=false -t ticker_messages -f supabase_ticker_data.sql
+          echo "✅ Ticker messages exportados!"
+      
+      - name: Listar arquivos gerados
+        run: |
+          echo "Arquivos gerados:"
+          ls -lh supabase*.sql
       
       - name: Commit alterações
         run: |
           git config user.name "GitHub Actions Bot"
           git config user.email "actions@github.com"
-          git add supabase_schema.sql supabase_settings_data.sql
-          git diff --staged --quiet || git commit -m "chore: atualizar schema do Supabase [skip ci]"
+          git add supabase*.sql
+          if git diff --staged --quiet; then
+            echo "Nenhuma alteração detectada"
+          else
+            git commit -m "chore: atualizar schema do Supabase [skip ci]"
+            echo "✅ Commit criado!"
+          fi
       
       - name: Push para o repositório
-        run: git push
+        run: |
+          git push
+          echo "✅ Push concluído!"
