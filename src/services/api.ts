@@ -212,6 +212,9 @@ class ApiService {
     round_id: number;
     quantity: number;
     payment_method: string;
+    unit_price: number;
+    total_amount: number;
+    establishment_id?: number | null;
     customer?: {
       name?: string;
       email?: string;
@@ -226,12 +229,15 @@ class ApiService {
         round_id: data.round_id,
         quantity: data.quantity,
         payment_method: data.payment_method,
+        unit_price: data.unit_price,
+        total_amount: data.total_amount,
+        establishment_id: data.establishment_id || null,
         user_id: user?.id || null,
         customer_name: data.customer?.name || null,
         customer_email: data.customer?.email || null,
         customer_phone: data.customer?.phone || null,
         customer_cpf: data.customer?.cpf || null,
-        payment_status: 'pending',
+        status: 'pending',
       };
 
       const { data: purchase, error } = await supabase

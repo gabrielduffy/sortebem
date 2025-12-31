@@ -222,7 +222,9 @@ const Checkout = () => {
         round_id: roundId,
         quantity: quantity,
         payment_method: 'pix',
-        establishment_id: establishment?.id || null, // Pass the numeric ID
+        unit_price: unitPrice,
+        total_amount: totalPrice,
+        establishment_id: establishment?.id || null,
         customer: {
           phone: whatsappNumber
         }
