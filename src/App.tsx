@@ -46,6 +46,7 @@ import AdminLogs from '@/pages/admin/AdminLogs';
 import AdminIntegrations from '@/pages/admin/AdminIntegrations';
 import AdminFinance from '@/pages/admin/AdminFinance';
 import AdminProfile from '@/pages/admin/AdminProfile';
+import AdminPlayers from '@/pages/admin/AdminPlayers';
 
 const queryClient = new QueryClient();
 
@@ -194,6 +195,11 @@ const App = () => (
             <Route path="/admin/integracoes" element={
               <ProtectedRoute allowedRoles={['admin']}>
                 <AdminIntegrations />
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/jogadores" element={
+              <ProtectedRoute allowedRoles={['admin']}>
+                <AdminPlayers />
               </ProtectedRoute>
             } />
             <Route path="/admin/perfil" element={
