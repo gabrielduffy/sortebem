@@ -233,7 +233,7 @@ class ApiService {
         total_amount: data.total_amount,
         establishment_id: data.establishment_id || null,
         user_id: user?.id || null,
-        customer_name: data.customer?.name || null,
+        customer_name: data.customer?.name || 'Cliente',
         customer_email: data.customer?.email || null,
         customer_phone: data.customer?.phone || null,
         customer_cpf: data.customer?.cpf || null,
