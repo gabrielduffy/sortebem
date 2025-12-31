@@ -91,12 +91,15 @@ sortebem/
 │   ├── services/            # Serviços de API
 │   │   ├── api.ts           # API service principal
 │   │   ├── authService.ts   # Autenticação com dual auth
-│   │   └── featureFlagService.ts  # Gerenciamento de feature flags
+│   │   ├── featureFlagService.ts  # Gerenciamento de feature flags
+│   │   ├── asaasService.ts  # Integração Asaas (PIX)
+│   │   └── cardGeneratorService.ts  # Geração automática de cartelas
 │   └── types/               # TypeScript types
 ├── supabase/
 │   └── migrations/          # Migrations SQL
 │       ├── 001_fase1_preparacao.sql    # Feature flags + settings
-│       └── 002_fase2_seguranca.sql     # bcrypt + dual auth
+│       ├── 002_fase2_seguranca.sql     # bcrypt + dual auth
+│       └── 003_fase3_fase4_pagamentos_cartelas.sql  # Asaas + cartelas
 ├── scripts/
 │   └── run-migrations.js    # Script automático de migrations
 ├── .github/
@@ -493,18 +496,28 @@ const response = await apiService.generatePix({
 - [x] Serviço `authService.ts`
 - [x] Serviço `featureFlagService.ts`
 
-### **🔄 FASE 3: Pagamentos** (Em Planejamento)
-- [ ] Integração Asaas completa
-- [ ] Geração de PIX real
-- [ ] Webhook de confirmação
-- [ ] Notificação via WhatsApp
-- [ ] Dashboard de pagamentos
+### **✅ FASE 3: Pagamentos com Asaas** (Concluída)
+- [x] Integração Asaas completa (`asaasService.ts`)
+- [x] Geração de PIX real
+- [x] Criação de clientes Asaas
+- [x] Geração de cobranças PIX
+- [x] QR Code e copia-e-cola
+- [x] Função de processamento de webhook
+- [x] Feature flag `use_asaas_pix` para rollout gradual
+- [x] Fallback para mock quando desabilitado
+- [x] Colunas adicionadas: `asaas_charge_id`, `asaas_customer_id`, `pix_qr_code`, etc
+- [x] Método `apiService.generatePixForPurchase()`
 
-### **🔄 FASE 4: Geração Automática de Cartelas** (Em Planejamento)
-- [ ] Geração após confirmação de pagamento
-- [ ] Validação de duplicatas
-- [ ] Distribuição de números balanceada
-- [ ] Envio automático via WhatsApp
+### **✅ FASE 4: Geração Automática de Cartelas** (Concluída)
+- [x] Geração após confirmação de pagamento (`cardGeneratorService.ts`)
+- [x] Validação de duplicatas
+- [x] Distribuição de números balanceada (1-75)
+- [x] Números únicos por cartela (25 números)
+- [x] Código único de 6 dígitos
+- [x] Feature flag `auto_generate_cards` para rollout gradual
+- [x] Integração com api.ts
+- [x] Métodos: `generateCardsForPurchase()`, `getCardsByPurchase()`
+- [x] Colunas adicionadas: `cards_generated`, `cards_generated_at`
 
 ### **🔄 FASE 5: Otimizações** (Em Planejamento)
 - [ ] Índices otimizados

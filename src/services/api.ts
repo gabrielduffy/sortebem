@@ -1,6 +1,9 @@
 // API Service for SORTEBEM - Supabase Version
 import { supabase } from '../lib/supabase'
 import { authService } from './authService'
+import { asaasService } from './asaasService'
+import { cardGeneratorService } from './cardGeneratorService'
+import { featureFlagService } from './featureFlagService'
 
 interface LoginResponse {
   ok: boolean;
@@ -244,6 +247,98 @@ class ApiService {
       return { ok: true, data: purchase };
     } catch (error: any) {
       return { ok: false, error: error.message || 'Erro ao criar compra' };
+    }
+  }
+
+  /**
+   * Generate PIX for purchase (FASE 3)
+   * Usa Asaas se feature flag habilitada, senão retorna mock
+   */
+  async generatePixForPurchase(params: {
+    purchaseId: number;
+    amount: number;
+    customerName: string;
+    customerCpf: string;
+    customerEmail?: string;
+    customerPhone?: string;
+  }): Promise<ApiResponse> {
+    try {
+      const useAsaas = await featureFlagService.isEnabled('use_asaas_pix');
+
+      if (useAsaas) {
+        // Usar Asaas real
+        const result = await asaasService.generatePixForPurchase(params);
+
+        if (!result.success) {
+          return { ok: false, error: result.error || 'Erro ao gerar PIX' };
+        }
+
+        return {
+          ok: true,
+          data: {
+            pixCode: result.payload,
+            pixQrCode: result.encodedImage,
+            expirationDate: result.expirationDate,
+            chargeId: result.chargeId,
+          },
+        };
+      } else {
+        // Mock PIX (sistema antigo)
+        const mockPixCode = '00020126580014br.gov.bcb.pix013600000000-0000-0000-0000-0000000000005204000053039865802BR5925SORTEBEM6009SAO PAULO62070503***6304XXXX';
+
+        // Atualizar purchase com mock
+        await supabase.from('purchases').update({
+          pix_qr_code: mockPixCode,
+          pix_expiration: new Date(Date.now() + 30 * 60 * 1000).toISOString(), // 30 minutos
+        }).eq('id', params.purchaseId);
+
+        return {
+          ok: true,
+          data: {
+            pixCode: mockPixCode,
+            pixQrCode: mockPixCode,
+            expirationDate: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
+          },
+        };
+      }
+    } catch (error: any) {
+      return { ok: false, error: error.message || 'Erro ao gerar PIX' };
+    }
+  }
+
+  /**
+   * Generate cards for purchase (FASE 4)
+   * Gera cartelas automaticamente se feature flag habilitada
+   */
+  async generateCardsForPurchase(purchaseId: number): Promise<ApiResponse> {
+    try {
+      const autoGenerate = await featureFlagService.isEnabled('auto_generate_cards');
+
+      if (!autoGenerate) {
+        return { ok: false, error: 'Geração automática de cartelas não habilitada' };
+      }
+
+      const result = await cardGeneratorService.generateCardsForPurchase(purchaseId);
+
+      if (!result.success) {
+        return { ok: false, error: result.error || 'Erro ao gerar cartelas' };
+      }
+
+      return { ok: true, data: result.cards };
+    } catch (error: any) {
+      return { ok: false, error: error.message || 'Erro ao gerar cartelas' };
+    }
+  }
+
+  /**
+   * Get cards by purchase ID
+   */
+  async getCardsByPurchase(purchaseId: number): Promise<ApiResponse> {
+    try {
+      const cards = await cardGeneratorService.getCardsByPurchase(purchaseId);
+      return { ok: true, data: cards };
+    } catch (error: any) {
+      return { ok: false, error: error.message || 'Erro ao buscar cartelas' };
     }
   }
 
