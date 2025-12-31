@@ -553,11 +553,46 @@ const response = await apiService.generatePix({
 - [x] Métodos: `generateCardsForPurchase()`, `getCardsByPurchase()`
 - [x] Colunas adicionadas: `cards_generated`, `cards_generated_at`
 
-### **🔄 FASE 5: Otimizações** (Em Planejamento)
-- [ ] Índices otimizados
-- [ ] Cache de queries
-- [ ] Realtime updates
-- [ ] Performance improvements
+### **✅ FASE 5: Otimizações de Performance** (Concluída)
+- [x] Índices otimizados para queries frequentes
+- [x] Materialized view `mv_establishment_stats`
+- [x] Views otimizadas: `v_active_rounds_dashboard`, `v_user_purchases`
+- [x] Função `refresh_establishment_stats()` para atualização de stats
+- [x] Triggers de notificação em purchases e rounds
+- [x] Realtime habilitado em tabelas principais
+- [x] ANALYZE executado para otimização do query planner
+
+### **✅ FASE 6: Integração Groq AI** (Concluída)
+- [x] Tabelas `groq_prompts` e `groq_usage_logs`
+- [x] 5 prompts pré-configurados (geração de jogadores, análises)
+- [x] Serviço `groqService.ts` completo
+- [x] Interface admin em AdminIntegrations (aba Groq AI)
+- [x] Suporte a modelos: Llama 3.1, Mixtral
+- [x] Logging de uso e custos
+- [x] View `v_groq_usage_stats` para analytics
+
+### **✅ FASE 7: Sistema de Jogadores/Bots com AI** (Concluída)
+- [x] Tabela `players` com suporte a bots
+- [x] Tabela `player_participations` para tracking
+- [x] Função `create_players_batch()` para criação em lote
+- [x] Função `add_player_to_round()` para participações
+- [x] View `v_player_stats` com estatísticas agregadas
+- [x] Interface natural language em AdminPlayers
+- [x] Geração de nomes brasileiros realistas via Groq AI
+- [x] Tags e metadata para categorização
+- [x] RLS policies configuradas
+
+### **✅ FASE 8: Criação Manual de Rodadas** (Concluída)
+- [x] Colunas avançadas em `rounds` (winner_criteria, tiebreak_rule, draw_time)
+- [x] Função `validate_round_time_conflict()` (±30min)
+- [x] Função `create_manual_round()` com validações
+- [x] Função `update_manual_round()` para edição
+- [x] Função `auto_open_scheduled_rounds()` para cron job
+- [x] View `v_scheduled_rounds` para dashboard
+- [x] Componente `CreateManualRoundDialog.tsx`
+- [x] Status 'scheduled' para rodadas futuras
+- [x] Validação de min/max participantes
+- [x] Constraints para critérios de vitória e desempate
 
 ---
 
