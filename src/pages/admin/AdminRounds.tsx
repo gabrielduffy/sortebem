@@ -7,9 +7,10 @@ import { Label } from '@/components/ui/label';
 import { DataTable } from '@/components/dashboard/DataTable';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Trophy, Clock, Users, Hash, Pause, Eye } from 'lucide-react';
+import { Trophy, Clock, Users, Hash, Pause, Eye, Plus } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { apiService } from '@/services/api';
+import { CreateManualRoundDialog } from '@/components/admin/CreateManualRoundDialog';
 
 export default function AdminRounds() {
   const [rounds, setRounds] = useState<any[]>([]);
@@ -17,6 +18,7 @@ export default function AdminRounds() {
   const [loading, setLoading] = useState(true);
   const [viewingRound, setViewingRound] = useState<any>(null);
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [showCreateDialog, setShowCreateDialog] = useState(false);
 
   useEffect(() => {
     const loadRounds = async () => {
@@ -168,7 +170,16 @@ export default function AdminRounds() {
   return (
     <DashboardLayout userType="admin" userName="Administrador" notifications={5}>
       <div className="space-y-6">
-        <div><h2 className="text-2xl font-bold text-foreground">Gerenciamento de Rodadas</h2><p className="text-muted-foreground">Acompanhe e gerencie as rodadas do sistema</p></div>
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-2xl font-bold text-foreground">Gerenciamento de Rodadas</h2>
+            <p className="text-muted-foreground">Acompanhe e gerencie as rodadas do sistema</p>
+          </div>
+          <Button onClick={() => setShowCreateDialog(true)}>
+            <Plus className="w-4 h-4 mr-2" />
+            Criar Rodada Manual
+          </Button>
+        </div>
 
         <Tabs defaultValue="live" className="space-y-6">
           <TabsList><TabsTrigger value="live">Ao Vivo</TabsTrigger><TabsTrigger value="upcoming">Próximas</TabsTrigger><TabsTrigger value="history">Histórico</TabsTrigger></TabsList>
@@ -384,6 +395,22 @@ export default function AdminRounds() {
           )}
           </DialogContent>
         </Dialog>
+
+        {/* Create Manual Round Dialog */}
+        <CreateManualRoundDialog
+          open={showCreateDialog}
+          onOpenChange={setShowCreateDialog}
+          onSuccess={() => {
+            // Reload rounds after creating
+            const loadRounds = async () => {
+              const response = await apiService.getRounds();
+              if (response.ok && response.data) {
+                setRounds(response.data);
+              }
+            };
+            loadRounds();
+          }}
+        />
       </div>
     </DashboardLayout>
   );
