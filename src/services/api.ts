@@ -732,7 +732,7 @@ class ApiService {
       const { error: userError } = await supabase
         .from('users')
         .insert({
-          id: authData.user.id,
+          auth_id: authData.user.id,
           name: data.name,
           email: data.email,
           whatsapp: data.whatsapp,
@@ -748,7 +748,7 @@ class ApiService {
       const { data: manager, error: managerError } = await supabase
         .from('managers')
         .insert({
-          user_id: authData.user.id,
+          auth_id: authData.user.id,
           cpf: data.cpf,
         })
         .select()
@@ -912,7 +912,7 @@ class ApiService {
       const { error: userError } = await supabase
         .from('users')
         .insert({
-          id: authData.user.id,
+          auth_id: authData.user.id,
           name: data.name,
           email: data.email,
           phone: data.phone,
@@ -927,7 +927,7 @@ class ApiService {
       const { data: establishment, error: estError } = await supabase
         .from('establishments')
         .insert({
-          user_id: authData.user.id,
+          auth_id: authData.user.id,
           manager_id: data.manager_id,
           name: data.name,
           cnpj: data.cnpj,
