@@ -60,14 +60,31 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp" WITH SCHEMA "extensions";
 
 
 CREATE OR REPLACE FUNCTION "public"."add_player_to_round"("p_player_id" bigint, "p_round_id" bigint, "p_quantity" integer DEFAULT 1, "p_total_amount" numeric DEFAULT 0) RETURNS bigint
-    LANGUAGE "plpgsql"
+    LANGUAGE "plpgsql" SECURITY DEFINER
     AS $$
-DECLARE v_participation_id BIGINT;
+DECLARE
+  v_participation_id BIGINT;
 BEGIN
-  IF EXISTS(SELECT 1 FROM player_participations WHERE player_id = p_player_id AND round_id = p_round_id) THEN
+  IF EXISTS(
+    SELECT 1 FROM player_participations
+    WHERE player_id = p_player_id AND round_id = p_round_id
+  ) THEN
     RAISE EXCEPTION 'Jogador já está participando desta rodada';
   END IF;
-  INSERT INTO player_participations (player_id, round_id, quantity, total_amount) VALUES (p_player_id, p_round_id, p_quantity, p_total_amount) RETURNING id INTO v_participation_id;
+
+  INSERT INTO player_participations (
+    player_id,
+    round_id,
+    quantity,
+    total_amount
+  ) VALUES (
+    p_player_id,
+    p_round_id,
+    p_quantity,
+    p_total_amount
+  )
+  RETURNING id INTO v_participation_id;
+
   RETURN v_participation_id;
 END;
 $$;
@@ -372,17 +389,34 @@ COMMENT ON FUNCTION "public"."create_next_rounds"() IS 'Cria rodadas automaticam
 
 
 CREATE OR REPLACE FUNCTION "public"."create_players_batch"("p_establishment_id" bigint, "p_names" "text"[], "p_is_bot" boolean DEFAULT true, "p_created_by" bigint DEFAULT NULL::bigint) RETURNS TABLE("id" bigint, "name" "text", "created" boolean)
-    LANGUAGE "plpgsql"
+    LANGUAGE "plpgsql" SECURITY DEFINER
     AS $$
-DECLARE v_name TEXT; v_player_id BIGINT; v_exists BOOLEAN;
+DECLARE
+  v_name TEXT;
+  v_player_id BIGINT;
+  v_exists BOOLEAN;
 BEGIN
-  FOREACH v_name IN ARRAY p_names LOOP
-    SELECT EXISTS(SELECT 1 FROM players WHERE establishment_id = p_establishment_id AND LOWER(name) = LOWER(v_name)) INTO v_exists;
+  FOREACH v_name IN ARRAY p_names
+  LOOP
+    SELECT EXISTS(
+      SELECT 1 FROM players
+      WHERE establishment_id = p_establishment_id
+      AND LOWER(name) = LOWER(v_name)
+    ) INTO v_exists;
+
     IF v_exists THEN
-      SELECT p.id INTO v_player_id FROM players p WHERE p.establishment_id = p_establishment_id AND LOWER(p.name) = LOWER(v_name) LIMIT 1;
+      SELECT pl.id INTO v_player_id
+      FROM players pl
+      WHERE pl.establishment_id = p_establishment_id
+      AND LOWER(pl.name) = LOWER(v_name)
+      LIMIT 1;
+
       RETURN QUERY SELECT v_player_id, v_name, false;
     ELSE
-      INSERT INTO players (establishment_id, name, is_bot, created_by) VALUES (p_establishment_id, v_name, p_is_bot, p_created_by) RETURNING players.id INTO v_player_id;
+      INSERT INTO players (establishment_id, name, is_bot, created_by)
+      VALUES (p_establishment_id, v_name, p_is_bot, p_created_by)
+      RETURNING players.id INTO v_player_id;
+
       RETURN QUERY SELECT v_player_id, v_name, true;
     END IF;
   END LOOP;
@@ -411,39 +445,20 @@ COMMENT ON FUNCTION "public"."hash_password"("password" "text") IS 'Gera hash bc
 
 
 CREATE OR REPLACE FUNCTION "public"."log_groq_usage"("p_prompt_id" bigint, "p_prompt_name" "text", "p_model" "text", "p_user_id" bigint, "p_establishment_id" bigint, "p_request" "jsonb", "p_response" "jsonb", "p_tokens_prompt" integer, "p_tokens_completion" integer, "p_duration_ms" integer, "p_success" boolean, "p_error_message" "text" DEFAULT NULL::"text") RETURNS bigint
-    LANGUAGE "plpgsql"
+    LANGUAGE "plpgsql" SECURITY DEFINER
     AS $$
 DECLARE
   v_log_id BIGINT;
 BEGIN
   INSERT INTO groq_usage_logs (
-    prompt_id,
-    prompt_name,
-    model,
-    user_id,
-    establishment_id,
-    request_payload,
-    response_payload,
-    tokens_prompt,
-    tokens_completion,
-    tokens_total,
-    duration_ms,
-    success,
-    error_message
+    prompt_id, prompt_name, model, user_id, establishment_id,
+    request_payload, response_payload, tokens_prompt, tokens_completion,
+    tokens_total, duration_ms, success, error_message
   ) VALUES (
-    p_prompt_id,
-    p_prompt_name,
-    p_model,
-    p_user_id,
-    p_establishment_id,
-    p_request,
-    p_response,
-    p_tokens_prompt,
-    p_tokens_completion,
+    p_prompt_id, p_prompt_name, p_model, p_user_id, p_establishment_id,
+    p_request, p_response, p_tokens_prompt, p_tokens_completion,
     COALESCE(p_tokens_prompt, 0) + COALESCE(p_tokens_completion, 0),
-    p_duration_ms,
-    p_success,
-    p_error_message
+    p_duration_ms, p_success, p_error_message
   )
   RETURNING id INTO v_log_id;
 
@@ -499,7 +514,7 @@ BEGIN
   -- Marcar purchase como paga
   UPDATE purchases
   SET
-    status = 'confirmed',
+    payment_status = 'confirmed',
     paid_at = NOW(),
     payment_confirmed = true,
     updated_at = NOW()
@@ -523,6 +538,8 @@ BEGIN
   WHERE key = 'auto_generate_cards'
   LIMIT 1;
 
+  -- Se geração automática estiver habilitada, será feita pelo frontend
+  -- (a lógica complexa de geração fica no TypeScript)
   IF v_auto_generate THEN
     RAISE NOTICE 'Auto-generate flag enabled for purchase %', p_purchase_id;
   END IF;
@@ -537,6 +554,57 @@ ALTER FUNCTION "public"."process_payment_webhook"("p_webhook_id" bigint, "p_purc
 
 COMMENT ON FUNCTION "public"."process_payment_webhook"("p_webhook_id" bigint, "p_purchase_id" bigint) IS 'Processa webhook de pagamento confirmado';
 
+
+
+CREATE OR REPLACE FUNCTION "public"."process_player_command"("p_command" "text", "p_establishment_id" bigint DEFAULT NULL::bigint, "p_user_id" bigint DEFAULT NULL::bigint) RETURNS "jsonb"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    AS $$
+DECLARE
+  v_result JSONB;
+BEGIN
+  v_result := json_build_object(
+    'success', true,
+    'command', p_command,
+    'parsed', json_build_object(
+      'action', 'create_players',
+      'quantity', NULL,
+      'establishment_id', p_establishment_id,
+      'round_id', NULL
+    ),
+    'message', 'Comando recebido. Use Groq AI para interpretar.'
+  );
+
+  RETURN v_result;
+END;
+$$;
+
+
+ALTER FUNCTION "public"."process_player_command"("p_command" "text", "p_establishment_id" bigint, "p_user_id" bigint) OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."refresh_establishment_stats"() RETURNS "void"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    AS $$
+BEGIN
+  RAISE NOTICE 'Stats refresh placeholder function';
+END;
+$$;
+
+
+ALTER FUNCTION "public"."refresh_establishment_stats"() OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."trigger_refresh_stats"() RETURNS "trigger"
+    LANGUAGE "plpgsql"
+    AS $$
+BEGIN
+  PERFORM pg_notify('stats_changed', TG_TABLE_NAME);
+  RETURN NEW;
+END;
+$$;
+
+
+ALTER FUNCTION "public"."trigger_refresh_stats"() OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."update_feature_flags_updated_at"() RETURNS "trigger"
@@ -563,6 +631,19 @@ $$;
 
 
 ALTER FUNCTION "public"."update_ticker_messages_updated_at"() OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."update_updated_at"() RETURNS "trigger"
+    LANGUAGE "plpgsql"
+    AS $$
+BEGIN
+  NEW.updated_at = NOW();
+  RETURN NEW;
+END;
+$$;
+
+
+ALTER FUNCTION "public"."update_updated_at"() OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."update_updated_at_column"() RETURNS "trigger"
@@ -2026,7 +2107,15 @@ CREATE INDEX "idx_settings_public" ON "public"."settings" USING "btree" ("is_pub
 
 
 
+CREATE INDEX "idx_ticker_messages_active" ON "public"."ticker_messages" USING "btree" ("is_active") WHERE ("is_active" = true);
+
+
+
 CREATE INDEX "idx_ticker_messages_active_order" ON "public"."ticker_messages" USING "btree" ("is_active", "display_order");
+
+
+
+CREATE INDEX "idx_ticker_messages_order" ON "public"."ticker_messages" USING "btree" ("display_order");
 
 
 
@@ -2071,6 +2160,26 @@ CREATE INDEX "idx_withdrawals_status" ON "public"."withdrawals" USING "btree" ("
 
 
 CREATE INDEX "idx_withdrawals_user_id" ON "public"."withdrawals" USING "btree" ("user_id");
+
+
+
+CREATE OR REPLACE TRIGGER "trg_groq_prompts_updated_at" BEFORE UPDATE ON "public"."groq_prompts" FOR EACH ROW EXECUTE FUNCTION "public"."update_updated_at"();
+
+
+
+CREATE OR REPLACE TRIGGER "trg_players_updated_at" BEFORE UPDATE ON "public"."players" FOR EACH ROW EXECUTE FUNCTION "public"."update_updated_at"();
+
+
+
+CREATE OR REPLACE TRIGGER "trg_purchases_stats" AFTER INSERT OR UPDATE OF "payment_confirmed" ON "public"."purchases" FOR EACH ROW WHEN (("new"."payment_confirmed" = true)) EXECUTE FUNCTION "public"."trigger_refresh_stats"();
+
+
+
+CREATE OR REPLACE TRIGGER "trg_rounds_stats" AFTER INSERT OR UPDATE OF "status" ON "public"."rounds" FOR EACH ROW EXECUTE FUNCTION "public"."trigger_refresh_stats"();
+
+
+
+CREATE OR REPLACE TRIGGER "trg_ticker_messages_updated_at" BEFORE UPDATE ON "public"."ticker_messages" FOR EACH ROW EXECUTE FUNCTION "public"."update_updated_at"();
 
 
 
@@ -2409,58 +2518,10 @@ COMMENT ON POLICY "Winners are viewable by everyone" ON "public"."winners" IS 'G
 
 
 
-ALTER TABLE "public"."cards" ENABLE ROW LEVEL SECURITY;
-
-
-ALTER TABLE "public"."charities" ENABLE ROW LEVEL SECURITY;
-
-
-ALTER TABLE "public"."draws" ENABLE ROW LEVEL SECURITY;
-
-
-ALTER TABLE "public"."establishments" ENABLE ROW LEVEL SECURITY;
-
-
-ALTER TABLE "public"."feature_flags" ENABLE ROW LEVEL SECURITY;
-
-
-ALTER TABLE "public"."groq_prompts" ENABLE ROW LEVEL SECURITY;
-
-
-ALTER TABLE "public"."groq_usage_logs" ENABLE ROW LEVEL SECURITY;
-
-
 ALTER TABLE "public"."logs" ENABLE ROW LEVEL SECURITY;
 
 
-ALTER TABLE "public"."managers" ENABLE ROW LEVEL SECURITY;
-
-
-ALTER TABLE "public"."player_participations" ENABLE ROW LEVEL SECURITY;
-
-
-ALTER TABLE "public"."players" ENABLE ROW LEVEL SECURITY;
-
-
 ALTER TABLE "public"."pos_terminals" ENABLE ROW LEVEL SECURITY;
-
-
-ALTER TABLE "public"."purchases" ENABLE ROW LEVEL SECURITY;
-
-
-ALTER TABLE "public"."rounds" ENABLE ROW LEVEL SECURITY;
-
-
-ALTER TABLE "public"."settings" ENABLE ROW LEVEL SECURITY;
-
-
-ALTER TABLE "public"."ticker_messages" ENABLE ROW LEVEL SECURITY;
-
-
-ALTER TABLE "public"."users" ENABLE ROW LEVEL SECURITY;
-
-
-ALTER TABLE "public"."winners" ENABLE ROW LEVEL SECURITY;
 
 
 ALTER TABLE "public"."withdrawals" ENABLE ROW LEVEL SECURITY;
@@ -2469,6 +2530,26 @@ ALTER TABLE "public"."withdrawals" ENABLE ROW LEVEL SECURITY;
 
 
 ALTER PUBLICATION "supabase_realtime" OWNER TO "postgres";
+
+
+ALTER PUBLICATION "supabase_realtime" ADD TABLE ONLY "public"."cards";
+
+
+
+ALTER PUBLICATION "supabase_realtime" ADD TABLE ONLY "public"."draws";
+
+
+
+ALTER PUBLICATION "supabase_realtime" ADD TABLE ONLY "public"."purchases";
+
+
+
+ALTER PUBLICATION "supabase_realtime" ADD TABLE ONLY "public"."rounds";
+
+
+
+ALTER PUBLICATION "supabase_realtime" ADD TABLE ONLY "public"."winners";
+
 
 
 
@@ -2712,6 +2793,24 @@ GRANT ALL ON FUNCTION "public"."process_payment_webhook"("p_webhook_id" bigint, 
 
 
 
+GRANT ALL ON FUNCTION "public"."process_player_command"("p_command" "text", "p_establishment_id" bigint, "p_user_id" bigint) TO "anon";
+GRANT ALL ON FUNCTION "public"."process_player_command"("p_command" "text", "p_establishment_id" bigint, "p_user_id" bigint) TO "authenticated";
+GRANT ALL ON FUNCTION "public"."process_player_command"("p_command" "text", "p_establishment_id" bigint, "p_user_id" bigint) TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."refresh_establishment_stats"() TO "anon";
+GRANT ALL ON FUNCTION "public"."refresh_establishment_stats"() TO "authenticated";
+GRANT ALL ON FUNCTION "public"."refresh_establishment_stats"() TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."trigger_refresh_stats"() TO "anon";
+GRANT ALL ON FUNCTION "public"."trigger_refresh_stats"() TO "authenticated";
+GRANT ALL ON FUNCTION "public"."trigger_refresh_stats"() TO "service_role";
+
+
+
 GRANT ALL ON FUNCTION "public"."update_feature_flags_updated_at"() TO "anon";
 GRANT ALL ON FUNCTION "public"."update_feature_flags_updated_at"() TO "authenticated";
 GRANT ALL ON FUNCTION "public"."update_feature_flags_updated_at"() TO "service_role";
@@ -2721,6 +2820,12 @@ GRANT ALL ON FUNCTION "public"."update_feature_flags_updated_at"() TO "service_r
 GRANT ALL ON FUNCTION "public"."update_ticker_messages_updated_at"() TO "anon";
 GRANT ALL ON FUNCTION "public"."update_ticker_messages_updated_at"() TO "authenticated";
 GRANT ALL ON FUNCTION "public"."update_ticker_messages_updated_at"() TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."update_updated_at"() TO "anon";
+GRANT ALL ON FUNCTION "public"."update_updated_at"() TO "authenticated";
+GRANT ALL ON FUNCTION "public"."update_updated_at"() TO "service_role";
 
 
 
