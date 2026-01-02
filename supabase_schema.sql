@@ -59,6 +59,17 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp" WITH SCHEMA "extensions";
 
 
 
+CREATE TYPE "public"."app_role" AS ENUM (
+    'admin',
+    'manager',
+    'establishment',
+    'user'
+);
+
+
+ALTER TYPE "public"."app_role" OWNER TO "postgres";
+
+
 CREATE OR REPLACE FUNCTION "public"."add_player_to_round"("p_player_id" bigint, "p_round_id" bigint, "p_quantity" integer DEFAULT 1, "p_total_amount" numeric DEFAULT 0) RETURNS bigint
     LANGUAGE "plpgsql" SECURITY DEFINER
     AS $$
@@ -434,6 +445,33 @@ $$;
 ALTER FUNCTION "public"."create_players_batch"("p_establishment_id" bigint, "p_names" "text"[], "p_is_bot" boolean, "p_created_by" bigint) OWNER TO "postgres";
 
 
+CREATE OR REPLACE FUNCTION "public"."get_user_id_by_auth"("p_auth_id" "uuid") RETURNS bigint
+    LANGUAGE "sql" STABLE SECURITY DEFINER
+    SET "search_path" TO 'public'
+    AS $$
+  SELECT id FROM public.users WHERE auth_id = p_auth_id LIMIT 1;
+$$;
+
+
+ALTER FUNCTION "public"."get_user_id_by_auth"("p_auth_id" "uuid") OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."has_role"("_user_id" bigint, "_role" "public"."app_role") RETURNS boolean
+    LANGUAGE "sql" STABLE SECURITY DEFINER
+    SET "search_path" TO 'public'
+    AS $$
+  SELECT EXISTS (
+    SELECT 1
+    FROM public.user_roles
+    WHERE user_id = _user_id
+      AND role = _role
+  )
+$$;
+
+
+ALTER FUNCTION "public"."has_role"("_user_id" bigint, "_role" "public"."app_role") OWNER TO "postgres";
+
+
 CREATE OR REPLACE FUNCTION "public"."hash_password"("password" "text") RETURNS "text"
     LANGUAGE "plpgsql" SECURITY DEFINER
     AS $$
@@ -449,6 +487,22 @@ ALTER FUNCTION "public"."hash_password"("password" "text") OWNER TO "postgres";
 
 COMMENT ON FUNCTION "public"."hash_password"("password" "text") IS 'Gera hash bcrypt de uma senha (10 rounds)';
 
+
+
+CREATE OR REPLACE FUNCTION "public"."is_admin"() RETURNS boolean
+    LANGUAGE "sql" STABLE SECURITY DEFINER
+    SET "search_path" TO 'public'
+    AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.user_roles ur
+    JOIN public.users u ON ur.user_id = u.id
+    WHERE u.auth_id = auth.uid()
+      AND ur.role = 'admin'
+  )
+$$;
+
+
+ALTER FUNCTION "public"."is_admin"() OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."log_groq_usage"("p_prompt_id" bigint, "p_prompt_name" "text", "p_model" "text", "p_user_id" bigint, "p_establishment_id" bigint, "p_request" "jsonb", "p_response" "jsonb", "p_tokens_prompt" integer, "p_tokens_completion" integer, "p_duration_ms" integer, "p_success" boolean, "p_error_message" "text" DEFAULT NULL::"text") RETURNS bigint
@@ -599,6 +653,41 @@ $$;
 
 
 ALTER FUNCTION "public"."refresh_establishment_stats"() OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."resolve_tiebreak_stone"("p_round_id" bigint, "p_card_ids" bigint[]) RETURNS TABLE("winner_card_id" bigint, "stone_number" integer)
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO 'public'
+    AS $$
+DECLARE
+  v_card_id BIGINT;
+  v_max_stone INTEGER := 0;
+  v_winner_id BIGINT;
+  v_stone INTEGER;
+  v_stones INTEGER[] := '{}';
+BEGIN
+  -- Para cada cartela empatada, sortear número de 1-75
+  FOREACH v_card_id IN ARRAY p_card_ids
+  LOOP
+    v_stone := floor(random() * 75 + 1)::INTEGER;
+    -- Garantir número único
+    WHILE v_stone = ANY(v_stones) LOOP
+      v_stone := floor(random() * 75 + 1)::INTEGER;
+    END LOOP;
+    v_stones := array_append(v_stones, v_stone);
+    
+    IF v_stone > v_max_stone THEN
+      v_max_stone := v_stone;
+      v_winner_id := v_card_id;
+    END IF;
+  END LOOP;
+  
+  RETURN QUERY SELECT v_winner_id, v_max_stone;
+END;
+$$;
+
+
+ALTER FUNCTION "public"."resolve_tiebreak_stone"("p_round_id" bigint, "p_card_ids" bigint[]) OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."trigger_refresh_stats"() RETURNS "trigger"
@@ -1305,7 +1394,7 @@ CREATE TABLE IF NOT EXISTS "public"."rounds" (
     "updated_at" timestamp with time zone DEFAULT "now"(),
     "manual_creation" boolean DEFAULT false,
     "winner_criteria" "text" DEFAULT 'full_card'::"text",
-    "tiebreak_rule" "text" DEFAULT 'first_marked'::"text",
+    "tiebreak_rule" "text" DEFAULT 'stone'::"text",
     "min_participants" integer,
     "max_participants" integer,
     "draw_time" time without time zone,
@@ -1429,6 +1518,17 @@ COMMENT ON COLUMN "public"."ticker_messages"."display_order" IS 'Ordem de exibi�
 
 
 
+CREATE TABLE IF NOT EXISTS "public"."user_roles" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "user_id" bigint NOT NULL,
+    "role" "public"."app_role" NOT NULL,
+    "created_at" timestamp with time zone DEFAULT "now"()
+);
+
+
+ALTER TABLE "public"."user_roles" OWNER TO "postgres";
+
+
 CREATE TABLE IF NOT EXISTS "public"."users" (
     "id" bigint NOT NULL,
     "name" "text" NOT NULL,
@@ -1436,7 +1536,7 @@ CREATE TABLE IF NOT EXISTS "public"."users" (
     "whatsapp" "text",
     "phone" "text",
     "cpf" "text",
-    "password_hash" "text" NOT NULL,
+    "password_hash" "text" DEFAULT ''::"text" NOT NULL,
     "role" "text" DEFAULT 'user'::"text" NOT NULL,
     "is_active" boolean DEFAULT true NOT NULL,
     "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
@@ -1539,6 +1639,7 @@ CREATE TABLE IF NOT EXISTS "public"."winners" (
     "claimed_at" timestamp with time zone,
     "paid_at" timestamp with time zone,
     "created_at" timestamp with time zone DEFAULT "now"(),
+    "tiebreak_stone" integer,
     CONSTRAINT "winners_pattern_check" CHECK (("pattern" = ANY (ARRAY['line'::"text", 'full_card'::"text"]))),
     CONSTRAINT "winners_status_check" CHECK (("status" = ANY (ARRAY['pending'::"text", 'claimed'::"text", 'paid'::"text"])))
 );
@@ -1830,6 +1931,16 @@ ALTER TABLE ONLY "public"."settings"
 
 ALTER TABLE ONLY "public"."ticker_messages"
     ADD CONSTRAINT "ticker_messages_pkey" PRIMARY KEY ("id");
+
+
+
+ALTER TABLE ONLY "public"."user_roles"
+    ADD CONSTRAINT "user_roles_pkey" PRIMARY KEY ("id");
+
+
+
+ALTER TABLE ONLY "public"."user_roles"
+    ADD CONSTRAINT "user_roles_user_id_role_key" UNIQUE ("user_id", "role");
 
 
 
@@ -2144,6 +2255,10 @@ CREATE INDEX "idx_ticker_messages_order" ON "public"."ticker_messages" USING "bt
 
 
 
+CREATE INDEX "idx_users_auth_id" ON "public"."users" USING "btree" ("auth_id");
+
+
+
 CREATE INDEX "idx_users_cpf" ON "public"."users" USING "btree" ("cpf");
 
 
@@ -2312,6 +2427,11 @@ ALTER TABLE ONLY "public"."purchases"
 
 
 
+ALTER TABLE ONLY "public"."user_roles"
+    ADD CONSTRAINT "user_roles_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE CASCADE;
+
+
+
 ALTER TABLE ONLY "public"."winners"
     ADD CONSTRAINT "winners_card_id_fkey" FOREIGN KEY ("card_id") REFERENCES "public"."cards"("id") ON DELETE CASCADE;
 
@@ -2332,6 +2452,10 @@ CREATE POLICY "Admin pode gerenciar participações" ON "public"."player_partici
 
 
 CREATE POLICY "Admin pode gerenciar prompts" ON "public"."groq_prompts" TO "authenticated" USING (true);
+
+
+
+CREATE POLICY "Admin pode gerenciar roles" ON "public"."user_roles" USING ("public"."is_admin"());
 
 
 
@@ -2523,6 +2647,12 @@ CREATE POLICY "Users can view own withdrawals" ON "public"."withdrawals" FOR SEL
 
 
 
+CREATE POLICY "Usuário pode ver própria role" ON "public"."user_roles" FOR SELECT USING (("user_id" IN ( SELECT "users"."id"
+   FROM "public"."users"
+  WHERE ("users"."auth_id" = "auth"."uid"()))));
+
+
+
 CREATE POLICY "Usuários autenticados podem ler jogadores" ON "public"."players" FOR SELECT TO "authenticated" USING (true);
 
 
@@ -2543,10 +2673,67 @@ COMMENT ON POLICY "Winners are viewable by everyone" ON "public"."winners" IS 'G
 
 
 
+ALTER TABLE "public"."cards" ENABLE ROW LEVEL SECURITY;
+
+
+ALTER TABLE "public"."charities" ENABLE ROW LEVEL SECURITY;
+
+
+ALTER TABLE "public"."draws" ENABLE ROW LEVEL SECURITY;
+
+
+ALTER TABLE "public"."establishments" ENABLE ROW LEVEL SECURITY;
+
+
+ALTER TABLE "public"."feature_flags" ENABLE ROW LEVEL SECURITY;
+
+
+ALTER TABLE "public"."groq_prompts" ENABLE ROW LEVEL SECURITY;
+
+
+ALTER TABLE "public"."groq_usage_logs" ENABLE ROW LEVEL SECURITY;
+
+
 ALTER TABLE "public"."logs" ENABLE ROW LEVEL SECURITY;
 
 
+ALTER TABLE "public"."managers" ENABLE ROW LEVEL SECURITY;
+
+
+ALTER TABLE "public"."payment_webhooks" ENABLE ROW LEVEL SECURITY;
+
+
+ALTER TABLE "public"."player_participations" ENABLE ROW LEVEL SECURITY;
+
+
+ALTER TABLE "public"."players" ENABLE ROW LEVEL SECURITY;
+
+
 ALTER TABLE "public"."pos_terminals" ENABLE ROW LEVEL SECURITY;
+
+
+ALTER TABLE "public"."purchases" ENABLE ROW LEVEL SECURITY;
+
+
+ALTER TABLE "public"."rounds" ENABLE ROW LEVEL SECURITY;
+
+
+ALTER TABLE "public"."schema_migrations" ENABLE ROW LEVEL SECURITY;
+
+
+ALTER TABLE "public"."settings" ENABLE ROW LEVEL SECURITY;
+
+
+ALTER TABLE "public"."ticker_messages" ENABLE ROW LEVEL SECURITY;
+
+
+ALTER TABLE "public"."user_roles" ENABLE ROW LEVEL SECURITY;
+
+
+ALTER TABLE "public"."users" ENABLE ROW LEVEL SECURITY;
+
+
+ALTER TABLE "public"."winners" ENABLE ROW LEVEL SECURITY;
 
 
 ALTER TABLE "public"."withdrawals" ENABLE ROW LEVEL SECURITY;
@@ -2794,9 +2981,27 @@ GRANT ALL ON FUNCTION "public"."create_players_batch"("p_establishment_id" bigin
 
 
 
+GRANT ALL ON FUNCTION "public"."get_user_id_by_auth"("p_auth_id" "uuid") TO "anon";
+GRANT ALL ON FUNCTION "public"."get_user_id_by_auth"("p_auth_id" "uuid") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."get_user_id_by_auth"("p_auth_id" "uuid") TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."has_role"("_user_id" bigint, "_role" "public"."app_role") TO "anon";
+GRANT ALL ON FUNCTION "public"."has_role"("_user_id" bigint, "_role" "public"."app_role") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."has_role"("_user_id" bigint, "_role" "public"."app_role") TO "service_role";
+
+
+
 GRANT ALL ON FUNCTION "public"."hash_password"("password" "text") TO "anon";
 GRANT ALL ON FUNCTION "public"."hash_password"("password" "text") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."hash_password"("password" "text") TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."is_admin"() TO "anon";
+GRANT ALL ON FUNCTION "public"."is_admin"() TO "authenticated";
+GRANT ALL ON FUNCTION "public"."is_admin"() TO "service_role";
 
 
 
@@ -2827,6 +3032,12 @@ GRANT ALL ON FUNCTION "public"."process_player_command"("p_command" "text", "p_e
 GRANT ALL ON FUNCTION "public"."refresh_establishment_stats"() TO "anon";
 GRANT ALL ON FUNCTION "public"."refresh_establishment_stats"() TO "authenticated";
 GRANT ALL ON FUNCTION "public"."refresh_establishment_stats"() TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."resolve_tiebreak_stone"("p_round_id" bigint, "p_card_ids" bigint[]) TO "anon";
+GRANT ALL ON FUNCTION "public"."resolve_tiebreak_stone"("p_round_id" bigint, "p_card_ids" bigint[]) TO "authenticated";
+GRANT ALL ON FUNCTION "public"."resolve_tiebreak_stone"("p_round_id" bigint, "p_card_ids" bigint[]) TO "service_role";
 
 
 
@@ -3082,6 +3293,12 @@ GRANT ALL ON SEQUENCE "public"."settings_id_seq" TO "service_role";
 GRANT ALL ON TABLE "public"."ticker_messages" TO "anon";
 GRANT ALL ON TABLE "public"."ticker_messages" TO "authenticated";
 GRANT ALL ON TABLE "public"."ticker_messages" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."user_roles" TO "anon";
+GRANT ALL ON TABLE "public"."user_roles" TO "authenticated";
+GRANT ALL ON TABLE "public"."user_roles" TO "service_role";
 
 
 
