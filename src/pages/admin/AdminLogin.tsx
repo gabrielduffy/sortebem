@@ -22,8 +22,14 @@ export default function AdminLogin() {
 
   // Redirect if already authenticated as admin
   useEffect(() => {
-    if (isAuthenticated && user?.role === 'admin') {
-      navigate('/admin');
+    if (isAuthenticated && user) {
+      if (user.role === 'admin') {
+        navigate('/admin');
+      } else {
+        // Wrong role - show error and logout
+        setError('Acesso negado. Esta área é restrita a administradores.');
+        // Optionally logout if wrong role
+      }
     }
   }, [isAuthenticated, user, navigate]);
 
@@ -36,19 +42,11 @@ export default function AdminLogin() {
       const result = await login(formData.email, formData.password);
 
       if (result.ok) {
-        // Check if user is admin
-        const currentUser = user;
-        if (currentUser?.role !== 'admin') {
-          setError('Acesso negado. Esta área é restrita a administradores.');
-          setLoading(false);
-          return;
-        }
-
+        // The useEffect will handle the redirect once user state updates
         toast({
           title: "Login realizado!",
           description: "Bem-vindo ao painel administrativo."
         });
-        navigate('/admin');
       } else {
         setError(result.error || 'Credenciais inválidas. Tente novamente.');
       }
