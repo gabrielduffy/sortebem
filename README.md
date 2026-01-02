@@ -629,6 +629,93 @@ const response = await apiService.generatePix({
 
 ---
 
+## 🔧 **Correções e Melhorias Recentes**
+
+### **✅ Fase 1: Correção do Banco de Dados** (02/01/2026)
+- [x] RLS habilitado em todas as 21 tabelas do sistema
+- [x] Tabela `user_roles` criada com enum `app_role` (admin, manager, establishment, user)
+- [x] Função `has_role()` criada como SECURITY DEFINER para evitar recursão
+- [x] Função `is_admin()` criada para verificação segura de admin
+- [x] Função `resolve_tiebreak_stone()` criada para desempate por pedra (1-75)
+- [x] Campo `tiebreak_stone` adicionado na tabela `winners`
+- [x] Índices de performance criados:
+  - `rounds.status` para filtros de rodadas
+  - `purchases.payment_status` para validação de pagamentos
+  - `cards.code` para busca rápida de cartelas
+- [x] Rodadas com status errado corrigidas automaticamente
+- [x] Permissões GRANT configuradas em todas as tabelas
+- [x] Sequências de auto-incremento corrigidas
+
+### **✅ Fase 2: Métodos ApiService Completos** (02/01/2026)
+
+Adicionados **43 métodos** faltantes no `apiService.ts`:
+
+#### **Resultados/Prêmios**
+- `checkCardPrize(cardCode)` - Verificar se cartela é vencedora
+- `getCardWithdrawHistory(cardId)` - Histórico de saques
+- `requestPrizeWithdrawal(winnerId, pixKey)` - Solicitar saque de prêmio
+- `getFinishedRoundsWithWinners()` - Listar rodadas finalizadas com vencedores
+
+#### **Estabelecimento**
+- `getEstablishmentByCode(code)` - Buscar estabelecimento por código
+- `getCurrentEstablishment()` - Dados do estabelecimento atual
+- `getEstablishmentTransactions(establishmentId)` - Transações do estabelecimento
+- `getEstablishmentFinancials(establishmentId, startDate, endDate)` - Relatório financeiro
+- `getPosTerminals(establishmentId)` - Listar terminais POS
+- `createPosTerminal(establishmentId, data)` - Criar terminal POS
+- `togglePosTerminal(terminalId, active)` - Ativar/desativar POS
+
+#### **Gerente**
+- `getCurrentManager()` - Dados do gerente atual
+- `getManagerEstablishments(managerId)` - Estabelecimentos do gerente
+- `getManagerTransactions(managerId)` - Transações do gerente
+- `getManagerNetwork(managerId)` - Rede de estabelecimentos
+- `getManagerRoundHistory(managerId)` - Histórico de rodadas
+- `registerEstablishment(managerId, data)` - Cadastrar novo estabelecimento
+- `getRoundHistorySummary(managerId)` - Resumo de rodadas
+
+#### **Financeiro**
+- `requestWithdrawal(data)` - Solicitar saque (gerente/estabelecimento)
+- `getAdminWithdrawals(status?, limit?)` - Listar saques (admin)
+- `getAdminFinanceHistory(startDate, endDate)` - Histórico financeiro (admin)
+- `getAdminPrizes()` - Listar prêmios pendentes (admin)
+- `updateWithdrawalStatus(withdrawalId, status)` - Atualizar status de saque
+
+#### **Integrações**
+- `updateSMTPSettings(settings)` - Configurar SMTP
+- `testSMTP(settings)` - Testar envio de e-mail
+- `updateSettings(key, value)` - Atualizar configuração geral
+- `requestPasswordReset(email)` - Solicitar reset de senha
+- `updateAsaasData(entityType, entityId, data)` - Atualizar dados Asaas
+
+#### **TV Mode**
+- `getTVDataByCode(establishmentCode)` - Buscar dados para TV por código
+
+### **✅ Fase 3: Correção de Tipos TypeScript** (02/01/2026)
+- [x] `ProtectedRoute.tsx` - Adicionado tipo `'user'` nos roles permitidos
+- [x] `useAuth.tsx` - Corrigido conflito entre Promise e SetStateAction
+- [x] `DataTable.tsx` - Aceita `id: string | number` para flexibilidade
+
+### **✅ Fase 4: Transformação /resgatar → /resultados** (02/01/2026)
+- [x] Nova página `Results.tsx` criada com:
+  - Campo para verificar código da cartela
+  - Exibição de resultado (vencedora/não vencedora/já resgatada)
+  - Formulário de saque PIX para vencedores
+  - Lista das últimas rodadas finalizadas com vencedores
+- [x] Rota alterada de `/resgatar` para `/resultados`
+- [x] Arquivo `Redeem.tsx` removido (deprecated)
+- [x] UX melhorada com feedback visual claro
+
+### **🔄 Correções de Autenticação** (02/01/2026)
+- [x] Campo `auth_id` (UUID) adicionado em `users`, `managers`, `establishments`
+- [x] Criação de gerentes corrigida para usar `auth_id` ao invés de `id`
+- [x] Criação de estabelecimentos corrigida para usar `auth_id` ao invés de `id`
+- [x] Função `create_manual_round()` corrigida para usar `prize_pool` ao invés de `prize`
+- [x] Tabela `ticker_messages` criada e funcional
+- [x] Tabela `players` criada e funcional
+
+---
+
 ## 📊 **Estrutura de Dados**
 
 ### **Settings (Configurações)**
@@ -706,5 +793,5 @@ Propriedade privada de SORTEBEM. Todos os direitos reservados.
 
 ---
 
-**Última atualização**: 31/12/2024
-**Versão**: 1.0.0
+**Última atualização**: 02/01/2026
+**Versão**: 1.1.0
