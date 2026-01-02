@@ -22,8 +22,12 @@ export default function ManagerLogin() {
 
   // Redirect if already authenticated as manager
   useEffect(() => {
-    if (isAuthenticated && user?.role === 'manager') {
-      navigate('/gerente');
+    if (isAuthenticated && user) {
+      if (user.role === 'manager') {
+        navigate('/gerente');
+      } else {
+        setError('Acesso negado. Esta área é restrita a gerentes.');
+      }
     }
   }, [isAuthenticated, user, navigate]);
 
@@ -36,19 +40,11 @@ export default function ManagerLogin() {
       const result = await login(formData.email, formData.password);
 
       if (result.ok) {
-        // Check if user is manager
-        const currentUser = user;
-        if (currentUser?.role !== 'manager') {
-          setError('Acesso negado. Esta área é restrita a gerentes.');
-          setLoading(false);
-          return;
-        }
-
+        // The useEffect will handle the redirect once user state updates
         toast({
           title: "Login realizado!",
           description: "Bem-vindo ao painel do gerente."
         });
-        navigate('/gerente');
       } else {
         setError(result.error || 'Credenciais inválidas. Tente novamente.');
       }

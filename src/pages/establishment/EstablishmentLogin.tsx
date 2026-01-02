@@ -25,8 +25,12 @@ export default function EstablishmentLogin() {
 
   // Redirect if already authenticated as establishment
   useEffect(() => {
-    if (isAuthenticated && user?.role === 'establishment') {
-      navigate('/estabelecimento');
+    if (isAuthenticated && user) {
+      if (user.role === 'establishment') {
+        navigate('/estabelecimento');
+      } else {
+        setError('Acesso negado. Esta área é restrita a estabelecimentos.');
+      }
     }
   }, [isAuthenticated, user, navigate]);
 
@@ -39,19 +43,11 @@ export default function EstablishmentLogin() {
       const result = await login(formData.email, formData.password);
 
       if (result.ok) {
-        // Check if user is establishment
-        const currentUser = user;
-        if (currentUser?.role !== 'establishment') {
-          setError('Acesso negado. Esta área é restrita a estabelecimentos.');
-          setLoading(false);
-          return;
-        }
-
+        // The useEffect will handle the redirect once user state updates
         toast({
           title: "Login realizado!",
           description: "Bem-vindo ao painel do estabelecimento.",
         });
-        navigate('/estabelecimento');
       } else {
         setError(result.error || 'Credenciais inválidas. Tente novamente.');
       }
