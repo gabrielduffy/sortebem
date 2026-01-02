@@ -4,10 +4,11 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
+import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from '@/hooks/use-toast';
-import { Save, DollarSign, Percent, Clock, Hash, Trophy, MessageSquare, Plus, Trash2, Edit2, Eye, EyeOff, GripVertical } from 'lucide-react';
+import { Save, DollarSign, Percent, Clock, Hash, Trophy, MessageSquare, Plus, Trash2, Edit2, Eye, EyeOff, GripVertical, FileText, Shield, BarChart3 } from 'lucide-react';
 import { apiService } from '@/services/api';
 
 export default function AdminSettings() {
@@ -36,6 +37,12 @@ export default function AdminSettings() {
   const [editingTickerId, setEditingTickerId] = useState<string | null>(null);
   const [tickerForm, setTickerForm] = useState({ message: '', icon: '📢', is_active: true, display_order: 0 });
 
+  // Legal texts state
+  const [legalTerms, setLegalTerms] = useState('');
+  const [legalPrivacy, setLegalPrivacy] = useState('');
+  const [legalTransparency, setLegalTransparency] = useState('');
+  const [savingLegal, setSavingLegal] = useState(false);
+
   useEffect(() => {
     const loadSettings = async () => {
       try {
@@ -50,6 +57,18 @@ export default function AdminSettings() {
         const tickerResponse = await apiService.getTickerMessages();
         if (tickerResponse.ok && tickerResponse.data) {
           setTickerMessages(tickerResponse.data);
+        }
+
+        // Load legal texts
+        if (response.ok && response.data) {
+          const allSettings = response.data;
+          const terms = allSettings.find((s: any) => s.key === 'legal_terms');
+          const privacy = allSettings.find((s: any) => s.key === 'legal_privacy');
+          const transparency = allSettings.find((s: any) => s.key === 'legal_transparency');
+          
+          if (terms?.value) setLegalTerms(typeof terms.value === 'string' ? terms.value : '');
+          if (privacy?.value) setLegalPrivacy(typeof privacy.value === 'string' ? privacy.value : '');
+          if (transparency?.value) setLegalTransparency(typeof transparency.value === 'string' ? transparency.value : '');
         }
       } catch (error) {
         console.error('Error loading settings:', error);
@@ -180,6 +199,23 @@ export default function AdminSettings() {
     }
   };
 
+  // Save legal texts
+  const handleSaveLegalTexts = async () => {
+    setSavingLegal(true);
+    try {
+      await Promise.all([
+        apiService.updateSetting('legal_terms', legalTerms),
+        apiService.updateSetting('legal_privacy', legalPrivacy),
+        apiService.updateSetting('legal_transparency', legalTransparency),
+      ]);
+      toast({ title: 'Textos salvos!', description: 'Os textos legais foram atualizados.' });
+    } catch (error) {
+      toast({ title: 'Erro', description: 'Não foi possível salvar os textos.', variant: 'destructive' });
+    } finally {
+      setSavingLegal(false);
+    }
+  };
+
   if (loading) {
     return (
       <DashboardLayout userType="admin" userName="Administrador" notifications={0}>
@@ -205,12 +241,13 @@ export default function AdminSettings() {
         </div>
 
         <Tabs defaultValue="valores" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-5">
+          <TabsList className="grid w-full grid-cols-6">
             <TabsTrigger value="valores">Valores</TabsTrigger>
-            <TabsTrigger value="splits">Splits/Pools</TabsTrigger>
-            <TabsTrigger value="jogo">Regras do Jogo</TabsTrigger>
+            <TabsTrigger value="splits">Splits</TabsTrigger>
+            <TabsTrigger value="jogo">Regras</TabsTrigger>
             <TabsTrigger value="sistema">Sistema</TabsTrigger>
             <TabsTrigger value="letreiro">Letreiro</TabsTrigger>
+            <TabsTrigger value="textos">Textos</TabsTrigger>
           </TabsList>
 
           <TabsContent value="valores" className="space-y-4">
@@ -631,6 +668,84 @@ export default function AdminSettings() {
                     </div>
                   </div>
                 )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="textos" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <FileText className="w-5 h-5 text-primary" />
+                  Textos Legais
+                </CardTitle>
+                <CardDescription>
+                  Edite os textos de Termos de Uso, Política de Privacidade e Transparência
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="flex justify-end">
+                  <Button onClick={handleSaveLegalTexts} disabled={savingLegal}>
+                    <Save className="w-4 h-4" />
+                    {savingLegal ? 'Salvando...' : 'Salvar Textos'}
+                  </Button>
+                </div>
+
+                <Tabs defaultValue="terms" className="w-full">
+                  <TabsList className="grid w-full grid-cols-3">
+                    <TabsTrigger value="terms" className="gap-2">
+                      <FileText className="w-4 h-4" />
+                      Termos de Uso
+                    </TabsTrigger>
+                    <TabsTrigger value="privacy" className="gap-2">
+                      <Shield className="w-4 h-4" />
+                      Política de Privacidade
+                    </TabsTrigger>
+                    <TabsTrigger value="transparency" className="gap-2">
+                      <BarChart3 className="w-4 h-4" />
+                      Transparência
+                    </TabsTrigger>
+                  </TabsList>
+
+                  <TabsContent value="terms" className="mt-4">
+                    <div className="space-y-2">
+                      <Label>Termos de Uso</Label>
+                      <Textarea
+                        placeholder="Digite os termos de uso..."
+                        value={legalTerms}
+                        onChange={(e) => setLegalTerms(e.target.value)}
+                        className="min-h-[400px] font-mono text-sm"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Use quebras de linha para formatação. Linhas começando com números (1., 2.1.) serão formatadas como títulos.
+                      </p>
+                    </div>
+                  </TabsContent>
+
+                  <TabsContent value="privacy" className="mt-4">
+                    <div className="space-y-2">
+                      <Label>Política de Privacidade</Label>
+                      <Textarea
+                        placeholder="Digite a política de privacidade..."
+                        value={legalPrivacy}
+                        onChange={(e) => setLegalPrivacy(e.target.value)}
+                        className="min-h-[400px] font-mono text-sm"
+                      />
+                    </div>
+                  </TabsContent>
+
+                  <TabsContent value="transparency" className="mt-4">
+                    <div className="space-y-2">
+                      <Label>Transparência</Label>
+                      <Textarea
+                        placeholder="Digite o texto de transparência..."
+                        value={legalTransparency}
+                        onChange={(e) => setLegalTransparency(e.target.value)}
+                        className="min-h-[400px] font-mono text-sm"
+                      />
+                    </div>
+                  </TabsContent>
+                </Tabs>
               </CardContent>
             </Card>
           </TabsContent>
