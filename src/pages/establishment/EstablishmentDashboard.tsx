@@ -56,7 +56,7 @@ export default function EstablishmentDashboard() {
         if (statsRes.ok) setStats(statsRes.data);
 
         // 2. Round History (filtered by establishment)
-        const roundRes = await apiService.getRoundHistorySummary(undefined, estRes.data.id);
+        const roundRes = await apiService.getRoundHistorySummary();
         if (roundRes.ok) setRoundHistory(roundRes.data || []);
 
         // 3. Recent Sales

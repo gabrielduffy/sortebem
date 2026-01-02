@@ -27,25 +27,29 @@ export default function ManagerCommissions() {
   const loadData = async () => {
     try {
       setLoading(true);
-      const [statsRes, transRes, mgrRes] = await Promise.all([
-        apiService.getManagerStats(),
-        apiService.getManagerTransactions(),
-        apiService.getCurrentManager()
-      ]);
+      const mgrRes = await apiService.getCurrentManager();
 
-      if (statsRes.ok) setStats(statsRes.data);
-      if (mgrRes.ok) setManager(mgrRes.data);
-      if (transRes.ok) {
-        // Map withdrawals to transaction format
-        const formatted = (transRes.data || []).map((t: any) => ({
-          id: t.id,
-          description: `Solicitação de Saque`,
-          amount: t.amount,
-          type: 'withdrawal',
-          created_at: t.created_at,
-          status: t.status
-        }));
-        setTransactions(formatted);
+      if (mgrRes.ok && mgrRes.data) {
+        setManager(mgrRes.data);
+        
+        const [statsRes, transRes] = await Promise.all([
+          apiService.getManagerStats(),
+          apiService.getManagerTransactions(mgrRes.data.id)
+        ]);
+
+        if (statsRes.ok) setStats(statsRes.data);
+        if (transRes.ok) {
+          // Map withdrawals to transaction format
+          const formatted = (transRes.data || []).map((t: any) => ({
+            id: t.id,
+            description: `Solicitação de Saque`,
+            amount: t.amount,
+            type: 'withdrawal',
+            created_at: t.created_at,
+            status: t.status
+          }));
+          setTransactions(formatted);
+        }
       }
     } catch (error) {
       console.error('Error loading manager commissions:', error);
@@ -62,7 +66,12 @@ export default function ManagerCommissions() {
     }
 
     try {
-      const response = await apiService.requestWithdrawal(amount);
+      const response = await apiService.requestWithdrawal({
+        amount,
+        pixKey: manager?.pix_key || '',
+        userType: 'manager',
+        entityId: manager?.id || 0
+      });
       if (response.ok) {
         toast({ title: 'Saque solicitado!', description: 'Sua solicitação está em processamento.' });
         setWithdrawAmount('');

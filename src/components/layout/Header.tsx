@@ -18,7 +18,7 @@ const Header = () => {
   const navLinks = [
     { href: '/como-funciona', label: 'Como Funciona', icon: Heart },
     { href: '/checkout', label: 'Comprar Cartelas', icon: Gift },
-    { href: '/resgatar', label: 'Resgatar Prêmio', icon: Trophy },
+    { href: '/resultados', label: 'Resultados', icon: Trophy },
     { href: '/tv/demo', label: 'Modo TV', icon: Tv },
   ];
 

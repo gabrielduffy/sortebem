@@ -113,7 +113,7 @@ export default function EstablishmentPOS() {
 
   const toggleTerminal = async (id: string, currentStatus: boolean) => {
     try {
-      const result = await apiService.togglePosTerminal(id, !currentStatus);
+      const result = await apiService.togglePosTerminal(parseInt(id), !currentStatus);
       if (result.ok) {
         setTerminals(terminals.map(t =>
           t.id === id ? { ...t, isActive: !t.isActive } : t

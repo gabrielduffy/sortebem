@@ -9,7 +9,7 @@ import Index from "./pages/Index";
 import CardView from "./pages/CardView";
 import TVMode from "./pages/TVMode";
 import Checkout from "./pages/Checkout";
-import Redeem from "./pages/Redeem";
+import Results from "./pages/Results";
 import HowItWorks from "./pages/HowItWorks";
 import NotFound from "./pages/NotFound";
 import SejaParceiro from "./pages/SejaParceiro";
@@ -67,7 +67,7 @@ const App = () => (
             <Route path="/comprar" element={<Checkout />} />
             <Route path="/tv/:code" element={<TVMode />} />
             <Route path="/tv/:slugEstabelecimento" element={<TVMode />} />
-            <Route path="/resgatar" element={<Redeem />} />
+            <Route path="/resultados" element={<Results />} />
             <Route path="/como-funciona" element={<HowItWorks />} />
             <Route path="/seja-parceiro" element={<SejaParceiro />} />
 

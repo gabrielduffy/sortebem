@@ -33,9 +33,9 @@ export default function EstablishmentFinance() {
         const statsRes = await apiService.getEstablishmentStats();
         if (statsRes.ok) setStats(statsRes.data);
 
-        const response = await apiService.getEstablishmentFinancials();
+        const response = await apiService.getEstablishmentFinancials(estRes.data.id);
         if (response.ok) {
-          setTransactions(response.data || []);
+          setTransactions(response.data?.withdrawals || []);
         }
       }
     } catch (error) {
@@ -54,7 +54,12 @@ export default function EstablishmentFinance() {
     }
 
     try {
-      const response = await apiService.requestWithdrawal(amount);
+      const response = await apiService.requestWithdrawal({
+        amount,
+        pixKey: establishment?.pix_key || '',
+        userType: 'establishment',
+        entityId: establishment?.id || 0
+      });
       if (response.ok) {
         toast({ title: 'Sucesso!', description: 'Solicitação de saque enviada.' });
         setWithdrawAmount('');

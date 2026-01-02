@@ -26,13 +26,12 @@ export default function ManagerNetwork() {
     try {
       setLoading(true);
 
-      const [mgrRes, netRes] = await Promise.all([
-        apiService.getCurrentManager(),
-        apiService.getManagerNetwork()
-      ]);
-
-      if (mgrRes.ok) setManager(mgrRes.data);
-      if (netRes.ok) setEstablishments(netRes.data);
+      const mgrRes = await apiService.getCurrentManager();
+      if (mgrRes.ok && mgrRes.data) {
+        setManager(mgrRes.data);
+        const netRes = await apiService.getManagerNetwork(mgrRes.data.id);
+        if (netRes.ok) setEstablishments(netRes.data);
+      }
 
     } catch (error) {
       console.error('Error loading network:', error);

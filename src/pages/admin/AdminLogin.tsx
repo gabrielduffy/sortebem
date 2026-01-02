@@ -69,7 +69,7 @@ export default function AdminLogin() {
       setResetLoading(true);
       const response = await apiService.requestPasswordReset(resetEmail);
       if (response.ok) {
-        toast({ title: 'Solicitação enviada!', description: response.message });
+        toast({ title: 'Solicitação enviada!', description: 'Verifique seu e-mail.' });
         setIsResetModalOpen(false);
       } else {
         toast({ title: 'Erro', description: response.error || 'Erro ao solicitar recuperação.', variant: 'destructive' });

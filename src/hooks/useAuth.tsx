@@ -22,9 +22,10 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
   // Initialize auth state from localStorage
   useEffect(() => {
-    const initAuth = () => {
-      const storedUser = apiService.getUser();
-      if (storedUser && apiService.isAuthenticated()) {
+    const initAuth = async () => {
+      const storedUser = await apiService.getUser();
+      const isAuth = await apiService.isAuthenticated();
+      if (storedUser && isAuth) {
         setUser(storedUser);
       }
       setLoading(false);

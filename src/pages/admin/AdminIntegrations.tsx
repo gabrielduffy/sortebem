@@ -252,7 +252,7 @@ export default function AdminIntegrations() {
     }
     toast({ title: 'Testando...', description: 'Enviando e-mail de teste.' });
     try {
-      const response = await apiService.testSMTP(testEmail, smtpConfig);
+      const response = await apiService.testSMTP();
       if (response.ok) {
         toast({ title: 'Sucesso!', description: 'E-mail de teste enviado.' });
       } else {
