@@ -145,6 +145,7 @@ export type Database = {
       establishments: {
         Row: {
           address: string | null
+          auth_id: string | null
           balance: number | null
           city: string | null
           cnpj: string | null
@@ -167,6 +168,7 @@ export type Database = {
         }
         Insert: {
           address?: string | null
+          auth_id?: string | null
           balance?: number | null
           city?: string | null
           cnpj?: string | null
@@ -189,6 +191,7 @@ export type Database = {
         }
         Update: {
           address?: string | null
+          auth_id?: string | null
           balance?: number | null
           city?: string | null
           cnpj?: string | null
@@ -395,6 +398,7 @@ export type Database = {
       }
       managers: {
         Row: {
+          auth_id: string | null
           balance: number | null
           code: string
           commission_rate: number | null
@@ -409,6 +413,7 @@ export type Database = {
           user_id: number | null
         }
         Insert: {
+          auth_id?: string | null
           balance?: number | null
           code: string
           commission_rate?: number | null
@@ -423,6 +428,7 @@ export type Database = {
           user_id?: number | null
         }
         Update: {
+          auth_id?: string | null
           balance?: number | null
           code?: string
           commission_rate?: number | null
@@ -918,6 +924,7 @@ export type Database = {
       }
       users: {
         Row: {
+          auth_id: string | null
           cpf: string | null
           created_at: string
           email: string | null
@@ -933,6 +940,7 @@ export type Database = {
           whatsapp: string | null
         }
         Insert: {
+          auth_id?: string | null
           cpf?: string | null
           created_at?: string
           email?: string | null
@@ -948,6 +956,7 @@ export type Database = {
           whatsapp?: string | null
         }
         Update: {
+          auth_id?: string | null
           cpf?: string | null
           created_at?: string
           email?: string | null
