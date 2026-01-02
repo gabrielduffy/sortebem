@@ -58,8 +58,8 @@ const Footer = () => {
                 </Link>
               </li>
               <li>
-                <Link to="/resgatar" className="text-background/70 hover:text-primary transition-colors">
-                  Resgatar Prêmio
+                <Link to="/resultados" className="text-background/70 hover:text-primary transition-colors">
+                  Resultados
                 </Link>
               </li>
               <li>
