@@ -8,13 +8,11 @@ import CountdownTimer from '@/components/game/CountdownTimer';
 import CharityHighlight from '@/components/charity/CharityHighlight';
 import RecentWinners from '@/components/game/RecentWinners';
 import { apiService } from '@/services/api';
-
 const Index = () => {
   const [charity, setCharity] = useState<any>(null);
   const [currentRound, setCurrentRound] = useState<any>(null);
   const [specialRound, setSpecialRound] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-
   useEffect(() => {
     const loadData = async () => {
       try {
@@ -37,7 +35,6 @@ const Index = () => {
         if (roundsResponse.ok && roundsResponse.data) {
           const regularRound = roundsResponse.data.find((r: any) => r.type === 'regular' && r.is_selling);
           const specialRound = roundsResponse.data.find((r: any) => r.type === 'special' && r.is_selling);
-
           if (regularRound) {
             setCurrentRound({
               prizePool: (regularRound.cards_sold || 0) * (regularRound.card_price || 5) * 0.4,
@@ -46,7 +43,6 @@ const Index = () => {
               endTime: new Date(regularRound.ends_at)
             });
           }
-
           if (specialRound) {
             setSpecialRound({
               prizePool: (specialRound.cards_sold || 0) * (specialRound.card_price || 10) * 0.4,
@@ -61,56 +57,43 @@ const Index = () => {
         setLoading(false);
       }
     };
-
     loadData();
 
     // Reload data every 10 seconds
     const interval = setInterval(loadData, 10000);
     return () => clearInterval(interval);
   }, []);
-
-  const features = [
-    {
-      icon: Clock,
-      title: 'Rodadas a cada 10 min',
-      description: 'Sorteios rápidos e emocionantes acontecendo o tempo todo.',
-    },
-    {
-      icon: Trophy,
-      title: 'Rodada Especial',
-      description: 'A cada 60 minutos, prêmios maiores aguardam você.',
-    },
-    {
-      icon: Heart,
-      title: '20% para Caridade',
-      description: 'Parte de cada cartela vai para instituições beneficentes.',
-    },
-    {
-      icon: Shield,
-      title: '100% Transparente',
-      description: 'Acompanhe em tempo real toda a arrecadação.',
-    },
-  ];
-
+  const features = [{
+    icon: Clock,
+    title: 'Rodadas a cada 10 min',
+    description: 'Sorteios rápidos e emocionantes acontecendo o tempo todo.'
+  }, {
+    icon: Trophy,
+    title: 'Rodada Especial',
+    description: 'A cada 60 minutos, prêmios maiores aguardam você.'
+  }, {
+    icon: Heart,
+    title: '20% para Caridade',
+    description: 'Parte de cada cartela vai para instituições beneficentes.'
+  }, {
+    icon: Shield,
+    title: '100% Transparente',
+    description: 'Acompanhe em tempo real toda a arrecadação.'
+  }];
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', {
       style: 'currency',
-      currency: 'BRL',
+      currency: 'BRL'
     }).format(value);
   };
-
   if (loading) {
-    return (
-      <PublicLayout>
+    return <PublicLayout>
         <div className="min-h-screen flex items-center justify-center">
           <div className="animate-spin w-12 h-12 border-4 border-primary border-t-transparent rounded-full" />
         </div>
-      </PublicLayout>
-    );
+      </PublicLayout>;
   }
-
-  return (
-    <PublicLayout>
+  return <PublicLayout>
       {/* Hero Section */}
       <section className="relative bg-gradient-hero min-h-[90vh] flex items-center overflow-hidden">
         {/* Background decorations */}
@@ -122,12 +105,15 @@ const Index = () => {
         <div className="container mx-auto px-4 py-12 md:py-20 relative z-10">
           <div className="grid lg:grid-cols-2 gap-12 items-center">
             {/* Left Content */}
-            <motion.div
-              initial={{ opacity: 0, x: -30 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.6 }}
-              className="space-y-6"
-            >
+            <motion.div initial={{
+            opacity: 0,
+            x: -30
+          }} animate={{
+            opacity: 1,
+            x: 0
+          }} transition={{
+            duration: 0.6
+          }} className="space-y-6">
               <div className="inline-flex items-center gap-2 bg-primary/10 text-primary px-4 py-2 rounded-full">
                 <Heart className="w-4 h-4" />
                 <span className="text-sm font-medium">Sorteios Beneficentes</span>
@@ -160,8 +146,7 @@ const Index = () => {
               </div>
 
               {/* Stats */}
-              {currentRound && (
-                <div className="flex gap-8 pt-4">
+              {currentRound && <div className="flex gap-8 pt-4">
                   <div>
                     <p className="text-2xl md:text-3xl font-bold text-primary">
                       {formatCurrency(currentRound.prizePool)}
@@ -174,30 +159,23 @@ const Index = () => {
                     </p>
                     <p className="text-sm text-muted-foreground">Cartelas Vendidas</p>
                   </div>
-                </div>
-              )}
+                </div>}
             </motion.div>
 
             {/* Right Content - Countdowns */}
-            <motion.div
-              initial={{ opacity: 0, x: 30 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.6, delay: 0.2 }}
-              className="space-y-6"
-            >
-              {currentRound && (
-                <CountdownTimer
-                  targetTime={currentRound.endTime}
-                  label="Próxima Rodada"
-                />
-              )}
-              {specialRound && (
-                <>
-                  <CountdownTimer
-                    targetTime={specialRound.endTime}
-                    label="Rodada Especial"
-                    variant="special"
-                  />
+            <motion.div initial={{
+            opacity: 0,
+            x: 30
+          }} animate={{
+            opacity: 1,
+            x: 0
+          }} transition={{
+            duration: 0.6,
+            delay: 0.2
+          }} className="space-y-6">
+              {currentRound && <CountdownTimer targetTime={currentRound.endTime} label="Próxima Rodada" />}
+              {specialRound && <>
+                  <CountdownTimer targetTime={specialRound.endTime} label="Rodada Especial" variant="special" />
                   
                   {/* Prize Pool Display */}
                   <div className="bg-card border border-border rounded-2xl p-6 text-center">
@@ -208,24 +186,17 @@ const Index = () => {
                       {formatCurrency(specialRound.prizePool)}
                     </p>
                   </div>
-                </>
-              )}
+                </>}
             </motion.div>
           </div>
         </div>
       </section>
 
       {/* Charity Section */}
-      {charity && (
-        <section className="py-16 md:py-24 bg-secondary">
+      {charity && <section className="py-16 md:py-24 bg-secondary">
           <div className="container mx-auto px-4">
             <div className="grid lg:grid-cols-2 gap-12 items-center">
-              <CharityHighlight
-                name={charity.name}
-                logo={charity.logo}
-                description={charity.description}
-                totalRaised={charity.totalRaised}
-              />
+              <CharityHighlight name={charity.name} logo={charity.logo} description={charity.description} totalRaised={charity.totalRaised} />
               
               <div className="space-y-6">
                 <h2 className="text-3xl md:text-4xl font-bold text-foreground">
@@ -238,7 +209,7 @@ const Index = () => {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="bg-card border border-border rounded-xl p-4">
                     <TrendingUp className="w-8 h-8 text-primary mb-2" />
-                    <p className="text-2xl font-bold text-foreground">20%</p>
+                    <p className="text-2xl font-bold text-foreground">Doação</p>
                     <p className="text-sm text-muted-foreground">Para caridade</p>
                   </div>
                   <div className="bg-card border border-border rounded-xl p-4">
@@ -250,8 +221,7 @@ const Index = () => {
               </div>
             </div>
           </div>
-        </section>
-      )}
+        </section>}
 
       {/* How It Works */}
       <section className="py-16 md:py-24">
@@ -267,15 +237,17 @@ const Index = () => {
           </div>
 
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {features.map((feature, index) => (
-              <motion.div
-                key={index}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: index * 0.1 }}
-                className="bg-card border border-border rounded-2xl p-6 hover:shadow-lg transition-shadow"
-              >
+            {features.map((feature, index) => <motion.div key={index} initial={{
+            opacity: 0,
+            y: 20
+          }} whileInView={{
+            opacity: 1,
+            y: 0
+          }} viewport={{
+            once: true
+          }} transition={{
+            delay: index * 0.1
+          }} className="bg-card border border-border rounded-2xl p-6 hover:shadow-lg transition-shadow">
                 <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center mb-4">
                   <feature.icon className="w-6 h-6 text-primary" />
                 </div>
@@ -283,8 +255,7 @@ const Index = () => {
                   {feature.title}
                 </h3>
                 <p className="text-muted-foreground">{feature.description}</p>
-              </motion.div>
-            ))}
+              </motion.div>)}
           </div>
         </div>
       </section>
@@ -292,12 +263,15 @@ const Index = () => {
       {/* CTA Section */}
       <section className="py-16 md:py-24 bg-gradient-primary">
         <div className="container mx-auto px-4 text-center">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            whileInView={{ opacity: 1, scale: 1 }}
-            viewport={{ once: true }}
-            className="max-w-3xl mx-auto space-y-6"
-          >
+          <motion.div initial={{
+          opacity: 0,
+          scale: 0.95
+        }} whileInView={{
+          opacity: 1,
+          scale: 1
+        }} viewport={{
+          once: true
+        }} className="max-w-3xl mx-auto space-y-6">
             <h2 className="text-3xl md:text-4xl font-bold text-primary-foreground">
               Pronto para participar?
             </h2>
@@ -307,30 +281,19 @@ const Index = () => {
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Link to="/checkout">
-                <Button 
-                  size="xl" 
-                  className="bg-background text-primary hover:bg-background/90 shadow-xl"
-                >
+                <Button size="xl" className="bg-background text-primary hover:bg-background/90 shadow-xl">
                   <Gift className="w-5 h-5" />
                   Comprar Cartelas
                 </Button>
               </Link>
               <Link to="/resultados">
-                <Button 
-                  variant="outline" 
-                  size="xl"
-                  className="border-primary-foreground text-primary-foreground hover:bg-primary-foreground/10"
-                >
+                <Button variant="outline" size="xl" className="border-primary-foreground text-primary-foreground hover:bg-primary-foreground/10">
                   <Trophy className="w-5 h-5" />
                   Resultados
                 </Button>
               </Link>
               <Link to="/tv/demo">
-                <Button 
-                  variant="outline" 
-                  size="xl"
-                  className="border-primary-foreground text-primary-foreground hover:bg-primary-foreground/10"
-                >
+                <Button variant="outline" size="xl" className="border-primary-foreground text-primary-foreground hover:bg-primary-foreground/10">
                   <Tv className="w-5 h-5" />
                   Modo TV
                 </Button>
@@ -339,8 +302,6 @@ const Index = () => {
           </motion.div>
         </div>
       </section>
-    </PublicLayout>
-  );
+    </PublicLayout>;
 };
-
 export default Index;
