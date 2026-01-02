@@ -2,9 +2,11 @@ import { ReactNode } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 
+type UserRole = 'admin' | 'manager' | 'establishment' | 'user';
+
 interface ProtectedRouteProps {
   children: ReactNode;
-  allowedRoles?: ('admin' | 'manager' | 'establishment')[];
+  allowedRoles?: UserRole[];
   redirectTo?: string;
 }
 

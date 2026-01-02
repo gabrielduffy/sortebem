@@ -922,6 +922,35 @@ export type Database = {
         }
         Relationships: []
       }
+      user_roles: {
+        Row: {
+          created_at: string | null
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: number
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: number
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_roles_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       users: {
         Row: {
           auth_id: string | null
@@ -947,7 +976,7 @@ export type Database = {
           id?: number
           is_active?: boolean
           name: string
-          password_hash: string
+          password_hash?: string
           password_hash_new?: string | null
           password_migrated?: boolean | null
           phone?: string | null
@@ -987,6 +1016,7 @@ export type Database = {
           prize_amount: number
           round_id: number
           status: string | null
+          tiebreak_stone: number | null
         }
         Insert: {
           card_code: string
@@ -1001,6 +1031,7 @@ export type Database = {
           prize_amount: number
           round_id: number
           status?: string | null
+          tiebreak_stone?: number | null
         }
         Update: {
           card_code?: string
@@ -1015,6 +1046,7 @@ export type Database = {
           prize_amount?: number
           round_id?: number
           status?: string | null
+          tiebreak_stone?: number | null
         }
         Relationships: [
           {
@@ -1175,7 +1207,16 @@ export type Database = {
           name: string
         }[]
       }
+      get_user_id_by_auth: { Args: { p_auth_id: string }; Returns: number }
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: number
+        }
+        Returns: boolean
+      }
       hash_password: { Args: { password: string }; Returns: string }
+      is_admin: { Args: never; Returns: boolean }
       log_groq_usage: {
         Args: {
           p_duration_ms: number
@@ -1210,6 +1251,13 @@ export type Database = {
         Returns: Json
       }
       refresh_establishment_stats: { Args: never; Returns: undefined }
+      resolve_tiebreak_stone: {
+        Args: { p_card_ids: number[]; p_round_id: number }
+        Returns: {
+          stone_number: number
+          winner_card_id: number
+        }[]
+      }
       validate_round_time_conflict: {
         Args: {
           p_draw_datetime: string
@@ -1227,7 +1275,7 @@ export type Database = {
       }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "admin" | "manager" | "establishment" | "user"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1354,6 +1402,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["admin", "manager", "establishment", "user"],
+    },
   },
 } as const

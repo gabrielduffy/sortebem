@@ -58,7 +58,7 @@ export default function AdminFinance() {
 
     const handleApproveWithdrawal = async (id: string) => {
         try {
-            const res = await apiService.updateWithdrawalStatus(id, 'completed');
+            const res = await apiService.updateWithdrawalStatus(parseInt(id), 'completed');
             if (res.ok) {
                 toast({ title: 'Sucesso!', description: 'Saque aprovado.' });
                 loadData();

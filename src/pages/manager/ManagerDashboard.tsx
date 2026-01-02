@@ -49,7 +49,7 @@ export default function ManagerDashboard() {
       }
 
       // 4. Get round history
-      const roundRes = await apiService.getManagerRoundHistory();
+      const roundRes = await apiService.getManagerRoundHistory(mgrResponse.data?.id || 0);
       if (roundRes.ok) {
         setRoundHistory(roundRes.data || []);
       }
