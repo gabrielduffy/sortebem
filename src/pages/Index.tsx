@@ -315,14 +315,14 @@ const Index = () => {
                   Comprar Cartelas
                 </Button>
               </Link>
-              <Link to="/resgatar">
+              <Link to="/resultados">
                 <Button 
                   variant="outline" 
                   size="xl"
                   className="border-primary-foreground text-primary-foreground hover:bg-primary-foreground/10"
                 >
                   <Trophy className="w-5 h-5" />
-                  Resgatar Prêmio
+                  Resultados
                 </Button>
               </Link>
               <Link to="/tv/demo">
