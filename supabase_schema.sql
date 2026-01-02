@@ -181,16 +181,22 @@ $$;
 ALTER FUNCTION "public"."auto_open_scheduled_rounds"() OWNER TO "postgres";
 
 
-CREATE OR REPLACE FUNCTION "public"."create_manual_round"("p_establishment_id" bigint, "p_draw_date" "date", "p_draw_time" time without time zone, "p_prize" numeric, "p_card_price" numeric, "p_winner_criteria" "text" DEFAULT 'full_card'::"text", "p_tiebreak_rule" "text" DEFAULT 'first_marked'::"text", "p_min_participants" integer DEFAULT NULL::integer, "p_max_participants" integer DEFAULT NULL::integer, "p_type" "text" DEFAULT 'regular'::"text", "p_description" "text" DEFAULT NULL::"text", "p_created_by" bigint DEFAULT NULL::bigint) RETURNS "jsonb"
-    LANGUAGE "plpgsql"
+CREATE OR REPLACE FUNCTION "public"."create_manual_round"("p_establishment_id" bigint, "p_draw_date" "date", "p_draw_time" time without time zone, "p_prize" numeric, "p_card_price" numeric, "p_winner_criteria" "text" DEFAULT 'full_card'::"text", "p_tiebreak_rule" "text" DEFAULT 'stone'::"text", "p_min_participants" integer DEFAULT NULL::integer, "p_max_participants" integer DEFAULT NULL::integer, "p_type" "text" DEFAULT 'regular'::"text", "p_description" "text" DEFAULT NULL::"text", "p_created_by" bigint DEFAULT NULL::bigint) RETURNS "jsonb"
+    LANGUAGE "plpgsql" SECURITY DEFINER
     AS $$
 DECLARE
   v_round_id BIGINT;
-  v_draw_datetime TIMESTAMPTZ;
+  v_starts_at TIMESTAMPTZ;
+  v_ends_at TIMESTAMPTZ;
+  v_selling_ends_at TIMESTAMPTZ;
+  v_round_number INTEGER;
 BEGIN
-  v_draw_datetime := p_draw_date::TIMESTAMP + p_draw_time;
+  v_starts_at := p_draw_date::TIMESTAMP + p_draw_time;
+  v_ends_at := v_starts_at + INTERVAL '2 hours';
+  v_selling_ends_at := v_starts_at - INTERVAL '5 minutes';
 
-  -- Validações básicas
+  SELECT COALESCE(MAX(number), 0) + 1 INTO v_round_number FROM rounds;
+
   IF p_prize <= 0 THEN
     RETURN json_build_object('success', false, 'error', 'Prêmio deve ser maior que zero');
   END IF;
@@ -199,38 +205,39 @@ BEGIN
     RETURN json_build_object('success', false, 'error', 'Preço da cartela deve ser maior que zero');
   END IF;
 
-  IF p_min_participants IS NOT NULL AND p_max_participants IS NOT NULL THEN
-    IF p_min_participants > p_max_participants THEN
-      RETURN json_build_object('success', false, 'error', 'Mínimo não pode ser maior que máximo');
-    END IF;
-  END IF;
-
-  -- Criar rodada
   INSERT INTO rounds (
-    prize,
+    number,
+    type,
+    status,
     card_price,
+    max_cards,
+    prize_pool,
+    starts_at,
+    ends_at,
+    selling_ends_at,
+    manual_creation,
     winner_criteria,
     tiebreak_rule,
     min_participants,
     max_participants,
     draw_time,
-    type,
-    description,
-    status,
-    manual_creation,
     created_at
   ) VALUES (
-    p_prize,
+    v_round_number,
+    p_type,
+    'scheduled',
     p_card_price,
+    COALESCE(p_max_participants, 1000),
+    p_prize,
+    v_starts_at,
+    v_ends_at,
+    v_selling_ends_at,
+    true,
     p_winner_criteria,
     p_tiebreak_rule,
     p_min_participants,
     p_max_participants,
     p_draw_time,
-    p_type,
-    p_description,
-    'scheduled',
-    true,
     NOW()
   )
   RETURNING id INTO v_round_id;
@@ -238,7 +245,7 @@ BEGIN
   RETURN json_build_object(
     'success', true,
     'round_id', v_round_id,
-    'draw_datetime', v_draw_datetime
+    'draw_datetime', v_starts_at
   );
 END;
 $$;
@@ -844,6 +851,7 @@ CREATE TABLE IF NOT EXISTS "public"."establishments" (
     "logo_url" "text",
     "created_at" timestamp with time zone DEFAULT "now"(),
     "updated_at" timestamp with time zone DEFAULT "now"(),
+    "auth_id" "uuid",
     CONSTRAINT "establishments_kyc_status_check" CHECK (("kyc_status" = ANY (ARRAY['pending'::"text", 'approved'::"text", 'rejected'::"text"])))
 );
 
@@ -1022,6 +1030,7 @@ CREATE TABLE IF NOT EXISTS "public"."managers" (
     "referral_code" "text",
     "created_at" timestamp with time zone DEFAULT "now"(),
     "updated_at" timestamp with time zone DEFAULT "now"(),
+    "auth_id" "uuid",
     CONSTRAINT "managers_kyc_status_check" CHECK (("kyc_status" = ANY (ARRAY['pending'::"text", 'approved'::"text", 'rejected'::"text"])))
 );
 
@@ -1434,6 +1443,7 @@ CREATE TABLE IF NOT EXISTS "public"."users" (
     "updated_at" timestamp with time zone DEFAULT "now"(),
     "password_migrated" boolean DEFAULT false,
     "password_hash_new" "text",
+    "auth_id" "uuid",
     CONSTRAINT "users_role_check" CHECK (("role" = ANY (ARRAY['admin'::"text", 'manager'::"text", 'establishment'::"text", 'user'::"text"])))
 );
 
@@ -1684,6 +1694,11 @@ ALTER TABLE ONLY "public"."draws"
 
 
 ALTER TABLE ONLY "public"."establishments"
+    ADD CONSTRAINT "establishments_auth_id_key" UNIQUE ("auth_id");
+
+
+
+ALTER TABLE ONLY "public"."establishments"
     ADD CONSTRAINT "establishments_cnpj_key" UNIQUE ("cnpj");
 
 
@@ -1725,6 +1740,11 @@ ALTER TABLE ONLY "public"."groq_usage_logs"
 
 ALTER TABLE ONLY "public"."logs"
     ADD CONSTRAINT "logs_pkey" PRIMARY KEY ("id");
+
+
+
+ALTER TABLE ONLY "public"."managers"
+    ADD CONSTRAINT "managers_auth_id_key" UNIQUE ("auth_id");
 
 
 
@@ -1810,6 +1830,11 @@ ALTER TABLE ONLY "public"."settings"
 
 ALTER TABLE ONLY "public"."ticker_messages"
     ADD CONSTRAINT "ticker_messages_pkey" PRIMARY KEY ("id");
+
+
+
+ALTER TABLE ONLY "public"."users"
+    ADD CONSTRAINT "users_auth_id_key" UNIQUE ("auth_id");
 
 
 
