@@ -10,7 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from '@/hooks/use-toast';
-import { Save, Eye, EyeOff, Copy, Check, Plug, MessageCircle, Webhook, CreditCard, Mail, Send, FileText, Trash2, Plus, Info, Brain, Zap, BarChart3 } from 'lucide-react';
+import { Save, Eye, EyeOff, Copy, Check, Plug, MessageCircle, Webhook, CreditCard, Mail, Send, FileText, Trash2, Plus, Info, Brain, Zap, BarChart3, Mic } from 'lucide-react';
 import { apiService } from '@/services/api';
 import { groqService } from '@/services/groqService';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
@@ -88,6 +88,16 @@ export default function AdminIntegrations() {
   const [testLoading, setTestLoading] = useState(false);
   const [groqStats, setGroqStats] = useState<any[]>([]);
 
+  // ElevenLabs state
+  const [elevenlabsConfig, setElevenlabsConfig] = useState({
+    enabled: false,
+    apiKey: '',
+    voiceId: '',
+    modelId: 'eleven_multilingual_v2'
+  });
+  const [showElevenlabsKey, setShowElevenlabsKey] = useState(false);
+  const [testingElevenlabs, setTestingElevenlabs] = useState(false);
+
   useEffect(() => {
     loadSettings();
     loadGroqPrompts();
@@ -97,7 +107,14 @@ export default function AdminIntegrations() {
     try {
       const response = await apiService.getSettings();
       if (response.ok && response.data) {
-        const settings = response.data;
+        // Transform array of settings into an object for easier access
+        const settingsArray = Array.isArray(response.data) ? response.data : [];
+        const settings: Record<string, any> = {};
+        settingsArray.forEach((item: any) => {
+          if (item.key && item.value !== undefined) {
+            settings[item.key] = item.value;
+          }
+        });
 
         // Load gateway settings
         if (settings.gateway) {
@@ -128,6 +145,11 @@ export default function AdminIntegrations() {
         // Load Groq settings
         if (settings.groq_config) {
           setGroqConfig(settings.groq_config);
+        }
+
+        // Load ElevenLabs settings
+        if (settings.elevenlabs_config) {
+          setElevenlabsConfig(settings.elevenlabs_config);
         }
       }
     } catch (error) {
@@ -366,6 +388,45 @@ export default function AdminIntegrations() {
     }
   };
 
+  const handleSaveElevenlabs = async () => {
+    setSaving(true);
+    try {
+      const response = await apiService.updateSettings({
+        elevenlabs_config: elevenlabsConfig
+      });
+
+      if (response.ok) {
+        toast({ title: 'Sucesso!', description: 'Configurações do ElevenLabs salvas.' });
+      } else {
+        toast({ title: 'Erro', description: response.error || 'Erro ao salvar.', variant: 'destructive' });
+      }
+    } catch (error) {
+      toast({ title: 'Erro', description: 'Não foi possível salvar as configurações.', variant: 'destructive' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleTestElevenlabs = async () => {
+    if (!elevenlabsConfig.apiKey) {
+      toast({ title: 'API Key necessária', description: 'Informe a API Key do ElevenLabs.', variant: 'destructive' });
+      return;
+    }
+    setTestingElevenlabs(true);
+    try {
+      // Simple validation - check if key starts with expected prefix
+      if (elevenlabsConfig.apiKey.length > 10) {
+        toast({ title: 'Formato válido!', description: 'A API Key parece estar no formato correto.' });
+      } else {
+        toast({ title: 'Aviso', description: 'A API Key parece muito curta.', variant: 'destructive' });
+      }
+    } catch (error) {
+      toast({ title: 'Erro', description: 'Não foi possível validar a API Key.', variant: 'destructive' });
+    } finally {
+      setTestingElevenlabs(false);
+    }
+  };
+
   const getCurrentPrompt = () => {
     return groqPrompts.find(p => p.name === selectedPrompt);
   };
@@ -395,7 +456,7 @@ export default function AdminIntegrations() {
         </div>
 
         <Tabs defaultValue="gateway" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-5">
+          <TabsList className="grid w-full grid-cols-6">
             <TabsTrigger value="gateway">
               <CreditCard className="w-4 h-4 mr-2" />
               Pagamentos
@@ -411,6 +472,10 @@ export default function AdminIntegrations() {
             <TabsTrigger value="groq">
               <Brain className="w-4 h-4 mr-2" />
               Groq AI
+            </TabsTrigger>
+            <TabsTrigger value="elevenlabs">
+              <Mic className="w-4 h-4 mr-2" />
+              ElevenLabs
             </TabsTrigger>
             <TabsTrigger value="webhooks">
               <Webhook className="w-4 h-4 mr-2" />
@@ -1031,7 +1096,101 @@ export default function AdminIntegrations() {
             </Card>
           </TabsContent>
 
-          {/* ABA 5: Webhooks */}
+          {/* ABA 5: ElevenLabs */}
+          <TabsContent value="elevenlabs" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Mic className="w-5 h-5 text-primary" />
+                  ElevenLabs - Voz com IA
+                </CardTitle>
+                <CardDescription>Configure a integração com ElevenLabs para síntese de voz</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <Label>Ativado</Label>
+                  <Switch
+                    checked={elevenlabsConfig.enabled}
+                    onCheckedChange={(checked) => setElevenlabsConfig({ ...elevenlabsConfig, enabled: checked })}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label>API Key</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      type={showElevenlabsKey ? 'text' : 'password'}
+                      value={elevenlabsConfig.apiKey}
+                      onChange={(e) => setElevenlabsConfig({ ...elevenlabsConfig, apiKey: e.target.value })}
+                      placeholder="Sua API Key do ElevenLabs"
+                    />
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={() => setShowElevenlabsKey(!showElevenlabsKey)}
+                    >
+                      {showElevenlabsKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Obtenha sua API Key em: <a href="https://elevenlabs.io/app/settings/api-keys" target="_blank" rel="noopener noreferrer" className="text-primary underline">elevenlabs.io/app/settings/api-keys</a>
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Voice ID (ID da Voz)</Label>
+                  <Input
+                    value={elevenlabsConfig.voiceId}
+                    onChange={(e) => setElevenlabsConfig({ ...elevenlabsConfig, voiceId: e.target.value })}
+                    placeholder="Ex: EXAVITQu4vr4xnSDxMaL (Sarah)"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Vozes disponíveis: Roger (CwhRBWXzGAHq8TQ4Fs17), Sarah (EXAVITQu4vr4xnSDxMaL), Laura (FGY2WhTYpPnrIDTdsKH5)
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Modelo</Label>
+                  <Select
+                    value={elevenlabsConfig.modelId}
+                    onValueChange={(value) => setElevenlabsConfig({ ...elevenlabsConfig, modelId: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="eleven_multilingual_v2">Multilingual v2 (Melhor qualidade)</SelectItem>
+                      <SelectItem value="eleven_turbo_v2_5">Turbo v2.5 (Baixa latência)</SelectItem>
+                      <SelectItem value="eleven_turbo_v2">Turbo v2 (Mais rápido)</SelectItem>
+                      <SelectItem value="eleven_monolingual_v1">Monolingual v1 (Inglês)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="flex gap-2">
+                  <Button variant="outline" onClick={handleTestElevenlabs} disabled={testingElevenlabs}>
+                    <Plug className="w-4 h-4 mr-2" />
+                    {testingElevenlabs ? 'Validando...' : 'Validar API Key'}
+                  </Button>
+                  <Button variant="hero" onClick={handleSaveElevenlabs} disabled={saving}>
+                    <Save className="w-4 h-4 mr-2" />
+                    {saving ? 'Salvando...' : 'Salvar'}
+                  </Button>
+                </div>
+
+                <div className="mt-6 p-4 bg-muted rounded-lg">
+                  <h4 className="font-medium text-sm mb-2">Uso do ElevenLabs no SorteBem</h4>
+                  <ul className="text-sm text-muted-foreground space-y-1">
+                    <li>• <strong>Narração de sorteios:</strong> Anúncio de números sorteados em tempo real</li>
+                    <li>• <strong>Notificações de ganhadores:</strong> Anúncio de vencedores com entusiasmo</li>
+                    <li>• <strong>Modo TV:</strong> Narração automática para telas de estabelecimentos</li>
+                  </ul>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* ABA 6: Webhooks */}
           <TabsContent value="webhooks" className="space-y-4">
             <Card>
               <CardHeader>

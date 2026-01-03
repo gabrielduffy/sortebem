@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { toast } from '@/hooks/use-toast';
 import { Plus, Edit, Trash2, Star, Heart, TrendingUp } from 'lucide-react';
 import { apiService } from '@/services/api';
+import { LogoIconPicker, LogoDisplay } from '@/components/admin/LogoIconPicker';
 
 export default function AdminCharity() {
   const [charities, setCharities] = useState<any[]>([]);
@@ -149,6 +150,11 @@ export default function AdminCharity() {
                 <DialogDescription>Preencha os dados da instituição beneficente</DialogDescription>
               </DialogHeader>
               <div className="space-y-4 py-4">
+                <LogoIconPicker 
+                  value={form.logo_url} 
+                  onChange={(val) => setForm(p => ({ ...p, logo_url: val }))} 
+                  label="Logo da Instituição"
+                />
                 <div>
                   <Label>Nome da Instituição</Label>
                   <Input value={form.name} onChange={(e) => setForm(p => ({ ...p, name: e.target.value }))} placeholder="Instituto..." />
@@ -156,10 +162,6 @@ export default function AdminCharity() {
                 <div>
                   <Label>Descrição</Label>
                   <Textarea value={form.description} onChange={(e) => setForm(p => ({ ...p, description: e.target.value }))} placeholder="Descrição da causa..." />
-                </div>
-                <div>
-                  <Label>URL do Logo</Label>
-                  <Input value={form.logo_url} onChange={(e) => setForm(p => ({ ...p, logo_url: e.target.value }))} placeholder="https://..." />
                 </div>
                 <div>
                   <Label>Chave PIX</Label>
@@ -229,13 +231,7 @@ export default function AdminCharity() {
                 <CardHeader className="pb-3">
                   <div className="flex items-start justify-between">
                     <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 rounded-xl bg-muted flex items-center justify-center overflow-hidden">
-                        {charity.logo_url ? (
-                          <img src={charity.logo_url} alt={charity.name || 'Logo'} className="w-full h-full object-cover" />
-                        ) : (
-                          <Heart className="w-6 h-6 text-muted-foreground" />
-                        )}
-                      </div>
+                      <LogoDisplay value={charity.logo_url} size="md" />
                       <div>
                         <CardTitle className="text-base">{charity.name || 'Sem nome'}</CardTitle>
                         {charity.is_active && <Badge className="mt-1">Ativa</Badge>}
