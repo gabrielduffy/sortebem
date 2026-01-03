@@ -888,7 +888,7 @@ class ApiService {
     phone: string;
     email: string;
     password: string;
-    manager_id: number;
+    manager_id?: number | null;
     address: string;
     city: string;
     state: string;
@@ -923,11 +923,33 @@ class ApiService {
         return { ok: false, error: userError.message };
       }
 
+      // Get the user id from the users table
+      const { data: userData, error: userFetchError } = await supabase
+        .from('users')
+        .select('id')
+        .eq('auth_id', authData.user.id)
+        .single();
+
+      if (userFetchError) {
+        return { ok: false, error: userFetchError.message };
+      }
+
+      // Generate unique code and slug
+      const code = Math.random().toString().substring(2, 10).padStart(8, '0');
+      const slug = data.name
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/(^-|-$)/g, '')
+        .substring(0, 50) + '-' + code.substring(0, 4);
+
       // Finally create establishment record
       const { data: establishment, error: estError } = await supabase
         .from('establishments')
         .insert({
           auth_id: authData.user.id,
+          user_id: userData.id,
           manager_id: data.manager_id,
           name: data.name,
           cnpj: data.cnpj,
@@ -935,6 +957,9 @@ class ApiService {
           address: data.address,
           city: data.city,
           state: data.state,
+          code: code,
+          slug: slug,
+          kyc_status: 'pending',
         })
         .select()
         .single();

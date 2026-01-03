@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Heart, Gift, Trophy, Tv, Clock, TrendingUp, Play, Shield, Users, ArrowRight } from 'lucide-react';
+import { Heart, Gift, Trophy, Clock, TrendingUp, Play, Shield, Users, ArrowRight } from 'lucide-react';
 import PublicLayout from '@/components/layout/PublicLayout';
 import { Button } from '@/components/ui/button';
 import CountdownTimer from '@/components/game/CountdownTimer';
@@ -73,7 +73,7 @@ const Index = () => {
     description: 'A cada 60 minutos, prêmios maiores aguardam você.'
   }, {
     icon: Heart,
-    title: '20% para Caridade',
+    title: 'Doação para Caridade',
     description: 'Parte de cada cartela vai para instituições beneficentes.'
   }, {
     icon: Shield,
@@ -290,12 +290,6 @@ const Index = () => {
                 <Button variant="outline" size="xl" className="border-primary-foreground text-primary-foreground hover:bg-primary-foreground/10">
                   <Trophy className="w-5 h-5" />
                   Resultados
-                </Button>
-              </Link>
-              <Link to="/tv/demo">
-                <Button variant="outline" size="xl" className="border-primary-foreground text-primary-foreground hover:bg-primary-foreground/10">
-                  <Tv className="w-5 h-5" />
-                  Modo TV
                 </Button>
               </Link>
             </div>

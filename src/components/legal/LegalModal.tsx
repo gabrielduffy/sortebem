@@ -427,11 +427,6 @@ export function LegalModal({ type, open, onOpenChange }: LegalModalProps) {
           </div>
         </ScrollArea>
         
-        <div className="px-6 py-4 border-t border-border bg-muted/30 sticky bottom-0">
-          <Button variant="outline" onClick={() => onOpenChange(false)} className="w-full">
-            Fechar
-          </Button>
-        </div>
       </DialogContent>
     </Dialog>
   );

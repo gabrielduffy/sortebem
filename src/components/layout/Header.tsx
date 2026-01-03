@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { Menu, X, Heart, Trophy, Tv, Gift, Users } from 'lucide-react';
+import { Menu, X, Heart, Trophy, Gift, Users } from 'lucide-react';
 
 const Header = () => {
   const [isScrolled, setIsScrolled] = useState(false);
@@ -19,7 +19,6 @@ const Header = () => {
     { href: '/como-funciona', label: 'Como Funciona', icon: Heart },
     { href: '/checkout', label: 'Comprar Cartelas', icon: Gift },
     { href: '/resultados', label: 'Resultados', icon: Trophy },
-    { href: '/tv/demo', label: 'Modo TV', icon: Tv },
   ];
 
   return (

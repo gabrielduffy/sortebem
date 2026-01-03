@@ -76,7 +76,6 @@ const establishmentNavItems: NavItem[] = [
   { label: 'Vendas', href: '/estabelecimento/vendas', icon: ShoppingCart },
   { label: 'Financeiro', href: '/estabelecimento/financeiro', icon: Wallet },
   { label: 'Terminais POS', href: '/estabelecimento/pos', icon: Monitor },
-  { label: 'Modo TV', href: '/estabelecimento/modo-tv', icon: Monitor },
   { label: 'Meu Perfil', href: '/estabelecimento/perfil', icon: User },
 ];
 
