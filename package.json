@@ -12,7 +12,6 @@
     "migrate": "node scripts/run-migrations.js"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.39.0",
     "@hookform/resolvers": "^3.10.0",
     "@radix-ui/react-accordion": "^1.2.11",
     "@radix-ui/react-alert-dialog": "^1.1.14",
@@ -49,6 +48,7 @@
     "cmdk": "^1.1.1",
     "date-fns": "^3.6.0",
     "embla-carousel-react": "^8.6.0",
+    "emoji-picker-react": "^4.16.1",
     "framer-motion": "^12.23.26",
     "input-otp": "^1.4.2",
     "lucide-react": "^0.462.0",

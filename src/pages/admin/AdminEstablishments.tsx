@@ -11,6 +11,7 @@ import { toast } from '@/hooks/use-toast';
 import { Plus, Eye, Check, X, Building2, ShoppingCart, Wallet, Pencil, Trash2 } from 'lucide-react';
 import { apiService } from '@/services/api';
 import { maskCNPJ, maskPhone } from '@/utils/masks';
+import { LogoIconPicker, LogoDisplay } from '@/components/admin/LogoIconPicker';
 
 const emptyEstablishment = {
   id: 0,
@@ -24,7 +25,8 @@ const emptyEstablishment = {
   kyc_status: 'pending',
   total_sales: 0,
   total_commission: 0,
-  is_active: false
+  is_active: false,
+  logo_url: ''
 };
 
 export default function AdminEstablishments() {
@@ -236,26 +238,33 @@ export default function AdminEstablishments() {
               <DialogTitle>Novo Estabelecimento</DialogTitle>
               <DialogDescription>Preencha os dados para cadastrar um novo estabelecimento.</DialogDescription>
             </DialogHeader>
-            <div className="grid md:grid-cols-2 gap-4 py-4">
-              <div className="space-y-2">
-                <Label>Nome Fantasia</Label>
-                <Input value={formData.name} onChange={e => setFormData(p => ({ ...p, name: e.target.value }))} />
-              </div>
-              <div className="space-y-2">
-                <Label>CNPJ</Label>
-                <Input value={formData.cnpj} onChange={e => setFormData(p => ({ ...p, cnpj: maskCNPJ(e.target.value) }))} maxLength={18} placeholder="00.000.000/0000-00" />
-              </div>
-              <div className="space-y-2">
-                <Label>WhatsApp</Label>
-                <Input value={formData.phone} onChange={e => setFormData(p => ({ ...p, phone: maskPhone(e.target.value) }))} maxLength={15} placeholder="(00) 00000-0000" />
-              </div>
-              <div className="space-y-2">
-                <Label>E-mail</Label>
-                <Input type="email" value={formData.email} onChange={e => setFormData(p => ({ ...p, email: e.target.value }))} />
-              </div>
-              <div className="space-y-2 md:col-span-2">
-                <Label>Senha</Label>
-                <Input type="password" value={formData.password} onChange={e => setFormData(p => ({ ...p, password: e.target.value }))} />
+            <div className="space-y-4 py-4">
+              <LogoIconPicker 
+                value={formData.logo_url || ''} 
+                onChange={(val) => setFormData(p => ({ ...p, logo_url: val }))} 
+                label="Logomarca"
+              />
+              <div className="grid md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Nome Fantasia</Label>
+                  <Input value={formData.name} onChange={e => setFormData(p => ({ ...p, name: e.target.value }))} />
+                </div>
+                <div className="space-y-2">
+                  <Label>CNPJ</Label>
+                  <Input value={formData.cnpj} onChange={e => setFormData(p => ({ ...p, cnpj: maskCNPJ(e.target.value) }))} maxLength={18} placeholder="00.000.000/0000-00" />
+                </div>
+                <div className="space-y-2">
+                  <Label>WhatsApp</Label>
+                  <Input value={formData.phone} onChange={e => setFormData(p => ({ ...p, phone: maskPhone(e.target.value) }))} maxLength={15} placeholder="(00) 00000-0000" />
+                </div>
+                <div className="space-y-2">
+                  <Label>E-mail</Label>
+                  <Input type="email" value={formData.email} onChange={e => setFormData(p => ({ ...p, email: e.target.value }))} />
+                </div>
+                <div className="space-y-2 md:col-span-2">
+                  <Label>Senha</Label>
+                  <Input type="password" value={formData.password} onChange={e => setFormData(p => ({ ...p, password: e.target.value }))} />
+                </div>
               </div>
             </div>
             <DialogFooter>
@@ -271,22 +280,29 @@ export default function AdminEstablishments() {
             <DialogHeader>
               <DialogTitle>Editar Estabelecimento</DialogTitle>
             </DialogHeader>
-            <div className="grid md:grid-cols-2 gap-4 py-4">
-              <div className="space-y-2">
-                <Label>Nome Fantasia</Label>
-                <Input value={formData.name} onChange={e => setFormData(p => ({ ...p, name: e.target.value }))} />
-              </div>
-              <div className="space-y-2">
-                <Label>CNPJ</Label>
-                <Input value={formData.cnpj} onChange={e => setFormData(p => ({ ...p, cnpj: maskCNPJ(e.target.value) }))} maxLength={18} />
-              </div>
-              <div className="space-y-2">
-                <Label>WhatsApp</Label>
-                <Input value={formData.phone} onChange={e => setFormData(p => ({ ...p, phone: maskPhone(e.target.value) }))} maxLength={15} />
-              </div>
-              <div className="space-y-2">
-                <Label>E-mail</Label>
-                <Input type="email" value={formData.email} onChange={e => setFormData(p => ({ ...p, email: e.target.value }))} />
+            <div className="space-y-4 py-4">
+              <LogoIconPicker 
+                value={formData.logo_url || ''} 
+                onChange={(val) => setFormData(p => ({ ...p, logo_url: val }))} 
+                label="Logomarca"
+              />
+              <div className="grid md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Nome Fantasia</Label>
+                  <Input value={formData.name} onChange={e => setFormData(p => ({ ...p, name: e.target.value }))} />
+                </div>
+                <div className="space-y-2">
+                  <Label>CNPJ</Label>
+                  <Input value={formData.cnpj} onChange={e => setFormData(p => ({ ...p, cnpj: maskCNPJ(e.target.value) }))} maxLength={18} />
+                </div>
+                <div className="space-y-2">
+                  <Label>WhatsApp</Label>
+                  <Input value={formData.phone} onChange={e => setFormData(p => ({ ...p, phone: maskPhone(e.target.value) }))} maxLength={15} />
+                </div>
+                <div className="space-y-2">
+                  <Label>E-mail</Label>
+                  <Input type="email" value={formData.email} onChange={e => setFormData(p => ({ ...p, email: e.target.value }))} />
+                </div>
               </div>
             </div>
             <DialogFooter>
