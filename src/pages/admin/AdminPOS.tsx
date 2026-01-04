@@ -62,6 +62,7 @@ seu prêmio em caso de vitória.
             <TabsTrigger value="config">Configurações</TabsTrigger>
             <TabsTrigger value="receipt">Comprovante</TabsTrigger>
             <TabsTrigger value="install">Instalação APK</TabsTrigger>
+            <TabsTrigger value="api">Documentação API</TabsTrigger>
           </TabsList>
 
           <TabsContent value="config" className="space-y-4">
@@ -239,6 +240,131 @@ seu prêmio em caso de vitória.
                     <li>• Android 7.0 ou superior</li>
                     <li>• Conexão com internet (Wi-Fi ou dados móveis)</li>
                     <li>• Terminal ID e API Key válidos</li>
+                  </ul>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="api" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Monitor className="w-5 h-5 text-primary" />
+                  Documentação da API POS
+                </CardTitle>
+                <CardDescription>Endpoints para integração do APK com o sistema Sortebem</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="bg-muted rounded-xl p-4">
+                  <h4 className="font-semibold mb-2">🔐 1. Autenticação do Terminal</h4>
+                  <code className="block bg-background p-3 rounded text-xs mb-2">
+                    POST /functions/v1/pos-auth
+                  </code>
+                  <p className="text-sm text-muted-foreground mb-2">Request Body:</p>
+                  <pre className="bg-background p-3 rounded text-xs overflow-x-auto">{`{
+  "terminal_code": "TERM001",
+  "api_key": "sk_pos_xxxxx"
+}`}</pre>
+                  <p className="text-sm text-muted-foreground mt-2 mb-2">Response:</p>
+                  <pre className="bg-background p-3 rounded text-xs overflow-x-auto">{`{
+  "success": true,
+  "token": "eyJhbGciOiJ...",
+  "terminal": { "id": 1, "name": "Caixa 1" },
+  "establishment": { "id": 1, "name": "Loja X" }
+}`}</pre>
+                </div>
+
+                <div className="bg-muted rounded-xl p-4">
+                  <h4 className="font-semibold mb-2">📋 2. Obter Rodada Atual</h4>
+                  <code className="block bg-background p-3 rounded text-xs mb-2">
+                    GET /functions/v1/pos-get-round
+                  </code>
+                  <p className="text-sm text-muted-foreground mb-2">Headers:</p>
+                  <pre className="bg-background p-3 rounded text-xs">{`Authorization: Bearer <token>`}</pre>
+                  <p className="text-sm text-muted-foreground mt-2 mb-2">Response:</p>
+                  <pre className="bg-background p-3 rounded text-xs overflow-x-auto">{`{
+  "success": true,
+  "round": {
+    "id": 123,
+    "number": 42,
+    "card_price": 5.00,
+    "prize_pool": 2500.00,
+    "cards_sold": 450,
+    "max_cards": 1000,
+    "selling_ends_at": "2024-01-15T20:00:00Z"
+  }
+}`}</pre>
+                </div>
+
+                <div className="bg-muted rounded-xl p-4">
+                  <h4 className="font-semibold mb-2">🎫 3. Criar Venda</h4>
+                  <code className="block bg-background p-3 rounded text-xs mb-2">
+                    POST /functions/v1/pos-create-sale
+                  </code>
+                  <p className="text-sm text-muted-foreground mb-2">Headers + Body:</p>
+                  <pre className="bg-background p-3 rounded text-xs overflow-x-auto">{`Authorization: Bearer <token>
+
+{
+  "quantity": 2,
+  "customer_name": "João Silva",
+  "customer_phone": "11999999999",
+  "payment_method": "credit_card",
+  "payment_reference": "PAGBANK_TX_123"
+}`}</pre>
+                  <p className="text-sm text-muted-foreground mt-2 mb-2">Response:</p>
+                  <pre className="bg-background p-3 rounded text-xs overflow-x-auto">{`{
+  "success": true,
+  "transaction_code": "POS-1705350000-ABC123",
+  "purchase_id": 456,
+  "round_number": 42,
+  "quantity": 2,
+  "total_amount": 10.00,
+  "cards": [
+    {
+      "id": 789,
+      "code": "SB-A7K3M9P2",
+      "numbers": [3, 7, 12, 15, 22, ...],
+      "qr_url": "https://sortebem.com.br/c/SB-A7K3M9P2"
+    }
+  ]
+}`}</pre>
+                </div>
+
+                <div className="bg-primary/10 border border-primary/20 rounded-xl p-4">
+                  <h4 className="font-semibold text-primary mb-2">📱 Stack Recomendada para o APK</h4>
+                  <ul className="text-sm text-muted-foreground space-y-1">
+                    <li>• <strong>Kotlin Nativo:</strong> Melhor integração com SDK PagBank/PagSeguro</li>
+                    <li>• <strong>Android SDK mínimo:</strong> API 24 (Android 7.0)</li>
+                    <li>• <strong>Integração PagSeguro:</strong> Usar SDK oficial para Moderninha Smart 2</li>
+                    <li>• <strong>Impressão:</strong> Usar API de impressão térmica do dispositivo</li>
+                  </ul>
+                </div>
+
+                <div className="bg-warning/10 border border-warning/20 rounded-xl p-4">
+                  <h4 className="font-semibold text-warning mb-2">⚠️ Tratamento de Erros</h4>
+                  <ul className="text-sm text-muted-foreground space-y-1">
+                    <li>• <strong>401:</strong> Token inválido ou expirado - reautenticar</li>
+                    <li>• <strong>403:</strong> Terminal ou estabelecimento desativado</li>
+                    <li>• <strong>400:</strong> Dados inválidos ou rodada fechada</li>
+                    <li>• Sempre exibir mensagem de erro para o operador</li>
+                    <li>• Implementar retry automático para erros de rede</li>
+                  </ul>
+                </div>
+
+                <div className="bg-muted rounded-xl p-4">
+                  <h4 className="font-semibold mb-2">🖨️ Formato do Comprovante</h4>
+                  <p className="text-sm text-muted-foreground mb-2">
+                    O comprovante deve incluir:
+                  </p>
+                  <ul className="text-sm text-muted-foreground space-y-1">
+                    <li>• Cabeçalho: Logo/Nome SORTEBEM</li>
+                    <li>• Data/Hora da compra</li>
+                    <li>• Número da rodada</li>
+                    <li>• Códigos das cartelas (um por linha)</li>
+                    <li>• QR Code de cada cartela (se habilitado)</li>
+                    <li>• Valor total pago</li>
+                    <li>• Aviso para guardar o comprovante</li>
                   </ul>
                 </div>
               </CardContent>

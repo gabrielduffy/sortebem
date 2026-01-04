@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { QRCodeSVG } from 'qrcode.react';
-import { Trophy, Clock, Store, Volume2, VolumeX, Zap, Heart, Sparkles } from 'lucide-react';
+import { Trophy, Clock, Store, Volume2, VolumeX, Zap, Heart, Sparkles, Mic } from 'lucide-react';
 import { apiService } from '@/services/api';
+import { useElevenLabsTTS } from '@/hooks/useElevenLabsTTS';
 
 const TVMode = () => {
   const { code, slugEstabelecimento } = useParams<{ code?: string; slugEstabelecimento?: string }>();
@@ -23,6 +24,22 @@ const TVMode = () => {
   } | null>(null);
   const [liveRound, setLiveRound] = useState<any>(null);
   const [tickerMessages, setTickerMessages] = useState<any[]>([]);
+  
+  const lastAnnouncedNumberRef = useRef<number | null>(null);
+  
+  // ElevenLabs TTS hook
+  const { 
+    speakNumber, 
+    speakWinner, 
+    speakTieBreak, 
+    isSpeaking, 
+    isEnabled: ttsEnabled 
+  } = useElevenLabsTTS({
+    enabled: !isMuted,
+    onSpeaking: () => console.log('TTS: Speaking...'),
+    onFinished: () => console.log('TTS: Finished'),
+    onError: (error) => console.error('TTS Error:', error)
+  });
 
   useEffect(() => {
     if (!identifier) return;
@@ -60,9 +77,18 @@ const TVMode = () => {
           if (liveRoundData.data.status === 'drawing') {
             const numbersData = await apiService.getDrawnNumbers(liveRoundData.data.id);
             if (numbersData.ok && numbersData.data) {
-              setDrawnNumbers(numbersData.data);
-              if (numbersData.data.length > 0) {
-                setLastNumber(numbersData.data[numbersData.data.length - 1]);
+              const newNumbers = numbersData.data as number[];
+              setDrawnNumbers(newNumbers);
+              
+              if (newNumbers.length > 0) {
+                const newLastNumber = newNumbers[newNumbers.length - 1];
+                setLastNumber(newLastNumber);
+                
+                // Announce new number via TTS if not muted and it's a new number
+                if (newLastNumber !== lastAnnouncedNumberRef.current) {
+                  lastAnnouncedNumberRef.current = newLastNumber;
+                  speakNumber(newLastNumber);
+                }
               }
             }
           }
@@ -78,7 +104,7 @@ const TVMode = () => {
     loadData();
     const interval = setInterval(loadData, 3000);
     return () => clearInterval(interval);
-  }, [identifier]);
+  }, [identifier, speakNumber]);
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', {
@@ -494,6 +520,9 @@ const TVMode = () => {
                 <>
                   <Volume2 className="w-4 h-4 lg:w-5 lg:h-5 text-primary" />
                   <span className="text-xs lg:text-sm text-primary font-semibold">Som Ligado</span>
+                  {ttsEnabled && (
+                    <Mic className={`w-3 h-3 lg:w-4 lg:h-4 text-primary ${isSpeaking ? 'animate-pulse' : ''}`} />
+                  )}
                 </>
               )}
             </button>
