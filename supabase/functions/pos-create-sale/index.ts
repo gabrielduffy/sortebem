@@ -16,16 +16,58 @@ function generateCardCode(): string {
   return code
 }
 
-// Generate random bingo card numbers (25 unique numbers from 1-75)
-function generateCardNumbers(): number[] {
-  const numbers: number[] = []
-  while (numbers.length < 25) {
-    const num = Math.floor(Math.random() * 75) + 1
-    if (!numbers.includes(num)) {
-      numbers.push(num)
-    }
+// Get unique random numbers within a range
+function getUniqueRandomNumbers(min: number, max: number, count: number): number[] {
+  const nums: number[] = []
+  while (nums.length < count) {
+    const n = Math.floor(Math.random() * (max - min + 1)) + min
+    if (!nums.includes(n)) nums.push(n)
   }
-  return numbers.sort((a, b) => a - b)
+  return nums.sort((a, b) => a - b)
+}
+
+// Generate bingo card numbers in proper B-I-N-G-O format
+// Returns 25 numbers in row-by-row order (for 5x5 grid)
+function generateCardNumbers(): number[] {
+  // B: 1-15, I: 16-30, N: 31-45, G: 46-60, O: 61-75
+  const bNums = getUniqueRandomNumbers(1, 15, 5)
+  const iNums = getUniqueRandomNumbers(16, 30, 5)
+  const nNums = getUniqueRandomNumbers(31, 45, 5)
+  const gNums = getUniqueRandomNumbers(46, 60, 5)
+  const oNums = getUniqueRandomNumbers(61, 75, 5)
+  
+  // Store in row-by-row order: [B1,I1,N1,G1,O1, B2,I2,N2,G2,O2, ...]
+  const numbers: number[] = []
+  for (let row = 0; row < 5; row++) {
+    numbers.push(bNums[row], iNums[row], nNums[row], gNums[row], oNums[row])
+  }
+  
+  // Center position (index 12) is FREE space - mark with 0
+  numbers[12] = 0
+  
+  return numbers
+}
+
+// Format card numbers as 5x5 grid for thermal printing (32 char width)
+function formatCardForPrint(numbers: number[]): string {
+  let output = ' B   I   N   G   O\n'
+  output +=    '-------------------\n'
+  
+  for (let row = 0; row < 5; row++) {
+    const rowNums: string[] = []
+    for (let col = 0; col < 5; col++) {
+      const idx = row * 5 + col
+      const num = numbers[idx]
+      if (num === 0) {
+        rowNums.push('**') // FREE space
+      } else {
+        rowNums.push(String(num).padStart(2, ' '))
+      }
+    }
+    output += rowNums.join('  ') + '\n'
+  }
+  
+  return output
 }
 
 serve(async (req) => {
@@ -156,6 +198,7 @@ serve(async (req) => {
         id: card.id,
         code: card.code,
         numbers: card.numbers,
+        numbers_formatted: formatCardForPrint(card.numbers),
         qr_url: `https://sortebem.com.br/c/${card.code}`
       })
     }
