@@ -19,7 +19,9 @@ import {
   Hash,
   Trophy,
   Star,
-  Sparkles
+  Sparkles,
+  Printer,
+  Share2
 } from 'lucide-react';
 import PublicLayout from '@/components/layout/PublicLayout';
 import { Button } from '@/components/ui/button';
@@ -347,6 +349,191 @@ const Checkout = () => {
   const formatCurrency = (value: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
   const formatDate = (date: Date) => date.toLocaleDateString('pt-BR');
   const formatTime = (date: Date) => date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+
+  // Format card numbers into 5x5 grid for printing
+  const formatCardGrid = (numbers: number[]): string => {
+    // Se os números já estão em formato de linha (25 números), usar diretamente
+    // Senão, organizar por colunas B-I-N-G-O
+    let grid: number[][] = [];
+    
+    if (numbers.length === 25) {
+      // Números já estão em ordem de linha
+      for (let row = 0; row < 5; row++) {
+        grid.push(numbers.slice(row * 5, row * 5 + 5));
+      }
+    } else {
+      // Organizar por colunas B-I-N-G-O
+      const b = numbers.filter(n => n >= 1 && n <= 15).slice(0, 5);
+      const i = numbers.filter(n => n >= 16 && n <= 30).slice(0, 5);
+      const n = numbers.filter(n => n >= 31 && n <= 45).slice(0, 5);
+      const g = numbers.filter(n => n >= 46 && n <= 60).slice(0, 5);
+      const o = numbers.filter(n => n >= 61 && n <= 75).slice(0, 5);
+      
+      for (let row = 0; row < 5; row++) {
+        grid.push([b[row] || 0, i[row] || 0, n[row] || 0, g[row] || 0, o[row] || 0]);
+      }
+    }
+    
+    // Centro livre
+    grid[2][2] = 0;
+    
+    let output = ' B   I   N   G   O\n';
+    output += '-------------------\n';
+    
+    for (let row = 0; row < 5; row++) {
+      const cells = grid[row].map(n => n === 0 ? '**' : String(n).padStart(2, ' '));
+      output += cells.join('  ') + '\n';
+    }
+    
+    return output;
+  };
+
+  // Handle print cards
+  const handlePrintCards = () => {
+    const printContent = generatedCards.map((card, index) => {
+      const gridText = formatCardGrid(card.numbers);
+      return `
+================================
+        SORTEBEM
+     Sorteio Beneficente
+================================
+
+Data: ${formatDate(purchaseDate)}  Hora: ${formatTime(purchaseDate)}
+Rodada: #${roundNumber}
+
+--------------------------------
+CARTELA ${index + 1}: ${card.code}
+
+${gridText}
+--------------------------------
+
+Acesse: sortebem.com.br/c/${card.code}
+        para acompanhar!
+
+Guarde este comprovante!
+Ele é necessário para resgatar
+seu prêmio em caso de vitória.
+
+================================
+     BOA SORTE!
+================================
+`;
+    }).join('\n\n');
+
+    // Create print window
+    const printWindow = window.open('', '_blank');
+    if (printWindow) {
+      printWindow.document.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>Cartelas - SorteBem</title>
+          <style>
+            @media print {
+              body { margin: 0; padding: 10mm; }
+              .no-print { display: none; }
+              .page-break { page-break-after: always; }
+            }
+            body {
+              font-family: 'Courier New', monospace;
+              font-size: 12px;
+              line-height: 1.4;
+              background: #fff;
+              color: #000;
+            }
+            pre {
+              white-space: pre-wrap;
+              word-wrap: break-word;
+              margin: 0;
+            }
+            .card-container {
+              max-width: 300px;
+              margin: 0 auto 20px;
+              padding: 10px;
+              border: 1px dashed #ccc;
+            }
+            .print-btn {
+              display: block;
+              margin: 20px auto;
+              padding: 15px 30px;
+              font-size: 16px;
+              background: #22c55e;
+              color: white;
+              border: none;
+              border-radius: 8px;
+              cursor: pointer;
+            }
+            .print-btn:hover {
+              background: #16a34a;
+            }
+            h1 {
+              text-align: center;
+              font-family: sans-serif;
+            }
+            .instructions {
+              text-align: center;
+              font-family: sans-serif;
+              margin-bottom: 20px;
+              color: #666;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="no-print">
+            <h1>🎱 Suas Cartelas</h1>
+            <p class="instructions">Clique no botão abaixo para imprimir ou use Ctrl+P</p>
+            <button class="print-btn" onclick="window.print()">🖨️ Imprimir Cartelas</button>
+          </div>
+          ${generatedCards.map((card, index) => `
+            <div class="card-container ${index < generatedCards.length - 1 ? 'page-break' : ''}">
+              <pre>${`================================
+        SORTEBEM
+     Sorteio Beneficente
+================================
+
+Data: ${formatDate(purchaseDate)}  Hora: ${formatTime(purchaseDate)}
+Rodada: #${roundNumber}
+
+--------------------------------
+CARTELA ${index + 1}: ${card.code}
+
+${formatCardGrid(card.numbers)}
+--------------------------------
+
+Acesse: sortebem.com.br/c/${card.code}
+        para acompanhar!
+
+Guarde este comprovante!
+Ele é necessário para resgatar
+seu prêmio em caso de vitória.
+
+================================
+     BOA SORTE!
+================================`}</pre>
+            </div>
+          `).join('')}
+        </body>
+        </html>
+      `);
+      printWindow.document.close();
+    }
+    
+    toast({ title: '🖨️ Janela de impressão aberta', description: 'Use o botão imprimir ou Ctrl+P' });
+  };
+
+  // Handle share via WhatsApp
+  const handleShareWhatsApp = () => {
+    const cardsText = generatedCards.map((card, index) => 
+      `🎱 Cartela ${index + 1}: ${card.code}\n🔗 Link: https://sortebem.com.br/c/${card.code}`
+    ).join('\n\n');
+    
+    const message = `✅ *Compra Confirmada - SorteBem*\n\n📅 Data: ${formatDate(purchaseDate)}\n⏰ Hora: ${formatTime(purchaseDate)}\n🎯 Rodada: #${roundNumber}\n\n${cardsText}\n\n🍀 Boa sorte no sorteio!\n\nAcesse sortebem.com.br para acompanhar`;
+    
+    const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(message)}`;
+    window.open(whatsappUrl, '_blank');
+    
+    toast({ title: '📱 Abrindo WhatsApp', description: 'Escolha um contato para enviar' });
+  };
 
   // Show loading state
   if (loading) {
@@ -749,14 +936,38 @@ const Checkout = () => {
                 </div>
               </div>
 
+              {/* Action Buttons */}
               {generatedCards.length > 0 && (
-                <Link to={`/c/${generatedCards[0].code}`}>
-                  <Button variant="hero" size="xl" className="w-full">
-                    <ShoppingCart className="w-5 h-5" />
-                    Abrir Cartela Agora
-                    <ArrowRight className="w-5 h-5" />
-                  </Button>
-                </Link>
+                <div className="space-y-3">
+                  <Link to={`/c/${generatedCards[0].code}`}>
+                    <Button variant="hero" size="xl" className="w-full">
+                      <ShoppingCart className="w-5 h-5" />
+                      Abrir Cartela Agora
+                      <ArrowRight className="w-5 h-5" />
+                    </Button>
+                  </Link>
+                  
+                  <div className="grid grid-cols-2 gap-3">
+                    <Button 
+                      variant="outline" 
+                      size="lg" 
+                      className="w-full" 
+                      onClick={handlePrintCards}
+                    >
+                      <Printer className="w-5 h-5" />
+                      Imprimir Cartelas
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      size="lg" 
+                      className="w-full bg-[#25D366]/10 border-[#25D366]/30 text-[#25D366] hover:bg-[#25D366]/20" 
+                      onClick={handleShareWhatsApp}
+                    >
+                      <Share2 className="w-5 h-5" />
+                      Enviar WhatsApp
+                    </Button>
+                  </div>
+                </div>
               )}
 
               {/* WhatsApp */}
