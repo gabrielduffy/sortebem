@@ -464,35 +464,81 @@ export default function AdminSettings() {
           </TabsContent>
 
           <TabsContent value="sistema" className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>Configurações do Sistema</CardTitle>
-                <CardDescription>Configurações gerais da plataforma</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Label>Manutenção</Label>
-                    <p className="text-sm text-muted-foreground">Desativar vendas temporariamente</p>
+            <div className="grid md:grid-cols-2 gap-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Configurações Gerais</CardTitle>
+                  <CardDescription>Configurações gerais da plataforma</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <Label>Manutenção</Label>
+                      <p className="text-sm text-muted-foreground">Desativar vendas temporariamente</p>
+                    </div>
+                    <Switch />
                   </div>
-                  <Switch />
-                </div>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Label>Notificações WhatsApp</Label>
-                    <p className="text-sm text-muted-foreground">Enviar cartelas via WhatsApp</p>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <Label>Notificações WhatsApp</Label>
+                      <p className="text-sm text-muted-foreground">Enviar cartelas via WhatsApp</p>
+                    </div>
+                    <Switch defaultChecked />
                   </div>
-                  <Switch defaultChecked />
-                </div>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Label>POS Habilitado</Label>
-                    <p className="text-sm text-muted-foreground">Permitir vendas via maquininha</p>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <Label>POS Habilitado</Label>
+                      <p className="text-sm text-muted-foreground">Permitir vendas via maquininha</p>
+                    </div>
+                    <Switch defaultChecked />
                   </div>
-                  <Switch defaultChecked />
-                </div>
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Clock className="w-5 h-5 text-primary" />
+                    Intervalos de Sorteio
+                  </CardTitle>
+                  <CardDescription>Configure os tempos entre números sorteados</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    <Label>Intervalo entre números (segundos)</Label>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        type="number"
+                        value={settings?.drawIntervalSeconds || 5}
+                        onChange={(e) => setSettings({...settings, drawIntervalSeconds: parseInt(e.target.value) || 5})}
+                        min={1}
+                        max={30}
+                      />
+                      <span className="text-muted-foreground">seg</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Tempo de espera entre cada número sorteado (1-30 segundos)
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Delay antes do primeiro número (segundos)</Label>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        type="number"
+                        value={settings?.drawFirstDelaySeconds || 10}
+                        onChange={(e) => setSettings({...settings, drawFirstDelaySeconds: parseInt(e.target.value) || 10})}
+                        min={0}
+                        max={60}
+                      />
+                      <span className="text-muted-foreground">seg</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Tempo de espera antes de sortear o primeiro número (0-60 segundos)
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
           </TabsContent>
 
           <TabsContent value="letreiro" className="space-y-4">

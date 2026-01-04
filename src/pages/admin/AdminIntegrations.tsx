@@ -93,10 +93,14 @@ export default function AdminIntegrations() {
     enabled: false,
     apiKey: '',
     voiceId: '',
-    modelId: 'eleven_multilingual_v2'
+    modelId: 'eleven_multilingual_v2',
+    narrationPrefix: 'Número sorteado:',
+    narrationInterval: 3000,
+    volume: 1.0
   });
   const [showElevenlabsKey, setShowElevenlabsKey] = useState(false);
   const [testingElevenlabs, setTestingElevenlabs] = useState(false);
+  const [testAudioPlaying, setTestAudioPlaying] = useState(false);
 
   useEffect(() => {
     loadSettings();
@@ -413,15 +417,46 @@ export default function AdminIntegrations() {
       return;
     }
     setTestingElevenlabs(true);
+    setTestAudioPlaying(true);
     try {
-      // Simple validation - check if key starts with expected prefix
-      if (elevenlabsConfig.apiKey.length > 10) {
-        toast({ title: 'Formato válido!', description: 'A API Key parece estar no formato correto.' });
-      } else {
-        toast({ title: 'Aviso', description: 'A API Key parece muito curta.', variant: 'destructive' });
+      // Test by generating a sample narration
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/elevenlabs-tts`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          },
+          body: JSON.stringify({ 
+            text: `${elevenlabsConfig.narrationPrefix || 'Número sorteado:'} 42`,
+            voiceId: elevenlabsConfig.voiceId,
+            modelId: elevenlabsConfig.modelId
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Erro ao testar');
       }
-    } catch (error) {
-      toast({ title: 'Erro', description: 'Não foi possível validar a API Key.', variant: 'destructive' });
+
+      const data = await response.json();
+      
+      if (data.audioContent) {
+        const audioUrl = `data:audio/mpeg;base64,${data.audioContent}`;
+        const audio = new Audio(audioUrl);
+        audio.volume = elevenlabsConfig.volume || 1.0;
+        audio.onended = () => setTestAudioPlaying(false);
+        await audio.play();
+        toast({ title: 'Sucesso!', description: 'Áudio de teste reproduzido!' });
+      } else {
+        throw new Error('Nenhum áudio recebido');
+      }
+    } catch (error: any) {
+      toast({ title: 'Erro', description: error.message || 'Não foi possível testar.', variant: 'destructive' });
+      setTestAudioPlaying(false);
     } finally {
       setTestingElevenlabs(false);
     }
@@ -1104,7 +1139,7 @@ export default function AdminIntegrations() {
                   <Mic className="w-5 h-5 text-primary" />
                   ElevenLabs - Voz com IA
                 </CardTitle>
-                <CardDescription>Configure a integração com ElevenLabs para síntese de voz</CardDescription>
+                <CardDescription>Configure a integração com ElevenLabs para síntese de voz no Modo TV</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="flex items-center justify-between">
@@ -1145,7 +1180,7 @@ export default function AdminIntegrations() {
                     placeholder="Ex: EXAVITQu4vr4xnSDxMaL (Sarah)"
                   />
                   <p className="text-xs text-muted-foreground">
-                    Vozes disponíveis: Roger (CwhRBWXzGAHq8TQ4Fs17), Sarah (EXAVITQu4vr4xnSDxMaL), Laura (FGY2WhTYpPnrIDTdsKH5)
+                    Vozes recomendadas: Roger (CwhRBWXzGAHq8TQ4Fs17), Sarah (EXAVITQu4vr4xnSDxMaL), Laura (FGY2WhTYpPnrIDTdsKH5), Daniel (onwK4e9ZLuTAKqWW03F9)
                   </p>
                 </div>
 
@@ -1167,10 +1202,58 @@ export default function AdminIntegrations() {
                   </Select>
                 </div>
 
+                <hr className="border-border" />
+
+                <h4 className="font-medium text-foreground">Configurações de Narração</h4>
+
+                <div className="space-y-2">
+                  <Label>Prefixo da Narração</Label>
+                  <Input
+                    value={elevenlabsConfig.narrationPrefix}
+                    onChange={(e) => setElevenlabsConfig({ ...elevenlabsConfig, narrationPrefix: e.target.value })}
+                    placeholder="Número sorteado:"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Texto que será falado antes de cada número. Ex: "Número sorteado:" 42
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Intervalo entre Narrações (ms)</Label>
+                    <Input
+                      type="number"
+                      value={elevenlabsConfig.narrationInterval}
+                      onChange={(e) => setElevenlabsConfig({ ...elevenlabsConfig, narrationInterval: parseInt(e.target.value) || 3000 })}
+                      min={1000}
+                      max={10000}
+                      step={500}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Mínimo entre anúncios (1000-10000ms)
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Volume (0-100%)</Label>
+                    <Input
+                      type="number"
+                      value={Math.round((elevenlabsConfig.volume || 1) * 100)}
+                      onChange={(e) => setElevenlabsConfig({ ...elevenlabsConfig, volume: (parseInt(e.target.value) || 100) / 100 })}
+                      min={0}
+                      max={100}
+                      step={10}
+                    />
+                  </div>
+                </div>
+
                 <div className="flex gap-2">
-                  <Button variant="outline" onClick={handleTestElevenlabs} disabled={testingElevenlabs}>
-                    <Plug className="w-4 h-4 mr-2" />
-                    {testingElevenlabs ? 'Validando...' : 'Validar API Key'}
+                  <Button 
+                    variant="outline" 
+                    onClick={handleTestElevenlabs} 
+                    disabled={testingElevenlabs || testAudioPlaying}
+                  >
+                    <Mic className={`w-4 h-4 mr-2 ${testAudioPlaying ? 'animate-pulse' : ''}`} />
+                    {testingElevenlabs ? 'Gerando...' : testAudioPlaying ? 'Reproduzindo...' : 'Testar Narração'}
                   </Button>
                   <Button variant="hero" onClick={handleSaveElevenlabs} disabled={saving}>
                     <Save className="w-4 h-4 mr-2" />
@@ -1181,9 +1264,18 @@ export default function AdminIntegrations() {
                 <div className="mt-6 p-4 bg-muted rounded-lg">
                   <h4 className="font-medium text-sm mb-2">Uso do ElevenLabs no SorteBem</h4>
                   <ul className="text-sm text-muted-foreground space-y-1">
-                    <li>• <strong>Narração de sorteios:</strong> Anúncio de números sorteados em tempo real</li>
-                    <li>• <strong>Notificações de ganhadores:</strong> Anúncio de vencedores com entusiasmo</li>
-                    <li>• <strong>Modo TV:</strong> Narração automática para telas de estabelecimentos</li>
+                    <li>• <strong>Modo TV:</strong> Narração automática de números sorteados em tempo real</li>
+                    <li>• <strong>Anúncio de ganhadores:</strong> Parabéns ao vencedor com entusiasmo</li>
+                    <li>• <strong>Desempate:</strong> Anúncio da pedra de desempate</li>
+                  </ul>
+                </div>
+
+                <div className="p-4 bg-primary/5 border border-primary/20 rounded-lg">
+                  <h4 className="font-medium text-sm text-primary mb-2">💡 Dicas de Uso</h4>
+                  <ul className="text-xs text-muted-foreground space-y-1">
+                    <li>• Use <strong>Turbo v2.5</strong> para menor latência durante sorteios ao vivo</li>
+                    <li>• Vozes em português recomendadas: <strong>Daniel</strong> (masculina) ou <strong>Sarah</strong> (feminina)</li>
+                    <li>• O volume pode ser ajustado no próprio Modo TV pelo botão de som</li>
                   </ul>
                 </div>
               </CardContent>

@@ -1,1 +1,13 @@
 project_id = "ctjdbnvcqcyitpydnmdt"
+
+[functions.elevenlabs-tts]
+verify_jwt = false
+
+[functions.pos-auth]
+verify_jwt = false
+
+[functions.pos-get-round]
+verify_jwt = false
+
+[functions.pos-create-sale]
+verify_jwt = false
