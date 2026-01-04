@@ -22,27 +22,24 @@ export default function AdminPOS() {
      Sorteio Beneficente
 ================================
 
-Data: {DATA}
-Hora: {HORA}
+Data: {DATA}  Hora: {HORA}
 Rodada: #{RODADA}
 
 --------------------------------
-CARTELA(S):
-{CARTELAS}
+{CARTELAS_GRADE}
 --------------------------------
 
 Valor Total: R$ {VALOR}
 
-Acesse: sortebem.com.br/c/{CODIGO}
-
-{QR_CODE}
+Acesse: sortebem.com.br
+        para acompanhar!
 
 Guarde este comprovante!
-Ele é necessário para resgatar
-seu prêmio em caso de vitória.
+Ele e necessario para resgatar
+seu premio em caso de vitoria.
 
 ================================
-     BOA SORTE! 🍀
+        BOA SORTE!
 ================================`);
 
   const handleSave = () => {
@@ -150,7 +147,7 @@ seu prêmio em caso de vitória.
                     className="font-mono text-xs h-96"
                   />
                   <p className="text-xs text-muted-foreground mt-2">
-                    Variáveis: {'{DATA}'}, {'{HORA}'}, {'{RODADA}'}, {'{CARTELAS}'}, {'{VALOR}'}, {'{CODIGO}'}, {'{QR_CODE}'}
+                    Variáveis: {'{DATA}'}, {'{HORA}'}, {'{RODADA}'}, {'{CARTELAS_GRADE}'}, {'{VALOR}'}, {'{QR_CODE}'}
                   </p>
                   <Button variant="hero" className="w-full mt-4" onClick={handleSave}>
                     <Save className="w-4 h-4" />
@@ -167,13 +164,35 @@ seu prêmio em caso de vitória.
                 <CardContent>
                   <div className="bg-background border-2 border-dashed border-border rounded-xl p-4 font-mono text-xs whitespace-pre-wrap">
                     {receiptTemplate
-                      .replace('{DATA}', '27/12/2024')
+                      .replace('{DATA}', '04/01/2026')
                       .replace('{HORA}', '15:30')
-                      .replace('{RODADA}', '001')
-                      .replace('{CARTELAS}', 'SB-A7K3M9P2\nSB-B8L4N0Q3')
+                      .replace('{RODADA}', '042')
+                      .replace('{CARTELAS_GRADE}', `CARTELA: SB-A7K3M9P2
+
+ B   I   N   G   O
+-------------------
+ 3  17  31  47  61
+ 7  22  35  52  68
+12  25  **  55  71
+14  28  42  58  73
+15  30  44  60  75
+
+[QR CODE]
+
+--------------------------------
+CARTELA: SB-B8L4N0Q3
+
+ B   I   N   G   O
+-------------------
+ 2  19  33  48  63
+ 5  21  37  51  66
+ 9  24  **  54  69
+11  27  41  57  72
+13  29  43  59  74
+
+[QR CODE]`)
                       .replace('{VALOR}', '10,00')
-                      .replace('{CODIGO}', 'SB-A7K3M9P2')
-                      .replace('{QR_CODE}', '[QR CODE AQUI]')
+                      .replace('{QR_CODE}', '')
                     }
                   </div>
                 </CardContent>
@@ -324,11 +343,15 @@ seu prêmio em caso de vitória.
     {
       "id": 789,
       "code": "SB-A7K3M9P2",
-      "numbers": [3, 7, 12, 15, 22, ...],
+      "numbers": [3, 17, 31, 47, 61, 7, 22, 35, 52, 68, 12, 25, 0, 55, 71, 14, 28, 42, 58, 73, 15, 30, 44, 60, 75],
+      "numbers_formatted": " B   I   N   G   O\\n-------------------\\n 3  17  31  47  61\\n 7  22  35  52  68\\n12  25  **  55  71\\n14  28  42  58  73\\n15  30  44  60  75\\n",
       "qr_url": "https://sortebem.com.br/c/SB-A7K3M9P2"
     }
   ]
 }`}</pre>
+                  <p className="text-xs text-muted-foreground mt-2">
+                    <strong>Nota:</strong> O campo <code>numbers_formatted</code> já vem formatado para impressão térmica (32 colunas). O centro da cartela (posição 12 no array) é marcado como 0 (FREE).
+                  </p>
                 </div>
 
                 <div className="bg-primary/10 border border-primary/20 rounded-xl p-4">
@@ -355,17 +378,33 @@ seu prêmio em caso de vitória.
                 <div className="bg-muted rounded-xl p-4">
                   <h4 className="font-semibold mb-2">🖨️ Formato do Comprovante</h4>
                   <p className="text-sm text-muted-foreground mb-2">
-                    O comprovante deve incluir:
+                    O comprovante deve incluir a <strong>grade de números</strong> para o cliente jogar:
                   </p>
                   <ul className="text-sm text-muted-foreground space-y-1">
                     <li>• Cabeçalho: Logo/Nome SORTEBEM</li>
                     <li>• Data/Hora da compra</li>
                     <li>• Número da rodada</li>
-                    <li>• Códigos das cartelas (um por linha)</li>
-                    <li>• QR Code de cada cartela (se habilitado)</li>
+                    <li>• <strong>Para cada cartela:</strong></li>
+                    <li className="ml-4">- Código da cartela (SB-XXXXXXXX)</li>
+                    <li className="ml-4">- Grade 5x5 com números (B-I-N-G-O)</li>
+                    <li className="ml-4">- Centro marcado com ** (FREE)</li>
+                    <li className="ml-4">- QR Code (opcional)</li>
                     <li>• Valor total pago</li>
                     <li>• Aviso para guardar o comprovante</li>
                   </ul>
+                  <div className="mt-4 p-3 bg-background rounded font-mono text-xs whitespace-pre">
+{`Exemplo de cartela impressa:
+
+CARTELA: SB-A7K3M9P2
+
+ B   I   N   G   O
+-------------------
+ 3  17  31  47  61
+ 7  22  35  52  68
+12  25  **  55  71
+14  28  42  58  73
+15  30  44  60  75`}
+                  </div>
                 </div>
               </CardContent>
             </Card>
