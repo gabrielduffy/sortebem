@@ -1290,12 +1290,43 @@ export default function AdminIntegrations() {
                   <Webhook className="w-5 h-5 text-primary" />
                   URLs de Webhook
                 </CardTitle>
-                <CardDescription>Configure estas URLs nos painéis dos gateways</CardDescription>
+                <CardDescription>Configure estas URLs nos painéis dos gateways de pagamento</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-4">
+                  {/* URL Direta do Supabase - Principal */}
+                  <div className="bg-primary/5 border-2 border-primary/30 rounded-lg p-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Badge variant="default" className="bg-primary">Recomendado</Badge>
+                      <Label className="text-sm font-medium">URL Webhook Asaas (Supabase)</Label>
+                    </div>
+                    <div className="flex items-center gap-2 mt-2">
+                      <code className="flex-1 bg-background px-3 py-2 rounded text-sm text-foreground break-all font-mono">
+                        https://ctjdbnvcqcyitpydnmdt.supabase.co/functions/v1/asaas-webhook
+                      </code>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={() => handleCopyWebhookUrl('https://ctjdbnvcqcyitpydnmdt.supabase.co/functions/v1/asaas-webhook')}
+                      >
+                        {copiedUrl === 'https://ctjdbnvcqcyitpydnmdt.supabase.co/functions/v1/asaas-webhook' ? (
+                          <Check className="w-4 h-4 text-green-500" />
+                        ) : (
+                          <Copy className="w-4 h-4" />
+                        )}
+                      </Button>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-2">
+                      <strong>Use esta URL no painel do Asaas:</strong> Configurações → Webhooks → Adicionar
+                    </p>
+                  </div>
+
+                  {/* URL alternativa com domínio próprio */}
                   <div className="bg-muted rounded-lg p-4">
-                    <Label className="text-sm font-medium">URL Webhook Asaas</Label>
+                    <div className="flex items-center gap-2 mb-2">
+                      <Badge variant="outline">Alternativo</Badge>
+                      <Label className="text-sm font-medium">URL com Domínio Próprio</Label>
+                    </div>
                     <div className="flex items-center gap-2 mt-2">
                       <code className="flex-1 bg-background px-3 py-2 rounded text-sm text-foreground break-all">
                         https://sortebem.com.br/api/webhook/asaas
@@ -1313,22 +1344,23 @@ export default function AdminIntegrations() {
                       </Button>
                     </div>
                     <p className="text-xs text-muted-foreground mt-2">
-                      Configure no painel do Asaas em: Configurações → Webhooks → Adicionar URL
+                      Requer configuração de proxy no nginx para redirecionar para a Edge Function
                     </p>
                   </div>
 
+                  {/* PagSeguro */}
                   <div className="bg-muted rounded-lg p-4">
                     <Label className="text-sm font-medium">URL Webhook PagSeguro</Label>
                     <div className="flex items-center gap-2 mt-2">
                       <code className="flex-1 bg-background px-3 py-2 rounded text-sm text-foreground break-all">
-                        https://sortebem.com.br/api/webhook/pagseguro
+                        https://ctjdbnvcqcyitpydnmdt.supabase.co/functions/v1/pagseguro-webhook
                       </code>
                       <Button
                         variant="outline"
                         size="icon"
-                        onClick={() => handleCopyWebhookUrl('https://sortebem.com.br/api/webhook/pagseguro')}
+                        onClick={() => handleCopyWebhookUrl('https://ctjdbnvcqcyitpydnmdt.supabase.co/functions/v1/pagseguro-webhook')}
                       >
-                        {copiedUrl === 'https://sortebem.com.br/api/webhook/pagseguro' ? (
+                        {copiedUrl === 'https://ctjdbnvcqcyitpydnmdt.supabase.co/functions/v1/pagseguro-webhook' ? (
                           <Check className="w-4 h-4" />
                         ) : (
                           <Copy className="w-4 h-4" />
@@ -1342,27 +1374,25 @@ export default function AdminIntegrations() {
                 </div>
 
                 <div className="bg-primary/10 border border-primary/20 rounded-lg p-4">
-                  <h4 className="font-semibold text-foreground mb-2">Instruções importantes:</h4>
-                  <ul className="space-y-1 text-sm text-muted-foreground">
-                    <li>• As URLs acima devem ser configuradas nos painéis dos respectivos gateways</li>
-                    <li>• Certifique-se de que os Webhook Tokens estão configurados corretamente</li>
-                    <li>• Os webhooks notificam automaticamente sobre mudanças no status de pagamento</li>
-                    <li>• É essencial para confirmação automática de compras</li>
-                    <li>• As URLs usam seu domínio personalizado e fazem proxy para as Edge Functions do Supabase</li>
-                  </ul>
+                  <h4 className="font-semibold text-foreground mb-2">Como configurar no Asaas:</h4>
+                  <ol className="space-y-1 text-sm text-muted-foreground list-decimal list-inside">
+                    <li>Acesse o painel do Asaas → Configurações → Webhooks</li>
+                    <li>Clique em "Adicionar Webhook"</li>
+                    <li>Ative o webhook</li>
+                    <li>Cole a URL acima no campo "URL do Webhook"</li>
+                    <li>Selecione os eventos: PAYMENT_CONFIRMED, PAYMENT_RECEIVED</li>
+                    <li>Salve as configurações</li>
+                  </ol>
                 </div>
                 
-                <div className="bg-muted/50 border border-border rounded-lg p-4">
+                <div className="bg-green-500/10 border border-green-500/20 rounded-lg p-4">
                   <div className="flex items-start gap-2">
-                    <Info className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
+                    <Check className="w-4 h-4 text-green-500 mt-0.5 flex-shrink-0" />
                     <div className="flex-1">
-                      <h4 className="font-semibold text-sm text-foreground mb-1">URLs Personalizadas</h4>
+                      <h4 className="font-semibold text-sm text-foreground mb-1">Edge Function Ativa</h4>
                       <p className="text-xs text-muted-foreground">
-                        Estas URLs usam seu domínio personalizado (sortebem.com.br). 
-                        Certifique-se de que seu servidor/nginx está configurado para fazer proxy dessas rotas para as Edge Functions do Supabase:
-                        <br />
-                        <code className="text-xs mt-1 block bg-background px-2 py-1 rounded">/api/webhook/asaas → Supabase Edge Function</code>
-                        <code className="text-xs block bg-background px-2 py-1 rounded">/api/webhook/pagseguro → Supabase Edge Function</code>
+                        A Edge Function <code>asaas-webhook</code> está configurada e pronta para receber notificações de pagamento.
+                        Quando um pagamento for confirmado, o sistema atualizará automaticamente o status da compra.
                       </p>
                     </div>
                   </div>
