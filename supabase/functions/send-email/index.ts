@@ -1,5 +1,6 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.0'
+import { SMTPClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts"
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -108,94 +109,68 @@ serve(async (req) => {
     }
 
     const port = parseInt(config.port) || 587
-    const useSSL = port === 465 || config.secure === true
-
-    console.log(`Connecting to SMTP: ${config.host}:${port}, SSL: ${useSSL}`)
+    // Port 465 uses implicit TLS (set tls: true)
+    // Port 587 uses STARTTLS (set tls: false, will upgrade automatically)
+    const useTLS = port === 465
+    
+    console.log(`Connecting to SMTP: ${config.host}:${port}, TLS: ${useTLS}`)
     console.log(`From: ${config.fromEmail || config.user}`)
     console.log(`To: ${to}`)
 
-    // Create base64 encoded credentials for SMTP AUTH
-    const credentials = btoa(`\x00${config.user}\x00${config.password}`)
-    
-    // For now, we'll use a simple HTTP-based email sending approach
-    // since SMTP in Deno Edge Functions has compatibility issues
-    
-    // Try using the MailChannels API which is free for Cloudflare Workers
-    // Or use a simple webhook approach
-    
-    // Alternative: Use fetch to send via an external SMTP relay API
-    // For testing purposes, we'll simulate success and log the attempt
-    
-    // Check if we have a RESEND_API_KEY for Resend integration
-    const resendApiKey = Deno.env.get('RESEND_API_KEY')
-    
-    if (resendApiKey) {
-      // Use Resend API
-      const resendResponse = await fetch('https://api.resend.com/emails', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${resendApiKey}`,
-          'Content-Type': 'application/json',
+    // Create SMTP client with explicit TLS settings
+    const client = new SMTPClient({
+      connection: {
+        hostname: config.host,
+        port: port,
+        tls: useTLS, // Only true for port 465
+        auth: {
+          username: config.user,
+          password: config.password,
         },
-        body: JSON.stringify({
-          from: `${config.fromName || 'Sortebem'} <${config.fromEmail || config.user}>`,
-          to: [to],
-          subject: emailSubject,
-          html: emailHtml,
-          text: emailText,
-        }),
-      })
+      },
+    })
 
-      if (!resendResponse.ok) {
-        const errorData = await resendResponse.json()
-        console.error('Resend API error:', errorData)
-        throw new Error(errorData.message || 'Erro ao enviar via Resend')
-      }
+    console.log('Sending email...')
 
-      const resendData = await resendResponse.json()
-      console.log('Email sent via Resend:', resendData)
+    // Send email
+    await client.send({
+      from: config.fromEmail || config.user,
+      to: to,
+      subject: emailSubject,
+      content: emailText || 'E-mail enviado pelo Sortebem',
+      html: emailHtml,
+    })
 
-      return new Response(
-        JSON.stringify({ 
-          success: true, 
-          message: 'E-mail enviado com sucesso via Resend',
-          to,
-          subject: emailSubject,
-          id: resendData.id
-        }),
-        {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        }
-      )
-    }
+    console.log('Email sent successfully!')
 
-    // If no Resend API key, try using nodemailer-style SMTP via external service
-    // For now, return a helpful error message
-    console.log('No RESEND_API_KEY found, SMTP direct connection not supported in edge functions')
-    
+    await client.close()
+
     return new Response(
       JSON.stringify({ 
-        success: false, 
-        error: 'Para enviar e-mails, configure a chave RESEND_API_KEY no projeto. O envio direto via SMTP não é suportado em edge functions. Acesse https://resend.com para criar uma conta gratuita.',
-        smtp_config: {
-          host: config.host,
-          port: port,
-          user: config.user,
-          fromEmail: config.fromEmail
-        }
+        success: true, 
+        message: 'E-mail enviado com sucesso',
+        to,
+        subject: emailSubject
       }),
       {
-        status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       }
     )
 
   } catch (error: any) {
     console.error('Error sending email:', error)
+    
+    // Provide helpful error messages
+    let errorMessage = error.message || 'Erro ao enviar e-mail'
+    
+    if (errorMessage.includes('InvalidContentType') || errorMessage.includes('BadResource')) {
+      errorMessage = 'Erro de conexão SMTP. Tente alterar a porta para 465 (SSL) nas configurações.'
+    }
+    
     return new Response(
       JSON.stringify({ 
         success: false, 
-        error: error.message || 'Erro ao enviar e-mail' 
+        error: errorMessage
       }),
       {
         status: 400,
