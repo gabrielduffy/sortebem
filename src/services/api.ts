@@ -1943,30 +1943,36 @@ class ApiService {
    */
   async testSMTP(testEmail: string): Promise<ApiResponse> {
     try {
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-email`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-          },
-          body: JSON.stringify({ 
-            to: testEmail,
-            subject: 'Teste de E-mail - Sortebem'
-          }),
+      const { data, error } = await supabase.functions.invoke('send-email', {
+        body: { 
+          to: testEmail,
+          subject: 'Teste de E-mail - Sortebem',
+          html: `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+              <h1 style="color: #f97316;">✅ E-mail de Teste - Sortebem</h1>
+              <p>Este é um e-mail de teste enviado pelo sistema Sortebem.</p>
+              <p>Se você recebeu este e-mail, significa que a configuração está funcionando corretamente!</p>
+              <hr style="border: 1px solid #e5e7eb; margin: 20px 0;">
+              <p style="color: #6b7280; font-size: 12px;">
+                Enviado em: ${new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}
+              </p>
+            </div>
+          `
         }
-      );
+      });
 
-      const data = await response.json();
+      if (error) {
+        console.error('Error invoking send-email:', error);
+        return { ok: false, error: error.message || 'Erro ao enviar e-mail de teste' };
+      }
       
-      if (!response.ok || !data.success) {
-        return { ok: false, error: data.error || 'Erro ao enviar e-mail de teste' };
+      if (!data?.ok) {
+        return { ok: false, error: data?.error || 'Erro ao enviar e-mail de teste' };
       }
 
       return { ok: true, data };
     } catch (error: any) {
+      console.error('Error testing SMTP:', error);
       return { ok: false, error: error.message || 'Erro ao testar SMTP' };
     }
   }
