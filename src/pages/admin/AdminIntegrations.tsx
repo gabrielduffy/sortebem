@@ -65,6 +65,7 @@ export default function AdminIntegrations() {
     secure: true
   });
   const [showSmtpPassword, setShowSmtpPassword] = useState(false);
+  const [testingSMTP, setTestingSMTP] = useState(false);
   const [testEmail, setTestEmail] = useState('');
   const [emailTemplates, setEmailTemplates] = useState([
     { id: '1', name: 'Recuperação de Senha', subject: 'Recuperação de Senha - Sortebem', content: 'Olá {{nome_cliente}}, clique aqui para resetar sua senha...' },
@@ -276,16 +277,19 @@ export default function AdminIntegrations() {
       toast({ title: 'E-mail necessário', description: 'Informe um e-mail para o teste.', variant: 'destructive' });
       return;
     }
+    setTestingSMTP(true);
     toast({ title: 'Testando...', description: 'Enviando e-mail de teste.' });
     try {
-      const response = await apiService.testSMTP();
+      const response = await apiService.testSMTP(testEmail);
       if (response.ok) {
-        toast({ title: 'Sucesso!', description: 'E-mail de teste enviado.' });
+        toast({ title: 'Sucesso!', description: `E-mail de teste enviado para ${testEmail}.` });
       } else {
         toast({ title: 'Erro', description: response.error || 'Falha no envio.', variant: 'destructive' });
       }
     } catch (error) {
       toast({ title: 'Erro', description: 'Erro ao testar SMTP.', variant: 'destructive' });
+    } finally {
+      setTestingSMTP(false);
     }
   };
 
