@@ -2487,6 +2487,22 @@ CREATE POLICY "Anyone can register" ON "public"."users" FOR INSERT WITH CHECK (t
 
 
 
+CREATE POLICY "Authenticated users can delete settings" ON "public"."settings" FOR DELETE TO "authenticated", "anon" USING (true);
+
+
+
+CREATE POLICY "Authenticated users can insert settings" ON "public"."settings" FOR INSERT TO "authenticated", "anon" WITH CHECK (true);
+
+
+
+CREATE POLICY "Authenticated users can read settings" ON "public"."settings" FOR SELECT TO "authenticated", "anon" USING (true);
+
+
+
+CREATE POLICY "Authenticated users can update settings" ON "public"."settings" FOR UPDATE TO "authenticated", "anon" USING (true) WITH CHECK (true);
+
+
+
 CREATE POLICY "Cards are viewable by everyone" ON "public"."cards" FOR SELECT USING (true);
 
 
@@ -2551,10 +2567,6 @@ CREATE POLICY "Only admins can manage rounds" ON "public"."rounds" USING ((("aut
 
 
 
-CREATE POLICY "Only admins can manage settings" ON "public"."settings" USING ((("auth"."jwt"() ->> 'role'::"text") = 'admin'::"text"));
-
-
-
 CREATE POLICY "Only admins can manage terminals" ON "public"."pos_terminals" USING ((("auth"."jwt"() ->> 'role'::"text") = 'admin'::"text"));
 
 
@@ -2595,19 +2607,11 @@ CREATE POLICY "Public can view establishments" ON "public"."establishments" FOR 
 
 
 
-CREATE POLICY "Public can view public settings" ON "public"."settings" FOR SELECT USING (("is_public" = true));
-
-
-
 CREATE POLICY "Public can view purchases" ON "public"."purchases" FOR SELECT USING (true);
 
 
 
 CREATE POLICY "Public can view selling rounds" ON "public"."rounds" FOR SELECT USING (("status" = ANY (ARRAY['selling'::"text", 'drawing'::"text", 'scheduled'::"text"])));
-
-
-
-CREATE POLICY "Public settings are viewable by everyone" ON "public"."settings" FOR SELECT USING ((("key" = ANY (ARRAY['round_config'::"text", 'split_config'::"text"])) OR (("auth"."jwt"() ->> 'role'::"text") = 'admin'::"text")));
 
 
 
