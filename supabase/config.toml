@@ -11,3 +11,9 @@ verify_jwt = false
 
 [functions.pos-create-sale]
 verify_jwt = false
+
+[functions.asaas-webhook]
+verify_jwt = false
+
+[functions.pagseguro-webhook]
+verify_jwt = false

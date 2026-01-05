@@ -606,14 +606,16 @@ class ApiService {
   // ============ INTEGRATIONS ============
 
   /**
-   * Update gateway settings (admin only)
+   * Update gateway settings (admin only) - uses upsert
    */
   async updateGatewaySettings(data: any): Promise<ApiResponse> {
     try {
       const { data: setting, error } = await supabase
         .from('settings')
-        .update({ value: data })
-        .eq('key', 'gateway')
+        .upsert(
+          { key: 'gateway', value: data, updated_at: new Date().toISOString() },
+          { onConflict: 'key' }
+        )
         .select()
         .single();
 
@@ -628,14 +630,16 @@ class ApiService {
   }
 
   /**
-   * Update WhatsApp settings (admin only)
+   * Update WhatsApp settings (admin only) - uses upsert
    */
   async updateWhatsAppSettings(data: any): Promise<ApiResponse> {
     try {
       const { data: setting, error } = await supabase
         .from('settings')
-        .update({ value: data })
-        .eq('key', 'whatsapp')
+        .upsert(
+          { key: 'whatsapp', value: data, updated_at: new Date().toISOString() },
+          { onConflict: 'key' }
+        )
         .select()
         .single();
 

@@ -583,12 +583,16 @@ export default function AdminIntegrations() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label>Webhook Token</Label>
+                  <Label>Webhook Token (opcional)</Label>
                   <Input
                     value={asaasConfig.webhookToken}
                     onChange={(e) => setAsaasConfig({ ...asaasConfig, webhookToken: e.target.value })}
-                    placeholder="Token para validar webhooks"
+                    placeholder="Token para validar webhooks (asaas-access-token)"
                   />
+                  <p className="text-xs text-muted-foreground">
+                    Se configurar um token no painel do Asaas, cole o mesmo valor aqui para validação extra.
+                    O Asaas envia esse token no header <code>asaas-access-token</code>.
+                  </p>
                 </div>
 
                 <div className="flex gap-2">
