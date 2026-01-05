@@ -1976,14 +1976,26 @@ class ApiService {
    */
   async updateSettings(settings: Record<string, any>): Promise<ApiResponse> {
     try {
-      const updates = Object.entries(settings).map(([key, value]) =>
-        supabase.from('settings').upsert({ key, value }).select()
-      );
+      const errors: string[] = [];
+      
+      for (const [key, value] of Object.entries(settings)) {
+        const { error } = await supabase
+          .from('settings')
+          .upsert({ key, value, updated_at: new Date().toISOString() }, { onConflict: 'key' });
+        
+        if (error) {
+          console.error(`Error saving setting ${key}:`, error);
+          errors.push(`${key}: ${error.message}`);
+        }
+      }
 
-      await Promise.all(updates);
+      if (errors.length > 0) {
+        return { ok: false, error: errors.join(', ') };
+      }
 
       return { ok: true, data: { success: true } };
     } catch (error: any) {
+      console.error('Error in updateSettings:', error);
       return { ok: false, error: error.message };
     }
   }
