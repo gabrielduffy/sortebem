@@ -1939,14 +1939,35 @@ class ApiService {
   }
 
   /**
-   * Test SMTP connection
+   * Test SMTP connection by sending a test email
    */
-  async testSMTP(): Promise<ApiResponse> {
+  async testSMTP(testEmail: string): Promise<ApiResponse> {
     try {
-      // Would call an edge function to test SMTP
-      return { ok: true, data: { success: true, message: 'Conexão SMTP OK' } };
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-email`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          },
+          body: JSON.stringify({ 
+            to: testEmail,
+            subject: 'Teste de E-mail - Sortebem'
+          }),
+        }
+      );
+
+      const data = await response.json();
+      
+      if (!response.ok || !data.success) {
+        return { ok: false, error: data.error || 'Erro ao enviar e-mail de teste' };
+      }
+
+      return { ok: true, data };
     } catch (error: any) {
-      return { ok: false, error: error.message };
+      return { ok: false, error: error.message || 'Erro ao testar SMTP' };
     }
   }
 
