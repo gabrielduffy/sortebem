@@ -459,14 +459,17 @@ class ApiService {
   }
 
   /**
-   * Update setting (admin only)
+   * Update setting (admin only) - uses upsert to handle new keys
    */
   async updateSetting(key: string, value: any): Promise<ApiResponse> {
     try {
+      // Use upsert to handle both insert and update
       const { data, error } = await supabase
         .from('settings')
-        .update({ value })
-        .eq('key', key)
+        .upsert(
+          { key, value, updated_at: new Date().toISOString() },
+          { onConflict: 'key' }
+        )
         .select()
         .single();
 
