@@ -32,15 +32,41 @@ serve(async (req: Request) => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
+    // Get the access token from header (sent by Asaas)
+    const receivedToken = req.headers.get("asaas-access-token");
+    
+    // Optionally validate token against saved webhook token
+    // This is optional - Asaas sends this header if you configure a token
+    if (receivedToken) {
+      console.log("Asaas webhook received with access token");
+      
+      // Get saved webhook token from settings
+      const { data: gatewaySettings } = await supabase
+        .from("settings")
+        .select("value")
+        .eq("key", "gateway")
+        .maybeSingle();
+      
+      const savedToken = gatewaySettings?.value?.asaas?.webhookToken;
+      
+      if (savedToken && savedToken !== receivedToken) {
+        console.warn("Webhook token mismatch!");
+        return new Response(
+          JSON.stringify({ success: false, error: "Invalid webhook token" }),
+          { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+    }
+
     // Parse webhook payload
     const payload: AsaasWebhookPayload = await req.json();
     
     console.log("Asaas Webhook received:", JSON.stringify(payload));
 
     // Validate event type
-    if (!payload.event || !payload.payment) {
+    if (!payload.event) {
       return new Response(
-        JSON.stringify({ success: false, error: "Invalid payload" }),
+        JSON.stringify({ success: false, error: "Invalid payload - missing event" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -63,26 +89,51 @@ serve(async (req: Request) => {
       console.error("Error logging webhook:", logError);
     }
 
-    // Find purchase by asaas_charge_id
-    const { data: purchase, error: purchaseError } = await supabase
+    // If no payment data, just log and return success
+    if (!payment) {
+      console.log("Webhook without payment data, event:", event);
+      return new Response(
+        JSON.stringify({ success: true, message: "Event logged", event }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Find purchase by asaas_charge_id or externalReference
+    let purchase = null;
+    
+    // Try by charge_id first
+    const { data: purchaseByCharge } = await supabase
       .from("purchases")
       .select("id, payment_status, cards_generated")
       .eq("asaas_charge_id", payment.id)
       .maybeSingle();
-
-    if (purchaseError) {
-      console.error("Error finding purchase:", purchaseError);
-      return new Response(
-        JSON.stringify({ success: false, error: "Database error" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+    
+    purchase = purchaseByCharge;
+    
+    // If not found, try by externalReference (which is our purchase_id)
+    if (!purchase && payment.externalReference) {
+      const { data: purchaseByRef } = await supabase
+        .from("purchases")
+        .select("id, payment_status, cards_generated")
+        .eq("id", parseInt(payment.externalReference))
+        .maybeSingle();
+      
+      purchase = purchaseByRef;
+      
+      // Update the asaas_charge_id if found by reference
+      if (purchase) {
+        await supabase
+          .from("purchases")
+          .update({ asaas_charge_id: payment.id })
+          .eq("id", purchase.id);
+      }
     }
 
     if (!purchase) {
-      console.log("Purchase not found for charge:", payment.id);
+      console.log("Purchase not found for charge:", payment.id, "ref:", payment.externalReference);
       // Still return success - Asaas might send webhooks for other events
       return new Response(
-        JSON.stringify({ success: true, message: "Purchase not found" }),
+        JSON.stringify({ success: true, message: "Purchase not found, event logged" }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
