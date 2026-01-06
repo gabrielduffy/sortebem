@@ -250,6 +250,89 @@ $$;
 ALTER FUNCTION "public"."create_players_batch"("p_establishment_id" bigint, "p_names" "text"[], "p_is_bot" boolean, "p_created_by" bigint) OWNER TO "postgres";
 
 
+CREATE OR REPLACE FUNCTION "public"."execute_bot_automation"("p_round_id" bigint, "p_establishment_id" bigint, "p_bot_names" "text"[], "p_cards_per_bot" integer DEFAULT 1) RETURNS "jsonb"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO 'public'
+    AS $$
+DECLARE
+  v_round RECORD;
+  v_name TEXT;
+  v_player_id BIGINT;
+  v_participation_id BIGINT;
+  v_bots_created INTEGER := 0;
+  v_cards_generated INTEGER := 0;
+  v_total_amount NUMERIC := 0;
+BEGIN
+  -- Verificar se rodada existe e está em vendas
+  SELECT * INTO v_round FROM rounds WHERE id = p_round_id;
+  
+  IF NOT FOUND THEN
+    RETURN json_build_object('success', false, 'error', 'Rodada não encontrada');
+  END IF;
+  
+  IF v_round.status NOT IN ('selling', 'scheduled', 'open') THEN
+    RETURN json_build_object('success', false, 'error', 'Rodada não está aberta para vendas');
+  END IF;
+  
+  -- Processar cada nome de bot
+  FOREACH v_name IN ARRAY p_bot_names
+  LOOP
+    -- Criar ou buscar jogador
+    SELECT id INTO v_player_id
+    FROM players
+    WHERE establishment_id = p_establishment_id
+      AND LOWER(name) = LOWER(v_name)
+    LIMIT 1;
+    
+    IF v_player_id IS NULL THEN
+      INSERT INTO players (establishment_id, name, is_bot)
+      VALUES (p_establishment_id, v_name, true)
+      RETURNING id INTO v_player_id;
+      v_bots_created := v_bots_created + 1;
+    END IF;
+    
+    -- Verificar se já participa da rodada
+    IF NOT EXISTS (
+      SELECT 1 FROM player_participations
+      WHERE player_id = v_player_id AND round_id = p_round_id
+    ) THEN
+      -- Adicionar participação
+      INSERT INTO player_participations (
+        player_id,
+        round_id,
+        quantity,
+        total_amount
+      ) VALUES (
+        v_player_id,
+        p_round_id,
+        p_cards_per_bot,
+        v_round.card_price * p_cards_per_bot
+      )
+      RETURNING id INTO v_participation_id;
+      
+      v_cards_generated := v_cards_generated + p_cards_per_bot;
+      v_total_amount := v_total_amount + (v_round.card_price * p_cards_per_bot);
+    END IF;
+  END LOOP;
+  
+  -- Atualizar contagem de cartelas na rodada
+  UPDATE rounds
+  SET cards_sold = COALESCE(cards_sold, 0) + v_cards_generated
+  WHERE id = p_round_id;
+  
+  RETURN json_build_object(
+    'success', true,
+    'bots_created', v_bots_created,
+    'cards_generated', v_cards_generated,
+    'total_amount', v_total_amount
+  );
+END;
+$$;
+
+
+ALTER FUNCTION "public"."execute_bot_automation"("p_round_id" bigint, "p_establishment_id" bigint, "p_bot_names" "text"[], "p_cards_per_bot" integer) OWNER TO "postgres";
+
+
 CREATE OR REPLACE FUNCTION "public"."get_user_id_by_auth"("p_auth_id" "uuid") RETURNS bigint
     LANGUAGE "sql" STABLE SECURITY DEFINER
     SET "search_path" TO 'public'
@@ -561,6 +644,65 @@ COMMENT ON FUNCTION "public"."verify_password"("password" "text", "hash" "text")
 SET default_tablespace = '';
 
 SET default_table_access_method = "heap";
+
+
+CREATE TABLE IF NOT EXISTS "public"."bot_automation_config" (
+    "id" bigint NOT NULL,
+    "establishment_id" bigint NOT NULL,
+    "enabled" boolean DEFAULT false,
+    "min_bots_per_round" integer DEFAULT 5,
+    "max_bots_per_round" integer DEFAULT 20,
+    "min_cards_per_bot" integer DEFAULT 1,
+    "max_cards_per_bot" integer DEFAULT 3,
+    "trigger_type" "text" DEFAULT 'round_open'::"text",
+    "schedule_cron" "text",
+    "last_run_at" timestamp with time zone,
+    "created_at" timestamp with time zone DEFAULT "now"(),
+    "updated_at" timestamp with time zone DEFAULT "now"()
+);
+
+
+ALTER TABLE "public"."bot_automation_config" OWNER TO "postgres";
+
+
+ALTER TABLE "public"."bot_automation_config" ALTER COLUMN "id" ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME "public"."bot_automation_config_id_seq"
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+
+CREATE TABLE IF NOT EXISTS "public"."bot_automation_logs" (
+    "id" bigint NOT NULL,
+    "config_id" bigint,
+    "round_id" bigint,
+    "bots_created" integer DEFAULT 0,
+    "cards_generated" integer DEFAULT 0,
+    "total_amount" numeric DEFAULT 0,
+    "status" "text" DEFAULT 'pending'::"text",
+    "error_message" "text",
+    "started_at" timestamp with time zone DEFAULT "now"(),
+    "completed_at" timestamp with time zone,
+    "created_at" timestamp with time zone DEFAULT "now"()
+);
+
+
+ALTER TABLE "public"."bot_automation_logs" OWNER TO "postgres";
+
+
+ALTER TABLE "public"."bot_automation_logs" ALTER COLUMN "id" ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME "public"."bot_automation_logs_id_seq"
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
 
 
 CREATE TABLE IF NOT EXISTS "public"."cards" (
@@ -1541,6 +1683,21 @@ ALTER TABLE ONLY "public"."withdrawals" ALTER COLUMN "id" SET DEFAULT "nextval"(
 
 
 
+ALTER TABLE ONLY "public"."bot_automation_config"
+    ADD CONSTRAINT "bot_automation_config_establishment_id_key" UNIQUE ("establishment_id");
+
+
+
+ALTER TABLE ONLY "public"."bot_automation_config"
+    ADD CONSTRAINT "bot_automation_config_pkey" PRIMARY KEY ("id");
+
+
+
+ALTER TABLE ONLY "public"."bot_automation_logs"
+    ADD CONSTRAINT "bot_automation_logs_pkey" PRIMARY KEY ("id");
+
+
+
 ALTER TABLE ONLY "public"."cards"
     ADD CONSTRAINT "cards_code_key" UNIQUE ("code");
 
@@ -2098,6 +2255,10 @@ CREATE OR REPLACE TRIGGER "trigger_update_ticker_messages_updated_at" BEFORE UPD
 
 
 
+CREATE OR REPLACE TRIGGER "update_bot_automation_config_updated_at" BEFORE UPDATE ON "public"."bot_automation_config" FOR EACH ROW EXECUTE FUNCTION "public"."update_updated_at"();
+
+
+
 CREATE OR REPLACE TRIGGER "update_charities_updated_at" BEFORE UPDATE ON "public"."charities" FOR EACH ROW EXECUTE FUNCTION "public"."update_updated_at_column"();
 
 
@@ -2131,6 +2292,21 @@ CREATE OR REPLACE TRIGGER "update_users_updated_at" BEFORE UPDATE ON "public"."u
 
 
 CREATE OR REPLACE TRIGGER "update_withdrawals_updated_at" BEFORE UPDATE ON "public"."withdrawals" FOR EACH ROW EXECUTE FUNCTION "public"."update_updated_at_column"();
+
+
+
+ALTER TABLE ONLY "public"."bot_automation_config"
+    ADD CONSTRAINT "bot_automation_config_establishment_id_fkey" FOREIGN KEY ("establishment_id") REFERENCES "public"."establishments"("id");
+
+
+
+ALTER TABLE ONLY "public"."bot_automation_logs"
+    ADD CONSTRAINT "bot_automation_logs_config_id_fkey" FOREIGN KEY ("config_id") REFERENCES "public"."bot_automation_config"("id");
+
+
+
+ALTER TABLE ONLY "public"."bot_automation_logs"
+    ADD CONSTRAINT "bot_automation_logs_round_id_fkey" FOREIGN KEY ("round_id") REFERENCES "public"."rounds"("id");
 
 
 
@@ -2231,6 +2407,14 @@ CREATE POLICY "Admin pode gerenciar todos os jogadores" ON "public"."players" TO
 
 
 CREATE POLICY "Admin pode ler logs Groq" ON "public"."groq_usage_logs" FOR SELECT TO "authenticated" USING (true);
+
+
+
+CREATE POLICY "Admins can manage bot config" ON "public"."bot_automation_config" USING ("public"."is_admin"());
+
+
+
+CREATE POLICY "Admins can manage bot logs" ON "public"."bot_automation_logs" USING ("public"."is_admin"());
 
 
 
@@ -2374,6 +2558,14 @@ CREATE POLICY "Only system can create cards" ON "public"."cards" FOR INSERT WITH
 
 
 
+CREATE POLICY "Public can read bot config" ON "public"."bot_automation_config" FOR SELECT USING (true);
+
+
+
+CREATE POLICY "Public can read bot logs" ON "public"."bot_automation_logs" FOR SELECT USING (true);
+
+
+
 CREATE POLICY "Public can view active ticker messages" ON "public"."ticker_messages" FOR SELECT USING (("is_active" = true));
 
 
@@ -2458,6 +2650,12 @@ CREATE POLICY "Winners are viewable by everyone" ON "public"."winners" FOR SELEC
 
 COMMENT ON POLICY "Winners are viewable by everyone" ON "public"."winners" IS 'Ganhadores são públicos para transparência';
 
+
+
+ALTER TABLE "public"."bot_automation_config" ENABLE ROW LEVEL SECURITY;
+
+
+ALTER TABLE "public"."bot_automation_logs" ENABLE ROW LEVEL SECURITY;
 
 
 ALTER TABLE "public"."cards" ENABLE ROW LEVEL SECURITY;
@@ -2768,6 +2966,12 @@ GRANT ALL ON FUNCTION "public"."create_players_batch"("p_establishment_id" bigin
 
 
 
+GRANT ALL ON FUNCTION "public"."execute_bot_automation"("p_round_id" bigint, "p_establishment_id" bigint, "p_bot_names" "text"[], "p_cards_per_bot" integer) TO "anon";
+GRANT ALL ON FUNCTION "public"."execute_bot_automation"("p_round_id" bigint, "p_establishment_id" bigint, "p_bot_names" "text"[], "p_cards_per_bot" integer) TO "authenticated";
+GRANT ALL ON FUNCTION "public"."execute_bot_automation"("p_round_id" bigint, "p_establishment_id" bigint, "p_bot_names" "text"[], "p_cards_per_bot" integer) TO "service_role";
+
+
+
 GRANT ALL ON FUNCTION "public"."get_user_id_by_auth"("p_auth_id" "uuid") TO "anon";
 GRANT ALL ON FUNCTION "public"."get_user_id_by_auth"("p_auth_id" "uuid") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."get_user_id_by_auth"("p_auth_id" "uuid") TO "service_role";
@@ -2888,6 +3092,30 @@ GRANT ALL ON FUNCTION "public"."verify_password"("password" "text", "hash" "text
 
 
 
+
+
+
+GRANT ALL ON TABLE "public"."bot_automation_config" TO "anon";
+GRANT ALL ON TABLE "public"."bot_automation_config" TO "authenticated";
+GRANT ALL ON TABLE "public"."bot_automation_config" TO "service_role";
+
+
+
+GRANT ALL ON SEQUENCE "public"."bot_automation_config_id_seq" TO "anon";
+GRANT ALL ON SEQUENCE "public"."bot_automation_config_id_seq" TO "authenticated";
+GRANT ALL ON SEQUENCE "public"."bot_automation_config_id_seq" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."bot_automation_logs" TO "anon";
+GRANT ALL ON TABLE "public"."bot_automation_logs" TO "authenticated";
+GRANT ALL ON TABLE "public"."bot_automation_logs" TO "service_role";
+
+
+
+GRANT ALL ON SEQUENCE "public"."bot_automation_logs_id_seq" TO "anon";
+GRANT ALL ON SEQUENCE "public"."bot_automation_logs_id_seq" TO "authenticated";
+GRANT ALL ON SEQUENCE "public"."bot_automation_logs_id_seq" TO "service_role";
 
 
 
