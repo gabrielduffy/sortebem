@@ -14,6 +14,116 @@ export type Database = {
   }
   public: {
     Tables: {
+      bot_automation_config: {
+        Row: {
+          created_at: string | null
+          enabled: boolean | null
+          establishment_id: number
+          id: number
+          last_run_at: string | null
+          max_bots_per_round: number | null
+          max_cards_per_bot: number | null
+          min_bots_per_round: number | null
+          min_cards_per_bot: number | null
+          schedule_cron: string | null
+          trigger_type: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          enabled?: boolean | null
+          establishment_id: number
+          id?: never
+          last_run_at?: string | null
+          max_bots_per_round?: number | null
+          max_cards_per_bot?: number | null
+          min_bots_per_round?: number | null
+          min_cards_per_bot?: number | null
+          schedule_cron?: string | null
+          trigger_type?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          enabled?: boolean | null
+          establishment_id?: number
+          id?: never
+          last_run_at?: string | null
+          max_bots_per_round?: number | null
+          max_cards_per_bot?: number | null
+          min_bots_per_round?: number | null
+          min_cards_per_bot?: number | null
+          schedule_cron?: string | null
+          trigger_type?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bot_automation_config_establishment_id_fkey"
+            columns: ["establishment_id"]
+            isOneToOne: true
+            referencedRelation: "establishments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bot_automation_logs: {
+        Row: {
+          bots_created: number | null
+          cards_generated: number | null
+          completed_at: string | null
+          config_id: number | null
+          created_at: string | null
+          error_message: string | null
+          id: number
+          round_id: number | null
+          started_at: string | null
+          status: string | null
+          total_amount: number | null
+        }
+        Insert: {
+          bots_created?: number | null
+          cards_generated?: number | null
+          completed_at?: string | null
+          config_id?: number | null
+          created_at?: string | null
+          error_message?: string | null
+          id?: never
+          round_id?: number | null
+          started_at?: string | null
+          status?: string | null
+          total_amount?: number | null
+        }
+        Update: {
+          bots_created?: number | null
+          cards_generated?: number | null
+          completed_at?: string | null
+          config_id?: number | null
+          created_at?: string | null
+          error_message?: string | null
+          id?: never
+          round_id?: number | null
+          started_at?: string | null
+          status?: string | null
+          total_amount?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bot_automation_logs_config_id_fkey"
+            columns: ["config_id"]
+            isOneToOne: false
+            referencedRelation: "bot_automation_config"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bot_automation_logs_round_id_fkey"
+            columns: ["round_id"]
+            isOneToOne: false
+            referencedRelation: "rounds"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       cards: {
         Row: {
           code: string
@@ -1206,6 +1316,15 @@ export type Database = {
           id: number
           name: string
         }[]
+      }
+      execute_bot_automation: {
+        Args: {
+          p_bot_names: string[]
+          p_cards_per_bot?: number
+          p_establishment_id: number
+          p_round_id: number
+        }
+        Returns: Json
       }
       get_user_id_by_auth: { Args: { p_auth_id: string }; Returns: number }
       has_role: {
