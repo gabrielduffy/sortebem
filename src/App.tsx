@@ -48,6 +48,7 @@ import AdminFinance from '@/pages/admin/AdminFinance';
 import AdminProfile from '@/pages/admin/AdminProfile';
 import AdminPlayers from '@/pages/admin/AdminPlayers';
 import AdminWinners from '@/pages/admin/AdminWinners';
+import AdminBotAutomation from '@/pages/admin/AdminBotAutomation';
 
 const queryClient = new QueryClient();
 
@@ -211,6 +212,11 @@ const App = () => (
             <Route path="/admin/perfil" element={
               <ProtectedRoute allowedRoles={['admin']}>
                 <AdminProfile />
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/automacao-bots" element={
+              <ProtectedRoute allowedRoles={['admin']}>
+                <AdminBotAutomation />
               </ProtectedRoute>
             } />
 

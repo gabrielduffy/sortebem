@@ -58,6 +58,7 @@ const adminNavItems: NavItem[] = [
   { label: 'Gerentes', href: '/admin/gerentes', icon: Users },
   { label: 'Estabelecimentos', href: '/admin/estabelecimentos', icon: Building2 },
   { label: 'Jogadores', href: '/admin/jogadores', icon: Bot },
+  { label: 'Automação Bots', href: '/admin/automacao-bots', icon: Bot },
   { label: 'Integrações', href: '/admin/integracoes', icon: Plug },
   { label: 'Configurações POS', href: '/admin/pos', icon: Monitor },
   { label: 'Logs/Auditoria', href: '/admin/logs', icon: FileText },
