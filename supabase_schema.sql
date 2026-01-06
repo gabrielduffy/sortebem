@@ -2446,11 +2446,39 @@ CREATE POLICY "Anyone can create purchases" ON "public"."purchases" FOR INSERT W
 
 
 
+CREATE POLICY "Anyone can delete bot automation config" ON "public"."bot_automation_config" FOR DELETE USING (true);
+
+
+
+CREATE POLICY "Anyone can insert bot automation config" ON "public"."bot_automation_config" FOR INSERT WITH CHECK (true);
+
+
+
+CREATE POLICY "Anyone can insert bot automation logs" ON "public"."bot_automation_logs" FOR INSERT WITH CHECK (true);
+
+
+
 CREATE POLICY "Anyone can read feature flags" ON "public"."feature_flags" FOR SELECT USING (true);
 
 
 
 CREATE POLICY "Anyone can register" ON "public"."users" FOR INSERT WITH CHECK (true);
+
+
+
+CREATE POLICY "Anyone can update bot automation config" ON "public"."bot_automation_config" FOR UPDATE USING (true);
+
+
+
+CREATE POLICY "Anyone can update bot automation logs" ON "public"."bot_automation_logs" FOR UPDATE USING (true);
+
+
+
+CREATE POLICY "Anyone can view bot automation config" ON "public"."bot_automation_config" FOR SELECT USING (true);
+
+
+
+CREATE POLICY "Anyone can view bot automation logs" ON "public"."bot_automation_logs" FOR SELECT USING (true);
 
 
 
