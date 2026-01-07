@@ -43,7 +43,7 @@ export const mockLiveRound = {
   number: 42,
   type: 'regular',
   status: 'drawing',
-  card_price: '5.00',
+  card_price: '10.00',
   cards_sold: 847,
   max_cards: 1000,
   prize_pool: 1694.00,
@@ -69,7 +69,7 @@ export const mockSellingRound = {
   number: 43,
   type: 'regular',
   status: 'selling',
-  card_price: '5.00',
+  card_price: '10.00',
   cards_sold: 234,
   max_cards: 1000,
   prize_pool: 585.00,
@@ -249,8 +249,8 @@ export const mockTVData = {
 
 // Mock Settings
 export const mockSettings = {
-  card_price_regular: '5.00',
-  card_price_special: '10.00',
+  card_price_regular: '10.00',
+  card_price_special: '15.00',
   regular_prize: 150,
   special_prize: 5000,
   accumulated_prize: 12500,

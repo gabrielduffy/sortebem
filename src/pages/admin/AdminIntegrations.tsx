@@ -21,12 +21,9 @@ export default function AdminIntegrations() {
   const [copiedUrl, setCopiedUrl] = useState<string | null>(null);
 
   // Gateway state
-  const [asaasConfig, setAsaasConfig] = useState({
+  const [pixgoConfig, setPixgoConfig] = useState({
     enabled: false,
-    environment: 'sandbox',
-    apiKey: '',
-    pixKey: '',
-    webhookToken: ''
+    apiKey: ''
   });
   const [pagseguroConfig, setPagseguroConfig] = useState({
     enabled: false,
@@ -35,11 +32,12 @@ export default function AdminIntegrations() {
     webhookToken: ''
   });
   const [defaultGateway, setDefaultGateway] = useState({
-    pix: 'asaas',
+    pix: 'pixgo',
     card: 'pagseguro'
   });
-  const [showAsaasKey, setShowAsaasKey] = useState(false);
+  const [showPixgoKey, setShowPixgoKey] = useState(false);
   const [showPagseguroToken, setShowPagseguroToken] = useState(false);
+  const [testingPixgo, setTestingPixgo] = useState(false);
 
   // WhatsApp state
   const [whatsappConfig, setWhatsappConfig] = useState({
@@ -124,11 +122,11 @@ export default function AdminIntegrations() {
         // Load gateway settings
         if (settings.gateway) {
           const g = settings.gateway;
-          if (g.asaas) setAsaasConfig(g.asaas);
+          if (g.pixgo) setPixgoConfig(g.pixgo);
           if (g.pagseguro) setPagseguroConfig(g.pagseguro);
           if (g.default_pix_gateway || g.default_card_gateway) {
             setDefaultGateway({
-              pix: g.default_pix_gateway || 'asaas',
+              pix: g.default_pix_gateway || 'pixgo',
               card: g.default_card_gateway || 'pagseguro'
             });
           }
@@ -187,7 +185,7 @@ export default function AdminIntegrations() {
       const response = await apiService.updateGatewaySettings({
         default_pix_gateway: defaultGateway.pix,
         default_card_gateway: defaultGateway.card,
-        asaas: asaasConfig,
+        pixgo: pixgoConfig,
         pagseguro: pagseguroConfig
       });
 
@@ -203,12 +201,41 @@ export default function AdminIntegrations() {
     }
   };
 
-  const handleTestAsaas = async () => {
-    toast({ title: 'Testando...', description: 'Verificando conexão com Asaas.' });
-    // TODO: Implement test connection
-    setTimeout(() => {
-      toast({ title: 'Conexão OK!', description: 'Asaas está configurado corretamente.' });
-    }, 1000);
+  const handleTestPixgo = async () => {
+    if (!pixgoConfig.apiKey) {
+      toast({ title: 'API Key necessária', description: 'Informe a API Key do PixGo.', variant: 'destructive' });
+      return;
+    }
+    setTestingPixgo(true);
+    toast({ title: 'Testando...', description: 'Verificando conexão com PixGo.' });
+    
+    try {
+      // Test by making a simple request to validate API key
+      const response = await fetch('https://pixgo.org/api/v1/payment/create', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-API-Key': pixgoConfig.apiKey,
+        },
+        body: JSON.stringify({
+          amount: 1, // Below minimum to avoid creating real charge
+          description: 'Teste de conexão',
+        }),
+      });
+
+      // If we get 400 (validation error) or 201 (success), API key is valid
+      if (response.status === 400 || response.status === 201) {
+        toast({ title: 'Conexão OK!', description: 'PixGo está configurado corretamente.' });
+      } else if (response.status === 401 || response.status === 403) {
+        toast({ title: 'Erro', description: 'API Key inválida.', variant: 'destructive' });
+      } else {
+        toast({ title: 'Conexão OK!', description: 'PixGo está configurado corretamente.' });
+      }
+    } catch (error: any) {
+      toast({ title: 'Erro', description: error.message || 'Não foi possível testar a conexão.', variant: 'destructive' });
+    } finally {
+      setTestingPixgo(false);
+    }
   };
 
   const handleTestPagSeguro = async () => {
@@ -524,85 +551,57 @@ export default function AdminIntegrations() {
 
           {/* ABA 1: Gateway de Pagamento */}
           <TabsContent value="gateway" className="space-y-4">
-            {/* Asaas */}
+            {/* PixGo */}
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Plug className="w-5 h-5 text-primary" />
-                  Asaas
+                  PixGo
                 </CardTitle>
-                <CardDescription>Configure a integração com o gateway Asaas</CardDescription>
+                <CardDescription>Configure a integração com o gateway PixGo para pagamentos PIX</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="flex items-center justify-between">
                   <Label>Ativado</Label>
                   <Switch
-                    checked={asaasConfig.enabled}
-                    onCheckedChange={(checked) => setAsaasConfig({ ...asaasConfig, enabled: checked })}
+                    checked={pixgoConfig.enabled}
+                    onCheckedChange={(checked) => setPixgoConfig({ ...pixgoConfig, enabled: checked })}
                   />
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Ambiente</Label>
-                  <Select
-                    value={asaasConfig.environment}
-                    onValueChange={(value) => setAsaasConfig({ ...asaasConfig, environment: value })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="sandbox">Sandbox</SelectItem>
-                      <SelectItem value="production">Produção</SelectItem>
-                    </SelectContent>
-                  </Select>
                 </div>
 
                 <div className="space-y-2">
                   <Label>API Key</Label>
                   <div className="flex gap-2">
                     <Input
-                      type={showAsaasKey ? 'text' : 'password'}
-                      value={asaasConfig.apiKey}
-                      onChange={(e) => setAsaasConfig({ ...asaasConfig, apiKey: e.target.value })}
-                      placeholder="Sua API Key do Asaas"
+                      type={showPixgoKey ? 'text' : 'password'}
+                      value={pixgoConfig.apiKey}
+                      onChange={(e) => setPixgoConfig({ ...pixgoConfig, apiKey: e.target.value })}
+                      placeholder="pk_xxxxxxxxxxxxxxxxxx"
                     />
                     <Button
                       variant="outline"
                       size="icon"
-                      onClick={() => setShowAsaasKey(!showAsaasKey)}
+                      onClick={() => setShowPixgoKey(!showPixgoKey)}
                     >
-                      {showAsaasKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      {showPixgoKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </Button>
                   </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Chave PIX para recebimento</Label>
-                  <Input
-                    value={asaasConfig.pixKey}
-                    onChange={(e) => setAsaasConfig({ ...asaasConfig, pixKey: e.target.value })}
-                    placeholder="sua@chave.pix"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Webhook Token (opcional)</Label>
-                  <Input
-                    value={asaasConfig.webhookToken}
-                    onChange={(e) => setAsaasConfig({ ...asaasConfig, webhookToken: e.target.value })}
-                    placeholder="Token para validar webhooks (asaas-access-token)"
-                  />
                   <p className="text-xs text-muted-foreground">
-                    Se configurar um token no painel do Asaas, cole o mesmo valor aqui para validação extra.
-                    O Asaas envia esse token no header <code>asaas-access-token</code>.
+                    Obtenha sua API Key em: <a href="https://pixgo.org" target="_blank" rel="noopener noreferrer" className="text-primary underline">pixgo.org</a> → Checkouts → Gerar API Key
+                  </p>
+                </div>
+
+                <div className="bg-primary/5 border border-primary/20 rounded-lg p-3">
+                  <p className="text-xs text-muted-foreground">
+                    <strong>Limites PixGo:</strong> Mínimo R$ 10,00 por QR Code. Máximo varia por nível (até R$ 3.000,00). 
+                    PIX expira em 20 minutos.
                   </p>
                 </div>
 
                 <div className="flex gap-2">
-                  <Button variant="outline" onClick={handleTestAsaas}>
+                  <Button variant="outline" onClick={handleTestPixgo} disabled={testingPixgo}>
                     <Plug className="w-4 h-4 mr-2" />
-                    Testar Conexão
+                    {testingPixgo ? 'Testando...' : 'Testar Conexão'}
                   </Button>
                   <Button variant="hero" onClick={handleSaveGateway} disabled={saving}>
                     <Save className="w-4 h-4 mr-2" />
@@ -707,7 +706,7 @@ export default function AdminIntegrations() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="asaas">Asaas</SelectItem>
+                      <SelectItem value="pixgo">PixGo</SelectItem>
                       <SelectItem value="pagseguro">PagSeguro</SelectItem>
                     </SelectContent>
                   </Select>
@@ -1302,22 +1301,22 @@ export default function AdminIntegrations() {
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-4">
-                  {/* URL Direta do Supabase - Principal */}
+                  {/* PixGo - Principal */}
                   <div className="bg-primary/5 border-2 border-primary/30 rounded-lg p-4">
                     <div className="flex items-center gap-2 mb-2">
                       <Badge variant="default" className="bg-primary">Recomendado</Badge>
-                      <Label className="text-sm font-medium">URL Webhook Asaas (Supabase)</Label>
+                      <Label className="text-sm font-medium">URL Webhook PixGo</Label>
                     </div>
                     <div className="flex items-center gap-2 mt-2">
                       <code className="flex-1 bg-background px-3 py-2 rounded text-sm text-foreground break-all font-mono">
-                        https://ctjdbnvcqcyitpydnmdt.supabase.co/functions/v1/asaas-webhook
+                        https://ctjdbnvcqcyitpydnmdt.supabase.co/functions/v1/pixgo-webhook
                       </code>
                       <Button
                         variant="outline"
                         size="icon"
-                        onClick={() => handleCopyWebhookUrl('https://ctjdbnvcqcyitpydnmdt.supabase.co/functions/v1/asaas-webhook')}
+                        onClick={() => handleCopyWebhookUrl('https://ctjdbnvcqcyitpydnmdt.supabase.co/functions/v1/pixgo-webhook')}
                       >
-                        {copiedUrl === 'https://ctjdbnvcqcyitpydnmdt.supabase.co/functions/v1/asaas-webhook' ? (
+                        {copiedUrl === 'https://ctjdbnvcqcyitpydnmdt.supabase.co/functions/v1/pixgo-webhook' ? (
                           <Check className="w-4 h-4 text-green-500" />
                         ) : (
                           <Copy className="w-4 h-4" />
@@ -1325,34 +1324,7 @@ export default function AdminIntegrations() {
                       </Button>
                     </div>
                     <p className="text-xs text-muted-foreground mt-2">
-                      <strong>Use esta URL no painel do Asaas:</strong> Configurações → Webhooks → Adicionar
-                    </p>
-                  </div>
-
-                  {/* URL alternativa com domínio próprio */}
-                  <div className="bg-muted rounded-lg p-4">
-                    <div className="flex items-center gap-2 mb-2">
-                      <Badge variant="outline">Alternativo</Badge>
-                      <Label className="text-sm font-medium">URL com Domínio Próprio</Label>
-                    </div>
-                    <div className="flex items-center gap-2 mt-2">
-                      <code className="flex-1 bg-background px-3 py-2 rounded text-sm text-foreground break-all">
-                        https://sortebem.com.br/api/webhook/asaas
-                      </code>
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        onClick={() => handleCopyWebhookUrl('https://sortebem.com.br/api/webhook/asaas')}
-                      >
-                        {copiedUrl === 'https://sortebem.com.br/api/webhook/asaas' ? (
-                          <Check className="w-4 h-4" />
-                        ) : (
-                          <Copy className="w-4 h-4" />
-                        )}
-                      </Button>
-                    </div>
-                    <p className="text-xs text-muted-foreground mt-2">
-                      Requer configuração de proxy no nginx para redirecionar para a Edge Function
+                      <strong>Importante:</strong> Informe esta URL ao criar o pagamento (parâmetro webhook_url) ou configure no painel PixGo.
                     </p>
                   </div>
 
@@ -1382,14 +1354,12 @@ export default function AdminIntegrations() {
                 </div>
 
                 <div className="bg-primary/10 border border-primary/20 rounded-lg p-4">
-                  <h4 className="font-semibold text-foreground mb-2">Como configurar no Asaas:</h4>
+                  <h4 className="font-semibold text-foreground mb-2">Como funciona o PixGo:</h4>
                   <ol className="space-y-1 text-sm text-muted-foreground list-decimal list-inside">
-                    <li>Acesse o painel do Asaas → Configurações → Webhooks</li>
-                    <li>Clique em "Adicionar Webhook"</li>
-                    <li>Ative o webhook</li>
-                    <li>Cole a URL acima no campo "URL do Webhook"</li>
-                    <li>Selecione os eventos: PAYMENT_CONFIRMED, PAYMENT_RECEIVED</li>
-                    <li>Salve as configurações</li>
+                    <li>Cliente gera um PIX para comprar cartelas</li>
+                    <li>Sistema cria cobrança na API PixGo com webhook_url</li>
+                    <li>PixGo envia notificação quando pagamento é confirmado</li>
+                    <li>Webhook atualiza status da compra automaticamente</li>
                   </ol>
                 </div>
                 
@@ -1399,8 +1369,8 @@ export default function AdminIntegrations() {
                     <div className="flex-1">
                       <h4 className="font-semibold text-sm text-foreground mb-1">Edge Function Ativa</h4>
                       <p className="text-xs text-muted-foreground">
-                        A Edge Function <code>asaas-webhook</code> está configurada e pronta para receber notificações de pagamento.
-                        Quando um pagamento for confirmado, o sistema atualizará automaticamente o status da compra.
+                        A Edge Function <code>pixgo-webhook</code> está configurada e pronta para receber notificações de pagamento.
+                        Eventos suportados: payment.completed, payment.expired, payment.refunded.
                       </p>
                     </div>
                   </div>
