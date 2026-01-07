@@ -185,8 +185,8 @@ DECLARE
   special_price DECIMAL(10,2);
 BEGIN
   now_time := NOW();
-  regular_price := 5.00;
-  special_price := 10.00;
+  regular_price := 10.00;
+  special_price := 15.00;
 
   SELECT * INTO last_regular_round
   FROM rounds WHERE type = 'regular' ORDER BY created_at DESC LIMIT 1;
@@ -1206,6 +1206,7 @@ CREATE TABLE IF NOT EXISTS "public"."purchases" (
     "payment_confirmed" boolean DEFAULT false,
     "cards_generated" boolean DEFAULT false,
     "cards_generated_at" timestamp with time zone,
+    "pixgo_payment_id" "text",
     CONSTRAINT "purchases_gateway_check" CHECK (("gateway" = ANY (ARRAY['asaas'::"text", 'pagseguro'::"text"]))),
     CONSTRAINT "purchases_payment_method_check" CHECK (("payment_method" = ANY (ARRAY['pix'::"text", 'credit_card'::"text", 'debit_card'::"text"]))),
     CONSTRAINT "purchases_payment_status_check" CHECK (("payment_status" = ANY (ARRAY['pending'::"text", 'paid'::"text", 'failed'::"text", 'cancelled'::"text", 'refunded'::"text"])))
