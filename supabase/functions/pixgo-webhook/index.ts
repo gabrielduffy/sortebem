@@ -3,21 +3,26 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, asaas-access-token",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-webhook-event, x-webhook-timestamp",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-interface AsaasWebhookPayload {
-  event: string;
-  payment?: {
-    id: string;
-    customer: string;
-    value: number;
+interface PixGoWebhookPayload {
+  event: "payment.completed" | "payment.expired" | "payment.refunded";
+  timestamp: string;
+  data: {
+    payment_id: string;
+    external_id?: string;
+    amount: number;
     status: string;
-    billingType: string;
-    externalReference?: string;
-    confirmedDate?: string;
-    paymentDate?: string;
+    payer_name?: string;
+    payer_cpf?: string;
+    payer_phone?: string;
+    description?: string;
+    created_at: string;
+    completed_at?: string;
+    expired_at?: string;
+    refunded_at?: string;
   };
 }
 
@@ -32,52 +37,30 @@ serve(async (req: Request) => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Get the access token from header (sent by Asaas)
-    const receivedToken = req.headers.get("asaas-access-token");
-    
-    // Optionally validate token against saved webhook token
-    // This is optional - Asaas sends this header if you configure a token
-    if (receivedToken) {
-      console.log("Asaas webhook received with access token");
-      
-      // Get saved webhook token from settings
-      const { data: gatewaySettings } = await supabase
-        .from("settings")
-        .select("value")
-        .eq("key", "gateway")
-        .maybeSingle();
-      
-      const savedToken = gatewaySettings?.value?.asaas?.webhookToken;
-      
-      if (savedToken && savedToken !== receivedToken) {
-        console.warn("Webhook token mismatch!");
-        return new Response(
-          JSON.stringify({ success: false, error: "Invalid webhook token" }),
-          { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-    }
-
     // Parse webhook payload
-    const payload: AsaasWebhookPayload = await req.json();
+    const payload: PixGoWebhookPayload = await req.json();
     
-    console.log("Asaas Webhook received:", JSON.stringify(payload));
+    console.log("PixGo Webhook received:", JSON.stringify(payload));
 
-    // Validate event type
-    if (!payload.event) {
+    // Get webhook event from header (optional validation)
+    const webhookEvent = req.headers.get("x-webhook-event");
+    console.log("Webhook event header:", webhookEvent);
+
+    // Validate payload structure
+    if (!payload.event || !payload.data) {
       return new Response(
-        JSON.stringify({ success: false, error: "Invalid payload - missing event" }),
+        JSON.stringify({ success: false, error: "Invalid payload structure" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    const { event, payment } = payload;
+    const { event, data } = payload;
 
     // Log webhook to database
     const { data: webhookLog, error: logError } = await supabase
       .from("payment_webhooks")
       .insert({
-        gateway: "asaas",
+        gateway: "pixgo",
         event_type: event,
         payload: payload,
         processed: false,
@@ -89,49 +72,39 @@ serve(async (req: Request) => {
       console.error("Error logging webhook:", logError);
     }
 
-    // If no payment data, just log and return success
-    if (!payment) {
-      console.log("Webhook without payment data, event:", event);
-      return new Response(
-        JSON.stringify({ success: true, message: "Event logged", event }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    // Find purchase by asaas_charge_id or externalReference
+    // Find purchase by pixgo_payment_id or external_id
     let purchase = null;
     
-    // Try by charge_id first
-    const { data: purchaseByCharge } = await supabase
+    // Try by payment_id first (stored as pixgo_payment_id)
+    const { data: purchaseByPaymentId } = await supabase
       .from("purchases")
       .select("id, payment_status, cards_generated")
-      .eq("asaas_charge_id", payment.id)
+      .eq("pixgo_payment_id", data.payment_id)
       .maybeSingle();
     
-    purchase = purchaseByCharge;
+    purchase = purchaseByPaymentId;
     
-    // If not found, try by externalReference (which is our purchase_id)
-    if (!purchase && payment.externalReference) {
+    // If not found, try by external_id (which is our purchase_id)
+    if (!purchase && data.external_id) {
       const { data: purchaseByRef } = await supabase
         .from("purchases")
         .select("id, payment_status, cards_generated")
-        .eq("id", parseInt(payment.externalReference))
+        .eq("id", parseInt(data.external_id))
         .maybeSingle();
       
       purchase = purchaseByRef;
       
-      // Update the asaas_charge_id if found by reference
+      // Update the pixgo_payment_id if found by reference
       if (purchase) {
         await supabase
           .from("purchases")
-          .update({ asaas_charge_id: payment.id })
+          .update({ pixgo_payment_id: data.payment_id })
           .eq("id", purchase.id);
       }
     }
 
     if (!purchase) {
-      console.log("Purchase not found for charge:", payment.id, "ref:", payment.externalReference);
-      // Still return success - Asaas might send webhooks for other events
+      console.log("Purchase not found for payment:", data.payment_id, "external_id:", data.external_id);
       return new Response(
         JSON.stringify({ success: true, message: "Purchase not found, event logged" }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -146,17 +119,14 @@ serve(async (req: Request) => {
         .eq("id", webhookLog.id);
     }
 
-    // Handle payment confirmed events
-    const confirmedEvents = ["PAYMENT_CONFIRMED", "PAYMENT_RECEIVED"];
-    
-    if (confirmedEvents.includes(event)) {
-      // Update purchase status
+    // Handle payment.completed event
+    if (event === "payment.completed") {
       const { error: updateError } = await supabase
         .from("purchases")
         .update({
           payment_status: "confirmed",
           payment_confirmed: true,
-          paid_at: payment.confirmedDate || payment.paymentDate || new Date().toISOString(),
+          paid_at: data.completed_at || new Date().toISOString(),
           updated_at: new Date().toISOString(),
         })
         .eq("id", purchase.id);
@@ -183,14 +153,12 @@ serve(async (req: Request) => {
       console.log("Payment confirmed for purchase:", purchase.id);
     }
 
-    // Handle payment failed/cancelled events
-    const failedEvents = ["PAYMENT_DELETED", "PAYMENT_REFUNDED", "PAYMENT_OVERDUE"];
-    
-    if (failedEvents.includes(event)) {
+    // Handle payment.expired event
+    if (event === "payment.expired") {
       await supabase
         .from("purchases")
         .update({
-          payment_status: event === "PAYMENT_REFUNDED" ? "refunded" : "cancelled",
+          payment_status: "expired",
           updated_at: new Date().toISOString(),
         })
         .eq("id", purchase.id);
@@ -205,7 +173,30 @@ serve(async (req: Request) => {
           .eq("id", webhookLog.id);
       }
 
-      console.log("Payment failed/cancelled for purchase:", purchase.id);
+      console.log("Payment expired for purchase:", purchase.id);
+    }
+
+    // Handle payment.refunded event
+    if (event === "payment.refunded") {
+      await supabase
+        .from("purchases")
+        .update({
+          payment_status: "refunded",
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", purchase.id);
+
+      if (webhookLog) {
+        await supabase
+          .from("payment_webhooks")
+          .update({ 
+            processed: true, 
+            processed_at: new Date().toISOString() 
+          })
+          .eq("id", webhookLog.id);
+      }
+
+      console.log("Payment refunded for purchase:", purchase.id);
     }
 
     return new Response(

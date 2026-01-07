@@ -1,7 +1,7 @@
 // API Service for SORTEBEM - Supabase Version
 import { supabase } from '../lib/supabase'
 import { authService } from './authService'
-import { asaasService } from './asaasService'
+import { pixgoService } from './pixgoService'
 import { cardGeneratorService } from './cardGeneratorService'
 import { featureFlagService } from './featureFlagService'
 
@@ -269,11 +269,11 @@ class ApiService {
     customerPhone?: string;
   }): Promise<ApiResponse> {
     try {
-      const useAsaas = await featureFlagService.isEnabled('use_asaas_pix');
+      const usePixgo = await featureFlagService.isEnabled('use_pixgo_pix');
 
-      if (useAsaas) {
-        // Usar Asaas real
-        const result = await asaasService.generatePixForPurchase(params);
+      if (usePixgo) {
+        // Usar PixGo real
+        const result = await pixgoService.generatePixForPurchase(params);
 
         if (!result.success) {
           return { ok: false, error: result.error || 'Erro ao gerar PIX' };
@@ -285,7 +285,7 @@ class ApiService {
             pixCode: result.payload,
             pixQrCode: result.encodedImage,
             expirationDate: result.expirationDate,
-            chargeId: result.chargeId,
+            paymentId: result.paymentId,
           },
         };
       } else {
@@ -295,7 +295,7 @@ class ApiService {
         // Atualizar purchase com mock
         await supabase.from('purchases').update({
           pix_qr_code: mockPixCode,
-          pix_expiration: new Date(Date.now() + 30 * 60 * 1000).toISOString(), // 30 minutos
+          pix_expiration: new Date(Date.now() + 20 * 60 * 1000).toISOString(), // 20 minutos (PixGo expira em 20 min)
         }).eq('id', params.purchaseId);
 
         return {
@@ -303,7 +303,7 @@ class ApiService {
           data: {
             pixCode: mockPixCode,
             pixQrCode: mockPixCode,
-            expirationDate: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
+            expirationDate: new Date(Date.now() + 20 * 60 * 1000).toISOString(),
           },
         };
       }

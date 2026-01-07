@@ -771,6 +771,7 @@ export type Database = {
           pix_expiration: string | null
           pix_qr_code: string | null
           pix_qrcode: string | null
+          pixgo_payment_id: string | null
           quantity: number
           round_id: number
           total_amount: number
@@ -800,6 +801,7 @@ export type Database = {
           pix_expiration?: string | null
           pix_qr_code?: string | null
           pix_qrcode?: string | null
+          pixgo_payment_id?: string | null
           quantity: number
           round_id: number
           total_amount: number
@@ -829,6 +831,7 @@ export type Database = {
           pix_expiration?: string | null
           pix_qr_code?: string | null
           pix_qrcode?: string | null
+          pixgo_payment_id?: string | null
           quantity?: number
           round_id?: number
           total_amount?: number

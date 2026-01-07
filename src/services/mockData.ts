@@ -230,8 +230,8 @@ export interface PosSale {
 
 // Mock data instances
 export const mockSettings: Settings = {
-  cardPriceRegular: 5.00,
-  cardPriceSpecial: 10.00,
+  cardPriceRegular: 10.00,
+  cardPriceSpecial: 15.00,
   platformPercent: 10,
   charityPercent: 20,
   establishmentCommission: 15,
