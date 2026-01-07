@@ -101,6 +101,11 @@ const Checkout = () => {
   const [copiedPix, setCopiedPix] = useState(false);
   const [copiedCard, setCopiedCard] = useState<string | null>(null);
   const [whatsappSent, setWhatsappSent] = useState(false);
+  
+  // Polling state
+  const [pollingStatus, setPollingStatus] = useState<'idle' | 'polling' | 'confirmed' | 'expired'>('idle');
+  const [pollingSeconds, setPollingSeconds] = useState(0);
+  const [pixExpiration, setPixExpiration] = useState<Date | null>(null);
 
   // API data
   const [availableRounds, setAvailableRounds] = useState<any[]>([]);
@@ -165,6 +170,51 @@ const Checkout = () => {
 
     loadData();
   }, []);
+
+  // Polling effect for PIX payment
+  useEffect(() => {
+    if (pollingStatus !== 'polling' || !pixData?.purchaseId) return;
+
+    // Timer for elapsed seconds
+    const secondsInterval = setInterval(() => {
+      setPollingSeconds(prev => prev + 1);
+    }, 1000);
+
+    // Check if expired (20 minutes)
+    const checkExpiration = () => {
+      if (pixExpiration && Date.now() > pixExpiration.getTime()) {
+        setPollingStatus('expired');
+        return true;
+      }
+      return false;
+    };
+
+    // Polling for payment status
+    const pollInterval = setInterval(async () => {
+      if (checkExpiration()) {
+        clearInterval(pollInterval);
+        clearInterval(secondsInterval);
+        return;
+      }
+
+      try {
+        const statusResult = await apiService.checkPurchaseStatus(pixData.purchaseId);
+        if (statusResult.ok && statusResult.data?.payment_confirmed) {
+          setPollingStatus('confirmed');
+          clearInterval(pollInterval);
+          clearInterval(secondsInterval);
+          await handlePaymentConfirmed(parseInt(pixData.purchaseId));
+        }
+      } catch (error) {
+        console.error('Polling error:', error);
+      }
+    }, 3000);
+
+    return () => {
+      clearInterval(pollInterval);
+      clearInterval(secondsInterval);
+    };
+  }, [pollingStatus, pixData?.purchaseId, pixExpiration]);
 
   const futureRounds = availableRounds.map(r => ({
     id: r.id,
@@ -250,18 +300,11 @@ const Checkout = () => {
             amount: totalPrice
           });
           setStep('payment');
-
-          // Polling para verificar pagamento (a cada 3 segundos)
-          const pollInterval = setInterval(async () => {
-            const statusResult = await apiService.checkPurchaseStatus(response.data.id.toString());
-            if (statusResult.ok && statusResult.data?.payment_confirmed) {
-              clearInterval(pollInterval);
-              await handlePaymentConfirmed(response.data.id);
-            }
-          }, 3000);
-
-          // Parar polling após 10 minutos
-          setTimeout(() => clearInterval(pollInterval), 10 * 60 * 1000);
+          
+          // Set expiration (20 minutes from now)
+          setPixExpiration(new Date(Date.now() + 20 * 60 * 1000));
+          setPollingStatus('polling');
+          setPollingSeconds(0);
         } else {
           toast({
             title: 'Erro',
@@ -865,13 +908,68 @@ seu prêmio em caso de vitória.
                 </div>
               </div>
 
-              <div className="bg-primary/5 border border-primary/20 rounded-xl p-4 text-center">
-                <div className="flex items-center justify-center gap-2 mb-2">
-                  <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
-                  <span className="font-medium text-primary">Aguardando pagamento...</span>
+              {/* Polling Status Feedback */}
+              {pollingStatus === 'polling' && (
+                <div className="bg-primary/5 border border-primary/20 rounded-xl p-4">
+                  <div className="flex items-center justify-center gap-2 mb-3">
+                    <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+                    <span className="font-medium text-primary">Aguardando pagamento...</span>
+                  </div>
+                  
+                  {/* Elapsed time */}
+                  <div className="text-center mb-3">
+                    <span className="text-sm text-muted-foreground">Tempo decorrido: </span>
+                    <span className="font-mono font-bold text-foreground">
+                      {Math.floor(pollingSeconds / 60).toString().padStart(2, '0')}:
+                      {(pollingSeconds % 60).toString().padStart(2, '0')}
+                    </span>
+                  </div>
+                  
+                  {/* Progress bar */}
+                  <div className="w-full bg-secondary rounded-full h-2 overflow-hidden">
+                    <motion.div 
+                      className="h-full bg-primary"
+                      initial={{ width: '0%' }}
+                      animate={{ width: `${Math.min((pollingSeconds / (20 * 60)) * 100, 100)}%` }}
+                      transition={{ duration: 0.5 }}
+                    />
+                  </div>
+                  <p className="text-xs text-muted-foreground text-center mt-2">
+                    Expira em {Math.max(0, 20 - Math.floor(pollingSeconds / 60))} minutos
+                  </p>
                 </div>
-                <p className="text-sm text-muted-foreground">O pagamento será confirmado automaticamente</p>
-              </div>
+              )}
+
+              {pollingStatus === 'confirmed' && (
+                <div className="bg-success/10 border border-success/30 rounded-xl p-4 text-center">
+                  <div className="flex items-center justify-center gap-2">
+                    <Check className="w-5 h-5 text-success" />
+                    <span className="font-medium text-success">Pagamento confirmado!</span>
+                  </div>
+                  <p className="text-sm text-muted-foreground mt-1">Gerando suas cartelas...</p>
+                </div>
+              )}
+
+              {pollingStatus === 'expired' && (
+                <div className="bg-destructive/10 border border-destructive/30 rounded-xl p-4 text-center">
+                  <div className="flex items-center justify-center gap-2 mb-2">
+                    <Clock className="w-5 h-5 text-destructive" />
+                    <span className="font-medium text-destructive">PIX expirado</span>
+                  </div>
+                  <p className="text-sm text-muted-foreground mb-3">O tempo para pagamento expirou.</p>
+                  <Button 
+                    onClick={() => {
+                      setStep('quantity');
+                      setPollingStatus('idle');
+                      setPollingSeconds(0);
+                      setPixData(null);
+                    }}
+                    variant="outline"
+                  >
+                    Gerar novo PIX
+                  </Button>
+                </div>
+              )}
             </motion.div>
           )}
 

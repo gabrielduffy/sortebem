@@ -180,9 +180,8 @@ class PixGoService {
     error?: string;
   }> {
     try {
-      // Construir URL do webhook
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const webhookUrl = `${supabaseUrl}/functions/v1/pixgo-webhook`;
+      // Construir URL do webhook usando o project ID diretamente
+      const webhookUrl = 'https://ctjdbnvcqcyitpydnmdt.supabase.co/functions/v1/pixgo-webhook';
 
       // Criar pagamento PIX
       const result = await this.createPayment({
